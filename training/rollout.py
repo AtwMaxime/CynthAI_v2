@@ -246,6 +246,20 @@ def build_action_mask(state: dict, side_idx: int) -> torch.Tensor:
     force_sw   = bool(active.get("force_switch_flag", False))
     trapped    = bool(active.get("trapped", False))
 
+    # Use the Rust sim's own request_state if available — it's the source of truth
+    # for whether a switch is expected, covering cases like U-turn, Baton Pass, etc.
+    req_state = side.get("request_state", "")
+
+    # When Rust sim expects a switch, only switch slots are legal
+    if req_state == "Switch":
+        bench = [
+            j for j, p in enumerate(side["pokemon"])
+            if j not in active_set and not p.get("fainted", False)
+        ]
+        for k in range(min(len(bench), 5)):
+            mask[8 + k] = False
+        return mask
+
     # Fainted Pokémon must switch — no move slots legal
     if not fainted:
         # Move slots 0-3

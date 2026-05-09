@@ -48,7 +48,8 @@ def dump_poke(poke: dict, idx: int) -> str:
             f"moves={mvs}")
 
 def dump_side(side, label: str) -> list[str]:
-    lines = [f"  {label}: active={[a for a in side['active'] if a is not None]}"]
+    lines = [f"  {label}: active={[a for a in side['active'] if a is not None]}  "
+             f"req_state={side.get('request_state','?')}"]
     for pi, poke in enumerate(side["pokemon"]):
         lines.append(dump_poke(poke, pi))
     return lines

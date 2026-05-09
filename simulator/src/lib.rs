@@ -99,6 +99,7 @@ impl PyBattle {
             let side_dict = PyDict::new_bound(py);
             side_dict.set_item("pokemon_left", side.pokemon_left)?;
             side_dict.set_item("total_fainted", side.total_fainted)?;
+            side_dict.set_item("request_state", format!("{:?}", side.request_state))?;
 
             // Side conditions: { condition_id: layers }
             // layers defaults to 1 for conditions without a layer count (Stealth Rock, etc.)
