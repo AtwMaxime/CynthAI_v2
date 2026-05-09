@@ -2,7 +2,7 @@
 CynthAI_v2 Self-Play Training — PPO update loop.
 
 Outer loop (each update):
-  1. Sample opponent from pool (or live agent if pool empty -> pure self-play)
+  1. Sample opponent via mixing: 80% pool / 10% Random / 10% FullOffense
   2. collect_rollout -> complete episodes, GAE pre-computed
   3. n_epochs x minibatch PPO updates
        - forward agent (with gradients)
@@ -11,16 +11,20 @@ Outer loop (each update):
        - clip_grad_norm 0.5 + AdamW step
   4. Update LR (warmup + cosine decay)
   5. Log metrics to stdout
-  6. Checkpoint .pt + snapshot agent into opponent pool every N updates
+  6. Every eval_freq updates: evaluate vs Random / FullOffense / pool (500 games each)
+       - Snapshot agent into opponent pool when pool eval WR > threshold
+  7. Checkpoint .pt every checkpoint_freq updates
 
 Opponent pool:
   Starts empty - agent plays itself (simplest, identical distributions).
-  A deep-copy snapshot (requires_grad=False) is added every pool_update_freq
-  updates. Pool keeps at most pool_size snapshots (oldest dropped).
+  A deep-copy snapshot (requires_grad=False) is added when win_rate exceeds
+  pool_snapshot_threshold (default 0.55), with a cooldown between snapshots.
+  Pool keeps at most pool_size snapshots (oldest dropped).
 
 Logging columns (every log_every updates):
   update | win% | policy | value | entropy | pred | total | lr | time | eps |
-  grad_norm | clip_frac | explained_variance
+  grad_norm | clip_frac | explained_variance | opp
+Plus eval lines every eval_freq updates showing WR vs random, fulloff, pool.
 """
 
 from __future__ import annotations
@@ -40,8 +44,10 @@ from model.agent import CynthAIAgent
 from model.embeddings import PokemonBatch
 from model.prediction_heads import PredictionHeads
 from model.backbone import K_TURNS
-from training.rollout import collect_rollout
+from training.rollout import collect_rollout, RandomPolicy
 from training.losses import compute_losses
+from training.evaluate import run_eval
+from env.bots import FullOffensePolicy
 
 
 # -- Training configuration -------------------------------------------------------
@@ -72,14 +78,17 @@ class TrainingConfig:
     weight_decay:  float = 1e-4     # P4: L2 regularisation
 
     # Opponent pool
-    pool_size:        int = 5
-    pool_update_freq: int = 10   # snapshot every N updates
+    pool_size:        int   = 20        # P3: increased from 5 for more diversity
+    pool_snapshot_threshold: float = 0.55  # P3: snapshot agent when win_rate exceeds this
+    pool_cooldown:    int   = 5         # P3: min updates between snapshots
 
     # Checkpointing / logging
     checkpoint_dir:  str = "checkpoints"
     checkpoint_freq: int = 50
     log_every:       int = 1
     win_rate_window: int = 100
+    eval_freq:       int = 20      # P3: run evaluation every N updates
+    eval_n_games:    int = 500     # P3: games per opponent in evaluation
 
     # Device
     device: str = "cpu"
@@ -166,6 +175,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
     pool        = OpponentPool(pool_size=cfg.pool_size)
     win_history : deque[int] = deque(maxlen=cfg.win_rate_window)
     total_eps   = 0
+    last_snapshot_update = 0  # P3: cooldown counter for WR-based snapshots
 
     n_params = sum(p.numel() for p in agent.parameters())
     print(
@@ -175,15 +185,27 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
     print(
         f"{'update':>7}  {'win%':>6}  "
         f"{'policy':>8}  {'value':>8}  {'entropy':>8}  "
-        f"{'pred':>8}  {'total':>8}  {'lr':>8}  info"
+        f"{'pred':>8}  {'total':>8}  {'lr':>8}  info  opp"
     )
 
     for update in range(start_update, cfg.total_updates + 1):
         t0 = time.perf_counter()
 
-        # -- 1. Rollout collection ----------------------------------------------------
+        # -- 1a. Opponent selection (mixing) -----------------------------------------
+        # P3: 80% pool / 10% RandomPolicy / 10% FullOffense
+        roll = random.random()
+        if roll < 0.10:
+            opponent = RandomPolicy()
+            opp_label = "rand"
+        elif roll < 0.20:
+            opponent = FullOffensePolicy()
+            opp_label = "fo"
+        else:
+            opponent = pool.sample(agent)
+            opp_label = f"pool({len(pool)})"
+
+        # -- 1b. Rollout collection ----------------------------------------------------
         agent.eval()
-        opponent = pool.sample(agent)
 
         buffer = collect_rollout(
             agent_self = agent,
@@ -277,10 +299,61 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 f"[{elapsed:.1f}s  eps={total_eps}  pool={len(pool)}  "
                 f"gn={loss_acc['grad_norm']/ns:.3f}  "
                 f"cf={loss_acc['clip_frac']/ns:.3f}  "
-                f"ev={loss_acc['explained_variance']/ns:.3f}]"
+                f"ev={loss_acc['explained_variance']/ns:.3f}  "
+                f"opp={opp_label}]"
             )
 
-        # -- 5. Checkpoint ------------------------------------------------------------
+        # -- 5. Periodic evaluation ---------------------------------------------------
+        # P3: every eval_freq updates, run 500 games vs each opponent type
+        if update % cfg.eval_freq == 0:
+            agent.eval()
+            eval_t0 = time.perf_counter()
+
+            # Fixed opponents: Random and FullOffense (deterministic, no need to sample)
+            eval_opponents = {
+                "random":  RandomPolicy(),
+                "fulloff": FullOffensePolicy(),
+            }
+            eval_results = {}
+            for label, opp in eval_opponents.items():
+                res = run_eval(
+                    agent    = agent,
+                    opponent = opp,
+                    n_games  = cfg.eval_n_games,
+                    n_envs   = cfg.n_envs,
+                    format_id= cfg.format_id,
+                    device   = device,
+                )
+                eval_results[label] = res
+                print(f"  eval {label}: WR={res['win_rate']*100:.1f}%  "
+                      f"W={res['wins']} L={res['losses']}  "
+                      f"({res['total']} games)")
+
+            # Pool eval: sample a fresh opponent each batch for representative WR
+            eval_results["pool"] = run_eval(
+                agent             = agent,
+                n_games           = cfg.eval_n_games,
+                n_envs            = cfg.n_envs,
+                format_id         = cfg.format_id,
+                device            = device,
+                opponent_sampler  = lambda: pool.sample(agent),
+            )
+            pool_wr = eval_results["pool"]["win_rate"]
+            print(f"  eval pool: WR={pool_wr*100:.1f}%  "
+                  f"W={eval_results['pool']['wins']} L={eval_results['pool']['losses']}  "
+                  f"({eval_results['pool']['total']} games)")
+
+            # Snapshot agent when pool eval WR exceeds threshold
+            if (pool_wr > cfg.pool_snapshot_threshold
+                and update - last_snapshot_update >= cfg.pool_cooldown):
+                pool.add(agent)
+                last_snapshot_update = update
+                print(f"  -> snapshot added (pool eval WR={pool_wr*100:.1f}%)")
+
+            eval_elapsed = time.perf_counter() - eval_t0
+            print(f"  eval finished [{eval_elapsed:.1f}s]")
+
+        # -- 7. Checkpoint (standalone; snapshot is inside eval block) -----------------
         if update % cfg.checkpoint_freq == 0:
             ckpt_path = Path(cfg.checkpoint_dir) / f"agent_{update:06d}.pt"
             torch.save({
@@ -289,10 +362,6 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 "optimizer": optimizer.state_dict(),
             }, ckpt_path)
             print(f"  -> checkpoint saved: {ckpt_path}")
-
-        # -- 6. Update opponent pool --------------------------------------------------
-        if update % cfg.pool_update_freq == 0:
-            pool.add(agent)
 
 
 # -- Entry point --------------------------------------------------------------------

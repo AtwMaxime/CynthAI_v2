@@ -528,36 +528,72 @@ def collect_rollout(
             masks_opp  = torch.stack([build_action_mask(s, side_opp)  for s in prev_states]).to(device)
 
             out_self = agent_self(*ins_self, masks_self)
-            out_opp  = agent_opp(*ins_opp,  masks_opp)
+
+            # Bot vs neural opponent dispatch
+            if hasattr(agent_opp, "act"):
+                # Rule-based bot (e.g. FullOffensePolicy) — use .act(states)
+                acts_opp = agent_opp.act(prev_states, side_opp, masks_opp)
+                # Bot provides no value/log_probs; use zeros for buffer
+                _bot_value    = torch.zeros(n_envs, 1, device=device)
+                _bot_log_probs = torch.full((n_envs, 13), -100.0, device=device)
+                _bot_log_probs = _bot_log_probs.masked_fill(masks_opp, -1e9)
+                out_opp = type("_BotOut", (), {
+                    "value": _bot_value, "log_probs": _bot_log_probs,
+                })()
+            else:
+                out_opp  = agent_opp(*ins_opp,  masks_opp)
 
             acts_self = _sample_action(out_self.log_probs, masks_self)
-            acts_opp  = _sample_action(out_opp.log_probs,  masks_opp)
+            acts_opp  = _sample_action(out_opp.log_probs,  masks_opp) if not hasattr(agent_opp, "act") else acts_opp
 
             curr_states = []
-            for i in range(n_envs):
-                c_self = action_to_choice(acts_self[i].item(), prev_states[i], side_self)
-                c_opp  = action_to_choice(acts_opp[i].item(),  prev_states[i], side_opp)
-                p1, p2 = (c_self, c_opp) if side_self == 0 else (c_opp, c_self)
-                try:
-                    envs[i].make_choices(p1, p2)
-                except Exception:
-                    # Diagnostic: log the state that caused the crash
-                    import sys, traceback as _tb
-                    print(f"CRASH in make_choices env={i} p1={p1!r} p2={p2!r}", file=sys.stderr)
-                    s = prev_states[i]
-                    for si in [0, 1]:
-                        side = s["sides"][si]
-                        active_set = [a for a in side["active"] if a is not None]
-                        if active_set:
-                            p = side["pokemon"][active_set[0]]
-                            print(f"  side{si}: {p.get('species_id','?')} hp={p.get('hp','?')}/{p.get('maxhp','?')} "
-                                  f"fainted={p.get('fainted')} force_sw={p.get('force_switch_flag')} "
-                                  f"trapped={p.get('trapped')} status={p.get('status','')}", file=sys.stderr)
-                    _tb.print_exc()
-                    raise
-                curr_states.append(envs[i].get_state())
+            crashed: set[int] = set()
+            chosen_actions_self: list[int] = []
+            chosen_actions_opp:  list[int] = []
 
             for i in range(n_envs):
+                # ── Couche 1 : re-valider avec un état frais ─────────────────
+                fresh_state = envs[i].get_state()
+                fresh_mask_self = build_action_mask(fresh_state, side_self)
+                fresh_mask_opp  = build_action_mask(fresh_state, side_opp)
+
+                a_self = acts_self[i].item()
+                if fresh_mask_self[a_self]:
+                    legal = (~fresh_mask_self).nonzero().squeeze(-1)
+                    a_self = legal[torch.randint(0, len(legal), (1,))].item() if len(legal) > 0 else 0
+
+                a_opp = acts_opp[i].item()
+                if fresh_mask_opp[a_opp]:
+                    legal = (~fresh_mask_opp).nonzero().squeeze(-1)
+                    a_opp = legal[torch.randint(0, len(legal), (1,))].item() if len(legal) > 0 else 0
+
+                chosen_actions_self.append(a_self)
+                chosen_actions_opp.append(a_opp)
+
+                c_self = action_to_choice(a_self, fresh_state, side_self)
+                c_opp  = action_to_choice(a_opp,  fresh_state, side_opp)
+                p1, p2 = (c_self, c_opp) if side_self == 0 else (c_opp, c_self)
+
+                try:
+                    envs[i].make_choices(p1, p2)
+                    curr_states.append(envs[i].get_state())
+                except BaseException:
+                    # ── Couche 2 : PanicException (BaseException, pas Exception)
+                    # Transition corrompue → on skip, on reset, on continue.
+                    import sys, traceback as _tb
+                    print(f"CRASH in make_choices env={i} p1={p1!r} p2={p2!r}", file=sys.stderr)
+                    _tb.print_exc()
+                    envs[i] = PyBattle(format_id, seed=next_seed)
+                    next_seed += 1
+                    wins_self[i].reset()
+                    wins_opp[i].reset()
+                    curr_states.append(envs[i].get_state())
+                    crashed.add(i)
+
+            for i in range(n_envs):
+                if i in crashed:
+                    continue  # transition skip — données corrompues
+
                 done   = envs[i].ended
                 winner = envs[i].winner
                 won    = (winner == "p1") if side_self == 0 else (winner == "p2")
@@ -570,7 +606,7 @@ def collect_rollout(
                 mdis  = ins_self[4]
                 mech  = ins_self[5][i].item()
                 mtype = ins_self[6][i].item()
-                action = acts_self[i].item()
+                action = chosen_actions_self[i]   # action réellement jouée (peut différer de acts_self)
 
                 buffer.add(Transition(
                     species_idx       = pb.species_idx[i].cpu(),

@@ -26,61 +26,54 @@ import torch
 
 from model.agent import CynthAIAgent
 from training.rollout import collect_rollout, RandomPolicy
+from env.bots import FullOffensePolicy
 
 
-def evaluate(
-    checkpoint: str,
-    n_envs:     int   = 16,
-    n_battles:  int   = 200,
-    format_id:  str   = "gen9randombattle",
-    opponent:   str   = "random",
-    device:     str   = "cpu",
+def run_eval(
+    agent:             torch.nn.Module,
+    opponent:          torch.nn.Module | None = None,
+    n_games:           int   = 500,
+    n_envs:            int   = 16,
+    format_id:         str   = "gen9randombattle",
+    device:            torch.device = torch.device("cpu"),
+    opponent_sampler:  callable | None = None,
 ) -> dict:
     """
-    Evaluate a checkpoint against an opponent.
+    Evaluate an agent against an opponent policy.
 
-    Returns a dict with keys:
-        win_rate, wins, losses, ties, total, ci_low, ci_high
+    agent and opponent are callable policy objects (nn.Module, RandomPolicy,
+    FullOffensePolicy, etc.). Runs n_games total using parallel environments.
+
+    If opponent_sampler is provided, it is called each batch to get a fresh
+    opponent (e.g. sampling from an OpponentPool for diversity). When using
+    opponent_sampler, the `opponent` parameter is ignored.
+
+    Returns dict with keys: win_rate, wins, losses, ties, total, ci_low, ci_high.
     """
-    dev = torch.device(device)
-
-    agent = CynthAIAgent().to(dev)
-    ckpt  = torch.load(checkpoint, map_location=dev, weights_only=True)
-    agent.load_state_dict(ckpt["model"])
-    agent.eval()
-
-    if opponent == "random":
-        agent_opp = RandomPolicy()
-    else:
-        agent_opp = CynthAIAgent().to(dev)
-        opp_ckpt  = torch.load(opponent, map_location=dev, weights_only=True)
-        agent_opp.load_state_dict(opp_ckpt["model"])
-        agent_opp.eval()
-        for p in agent_opp.parameters():
-            p.requires_grad_(False)
-
     wins   = 0
     losses = 0
     ties   = 0
     total  = 0
 
-    print(f"Evaluating {checkpoint}  vs  {opponent}  ...")
     t0 = time.perf_counter()
 
-    while total < n_battles:
-        remaining = n_battles - total
+    while total < n_games:
+        remaining = n_games - total
         envs      = min(n_envs, remaining)
+        min_steps = envs * 50  # enough for multiple battles to finish
 
-        min_steps = envs * 50  # enough steps for multiple battles to complete
+        # Sample a fresh opponent each batch when using a sampler
+        current_opp = opponent_sampler() if opponent_sampler is not None else opponent
+
         buffer = collect_rollout(
             agent_self = agent,
-            agent_opp  = agent_opp,
+            agent_opp  = current_opp,
             n_envs     = envs,
             min_steps  = min_steps,
             format_id  = format_id,
             gamma      = 0.99,
             lam        = 0.95,
-            device     = dev,
+            device     = device,
         )
 
         for t in buffer._transitions:
@@ -106,7 +99,7 @@ def evaluate(
     ci_low  = max(0.0, centre - margin)
     ci_high = min(1.0, centre + margin)
 
-    result = {
+    return {
         "win_rate": win_rate,
         "wins":     wins,
         "losses":   losses,
@@ -116,11 +109,50 @@ def evaluate(
         "ci_high":  ci_high,
     }
 
+
+def evaluate(
+    checkpoint: str,
+    n_envs:     int   = 16,
+    n_battles:  int   = 200,
+    format_id:  str   = "gen9randombattle",
+    opponent:   str   = "random",
+    device:     str   = "cpu",
+) -> dict:
+    """Load a checkpoint and evaluate against an opponent (CLI entry point)."""
+    dev = torch.device(device)
+
+    agent = CynthAIAgent().to(dev)
+    ckpt  = torch.load(checkpoint, map_location=dev, weights_only=True)
+    agent.load_state_dict(ckpt["model"])
+    agent.eval()
+
+    if opponent == "random":
+        opp_policy = RandomPolicy()
+    else:
+        opp_policy = CynthAIAgent().to(dev)
+        opp_ckpt   = torch.load(opponent, map_location=dev, weights_only=True)
+        opp_policy.load_state_dict(opp_ckpt["model"])
+        opp_policy.eval()
+        for p in opp_policy.parameters():
+            p.requires_grad_(False)
+
+    print(f"Evaluating {checkpoint}  vs  {opponent}  ...")
+    t0 = time.perf_counter()
+
+    result = run_eval(
+        agent    = agent,
+        opponent = opp_policy,
+        n_games  = n_battles,
+        n_envs   = n_envs,
+        format_id= format_id,
+        device   = dev,
+    )
+
     print(
-        f"  win_rate={win_rate*100:.1f}%  "
-        f"(95% CI: [{ci_low*100:.1f}%, {ci_high*100:.1f}%])  "
-        f"W={wins}  L={losses}  T={ties}  "
-        f"[{elapsed:.1f}s]"
+        f"  win_rate={result['win_rate']*100:.1f}%  "
+        f"(95% CI: [{result['ci_low']*100:.1f}%, {result['ci_high']*100:.1f}%])  "
+        f"W={result['wins']}  L={result['losses']}  T={result['ties']}  "
+        f"[{time.perf_counter() - t0:.1f}s]"
     )
     return result
 
