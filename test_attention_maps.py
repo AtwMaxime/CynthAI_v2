@@ -1,6 +1,7 @@
 """Test get_attention_maps on a real battle state."""
 import sys
-sys.path.insert(0, r'C:\Users\Sun\Desktop\PokemonAI\CynthAI_v2')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent))
 
 import torch
 from simulator import PyBattle

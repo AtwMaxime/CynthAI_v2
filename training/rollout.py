@@ -65,6 +65,49 @@ OWN_KO_PENALTY = -0.05
 HP_ADV_SCALE   =  0.01
 
 
+# ── Random policy (for evaluation) ───────────────────────────────────────────
+
+@dataclass
+class RandomPolicyOutput:
+    value:     torch.Tensor   # [B, 1]
+    log_probs: torch.Tensor   # [B, 13]
+
+
+class RandomPolicy:
+    """
+    Lightweight policy that samples uniformly from legal actions.
+    Matches the call signature of CynthAIAgent for use in collect_rollout.
+    """
+
+    def __call__(
+        self,
+        poke_batch, field_tensor,
+        move_idx, pp_ratio, move_disabled,
+        mechanic_id, mechanic_type_idx,
+        action_mask,   # [B, 13] bool, True=illegal
+    ) -> RandomPolicyOutput:
+        B = action_mask.shape[0]
+        dev = action_mask.device
+        logits = torch.zeros(B, 13, device=dev)
+        logits = logits.masked_fill(action_mask, -1e9)
+        return RandomPolicyOutput(
+            value=torch.zeros(B, 1, device=dev),
+            log_probs=F.log_softmax(logits, dim=-1),
+        )
+
+    def eval(self):
+        return self
+
+    def to(self, device):
+        return self
+
+    def parameters(self):
+        return []
+
+    def state_dict(self):
+        return {}
+
+
 # ── Transition ────────────────────────────────────────────────────────────────
 
 @dataclass
@@ -266,8 +309,8 @@ class BattleWindow:
         """Returns K turns, zero-padded for early turns."""
         k   = len(self._poke)
         pad = K_TURNS - k
-        poke  = [[PokemonFeatures()] * 12] * pad + list(self._poke)
-        field = [FieldFeatures()]           * pad + list(self._field)
+        poke  = [[PokemonFeatures() for _ in range(12)] for _ in range(pad)] + list(self._poke)
+        field = [FieldFeatures() for _ in range(pad)] + list(self._field)
         return poke, field
 
 

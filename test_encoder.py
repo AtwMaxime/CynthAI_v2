@@ -1,5 +1,6 @@
 import sys
-sys.path.insert(0, r'C:\Users\Sun\Desktop\PokemonAI\CynthAI_v2')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent))
 
 from simulator import PyBattle
 from env.state_encoder import encode_pokemon, N_SPECIES, N_MOVES, N_ITEMS, N_ABILITIES, N_TYPES, D_TYPE

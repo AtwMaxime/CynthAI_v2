@@ -302,7 +302,7 @@ def encode_field(state: dict) -> FieldFeatures:
     for i, pw in enumerate(PSEUDO_WEATHER_FLAGS):
         f.pseudo_weather[i] = float(pw in pw_active)
 
-    sides = raw.get("sides", [])
+    sides = state.get("sides", [])
     if len(sides) > 0:
         f.side0 = encode_side(sides[0])
     if len(sides) > 1:

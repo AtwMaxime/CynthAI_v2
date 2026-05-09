@@ -100,6 +100,89 @@ class BattleBackbone(nn.Module):
         )
         self.action_score = nn.Linear(D_MODEL, 1)
 
+        # ── Attention map storage (filled by hooks) ──────────────────────────
+        self._attention_maps: list[torch.Tensor] = []
+        self._register_attention_hooks()
+
+    # ── Attention hooks ───────────────────────────────────────────────────
+
+    def _register_attention_hooks(self) -> None:
+        """
+        Monkey-patch _sa_block on each encoder layer to capture attention weights.
+        PyTorch 2.11 passes need_weights=False by default, so the standard
+        forward hook on self_attn receives None for the weights tuple.
+        """
+        import types as _types
+
+        self._attention_maps.clear()
+        self._attn_handles: list = []
+
+        for layer in self.transformer.layers:
+
+            def patched_sa(  # noqa: N807
+                _self, x, attn_mask, key_padding_mask, is_causal=False
+            ):
+                attn_out = _self.self_attn(
+                    x, x, x,
+                    attn_mask=attn_mask,
+                    key_padding_mask=key_padding_mask,
+                    need_weights=True,
+                    is_causal=is_causal,
+                )
+                self._attention_maps.append(attn_out[1].detach().cpu())
+                return _self.dropout1(attn_out[0])
+
+            layer._sa_block = _types.MethodType(patched_sa, layer)
+
+    def get_attention_maps(
+        self,
+        pokemon_tokens: torch.Tensor,   # [B, K*12, TOKEN_DIM]
+        field_tokens:   torch.Tensor,   # [B, K,    FIELD_DIM]
+    ) -> dict:
+        """
+        Run a forward pass and return attention maps from all layers.
+
+        Returns:
+            attention_maps : list[Tensor]  — one per layer, each [B, H, T, T]
+            value          : Tensor        — [B, 1]
+            current_tokens : Tensor        — [B, 13, D_MODEL]
+            token_labels   : list[str]     — label for each of the 52 sequence positions
+        """
+        self._attention_maps.clear()
+
+        # Disable MHA fastpath so our monkey-patched _sa_block gets called.
+        # PyTorch 2.11+ fastpath bypasses _sa_block entirely in eval mode.
+        old_fastpath = torch.backends.mha.get_fastpath_enabled()
+        torch.backends.mha.set_fastpath_enabled(False)
+
+        seq = self._build_sequence(pokemon_tokens, field_tokens)   # [B, 52, D_MODEL]
+        seq = self.transformer(seq)                                 # [B, 52, D_MODEL]
+
+        torch.backends.mha.set_fastpath_enabled(old_fastpath)
+
+        current_tokens = seq[:, -N_SLOTS:, :]                      # [B, 13, D_MODEL]
+        B    = current_tokens.shape[0]
+        flat  = current_tokens.reshape(B, N_SLOTS * D_MODEL)
+        value = self.value_head(flat)                               # [B, 1]
+
+        # Build token labels: T0_OWN0..T0_OWN5, T0_OPP0..T0_OPP5, T0_FIELD, ...
+        token_labels = []
+        for turn in range(K_TURNS):
+            for slot in range(N_SLOTS):
+                if slot < 6:
+                    token_labels.append(f"T{turn}_OWN{slot}")
+                elif slot < 12:
+                    token_labels.append(f"T{turn}_OPP{slot - 6}")
+                else:
+                    token_labels.append(f"T{turn}_FIELD")
+
+        return {
+            "attention_maps": list(self._attention_maps),
+            "value":          value.detach().cpu(),
+            "current_tokens": current_tokens.detach().cpu(),
+            "token_labels":   token_labels,
+        }
+
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     def _build_sequence(

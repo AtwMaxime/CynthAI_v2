@@ -1,0 +1,7 @@
+# CynthAI_v2 — Python dependencies
+# Generated from .venv on 2026-05-09
+
+torch>=2.0.0
+numpy
+matplotlib
+cynthai-simulator>=0.1.0

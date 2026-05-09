@@ -25,7 +25,7 @@ from pathlib import Path
 import torch
 
 from model.agent import CynthAIAgent
-from training.rollout import collect_rollout
+from training.rollout import collect_rollout, RandomPolicy
 
 
 def evaluate(
@@ -50,7 +50,7 @@ def evaluate(
     agent.eval()
 
     if opponent == "random":
-        agent_opp = None
+        agent_opp = RandomPolicy()
     else:
         agent_opp = CynthAIAgent().to(dev)
         opp_ckpt  = torch.load(opponent, map_location=dev, weights_only=True)
