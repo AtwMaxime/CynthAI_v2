@@ -2,29 +2,31 @@
 CynthAI_v2 Self-Play Training — PPO update loop.
 
 Outer loop (each update):
-  1. Sample opponent from pool (or live agent if pool empty → pure self-play)
-  2. collect_rollout → complete episodes, GAE pre-computed
-  3. n_epochs × minibatch PPO updates
+  1. Sample opponent from pool (or live agent if pool empty -> pure self-play)
+  2. collect_rollout -> complete episodes, GAE pre-computed
+  3. n_epochs x minibatch PPO updates
        - forward agent (with gradients)
        - pred auxiliary loss (PredictionHeads on opponent tokens)
        - PPO losses (policy + value + entropy)
-       - clip_grad_norm 0.5 + Adam step
-  4. Step linear LR scheduler
+       - clip_grad_norm 0.5 + AdamW step
+  4. Update LR (warmup + cosine decay)
   5. Log metrics to stdout
   6. Checkpoint .pt + snapshot agent into opponent pool every N updates
 
 Opponent pool:
-  Starts empty — agent plays itself (simplest, identical distributions).
+  Starts empty - agent plays itself (simplest, identical distributions).
   A deep-copy snapshot (requires_grad=False) is added every pool_update_freq
   updates. Pool keeps at most pool_size snapshots (oldest dropped).
 
 Logging columns (every log_every updates):
-  update | win% | policy | value | entropy | pred | total | lr | time | eps
+  update | win% | policy | value | entropy | pred | total | lr | time | eps |
+  grad_norm | clip_frac | explained_variance
 """
 
 from __future__ import annotations
 
 import copy
+import math
 import random
 import time
 from collections import deque, defaultdict
@@ -42,14 +44,15 @@ from training.rollout import collect_rollout
 from training.losses import compute_losses
 
 
-# ── Training configuration ────────────────────────────────────────────────────
+# -- Training configuration -------------------------------------------------------
 
 @dataclass
 class TrainingConfig:
     # Optimiser
-    lr:            float = 3e-4
+    lr:            float = 2.5e-4   # P6: lowered from 3e-4
     lr_min:        float = 1e-5
     total_updates: int   = 2000
+    warmup_steps:  int   = 20       # P6: linear warmup before cosine decay
 
     # Rollout
     n_envs:    int = 16
@@ -62,10 +65,11 @@ class TrainingConfig:
     gamma:         float = 0.99
     lam:           float = 0.95
     clip_eps:      float = 0.2
-    c_value:       float = 0.5
+    c_value:       float = 1.0      # P5: increased from 0.5
     c_entropy:     float = 0.01
     c_pred:        float = 0.5
     max_grad_norm: float = 0.5
+    weight_decay:  float = 1e-4     # P4: L2 regularisation
 
     # Opponent pool
     pool_size:        int = 5
@@ -84,7 +88,7 @@ class TrainingConfig:
     resume: str = ""   # path to checkpoint .pt to resume from
 
 
-# ── Opponent pool ─────────────────────────────────────────────────────────────
+# -- Opponent pool ----------------------------------------------------------------
 
 class OpponentPool:
     """
@@ -115,7 +119,7 @@ class OpponentPool:
         return len(self._pool)
 
 
-# ── Opponent token slice helper ───────────────────────────────────────────────
+# -- Opponent token slice helper --------------------------------------------------
 
 # Within the K*12 flattened poke_batch, the current turn's opponent tokens
 # occupy the last 6 positions: [(K-1)*12+6 : K*12]
@@ -136,7 +140,7 @@ def _slice_opp_batch(poke_batch: PokemonBatch) -> PokemonBatch:
     )
 
 
-# ── Main training loop ────────────────────────────────────────────────────────
+# -- Main training loop -----------------------------------------------------------
 
 def train(cfg: TrainingConfig = TrainingConfig()) -> None:
     """PPO self-play loop. Blocks until cfg.total_updates complete."""
@@ -144,12 +148,11 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
     Path(cfg.checkpoint_dir).mkdir(parents=True, exist_ok=True)
 
     agent     = CynthAIAgent().to(device)
-    optimizer = torch.optim.Adam(agent.parameters(), lr=cfg.lr, eps=1e-5)
-    scheduler = torch.optim.lr_scheduler.LinearLR(
-        optimizer,
-        start_factor = 1.0,
-        end_factor   = cfg.lr_min / cfg.lr,
-        total_iters  = cfg.total_updates,
+    optimizer = torch.optim.AdamW(
+        agent.parameters(),
+        lr           = cfg.lr,
+        weight_decay = cfg.weight_decay,
+        eps          = 1e-5,
     )
 
     start_update = 1
@@ -157,7 +160,6 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
         ckpt = torch.load(cfg.resume, map_location=device, weights_only=True)
         agent.load_state_dict(ckpt["model"])
         optimizer.load_state_dict(ckpt["optimizer"])
-        scheduler.load_state_dict(ckpt["scheduler"])
         start_update = ckpt["update"] + 1
         print(f"Resumed from {cfg.resume}  (update {ckpt['update']})")
 
@@ -179,7 +181,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
     for update in range(start_update, cfg.total_updates + 1):
         t0 = time.perf_counter()
 
-        # ── 1. Rollout collection ─────────────────────────────────────────────
+        # -- 1. Rollout collection ----------------------------------------------------
         agent.eval()
         opponent = pool.sample(agent)
 
@@ -201,7 +203,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
 
         win_rate = sum(win_history) / len(win_history) if win_history else 0.5
 
-        # ── 2. PPO update epochs ──────────────────────────────────────────────
+        # -- 2. PPO update epochs -----------------------------------------------------
         agent.train()
         loss_acc: defaultdict[str, float] = defaultdict(float)
         n_steps = 0
@@ -241,20 +243,29 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 )
 
                 losses["total"].backward()
-                nn.utils.clip_grad_norm_(agent.parameters(), cfg.max_grad_norm)
+                grad_norm = nn.utils.clip_grad_norm_(agent.parameters(), cfg.max_grad_norm)
                 optimizer.step()
 
                 for k, v in losses.items():
                     loss_acc[k] += v.item()
+                loss_acc["grad_norm"] += grad_norm.item()
                 n_steps += 1
 
-        scheduler.step()
+        # -- 3. LR schedule (warmup + cosine) -----------------------------------------
+        # P6: manual LR scheduling for clean warmup -> cosine decay
+        if update <= cfg.warmup_steps:
+            lr = cfg.lr * update / cfg.warmup_steps
+        else:
+            progress = (update - cfg.warmup_steps) / (cfg.total_updates - cfg.warmup_steps)
+            cosine   = 0.5 * (1.0 + math.cos(math.pi * progress))
+            lr       = max(cfg.lr_min, cfg.lr * cosine)
+        for param_group in optimizer.param_groups:
+            param_group["lr"] = lr
 
-        # ── 3. Logging ────────────────────────────────────────────────────────
+        # -- 4. Logging ---------------------------------------------------------------
         if update % cfg.log_every == 0:
-            ns         = max(n_steps, 1)
-            elapsed    = time.perf_counter() - t0
-            current_lr = scheduler.get_last_lr()[0]
+            ns      = max(n_steps, 1)
+            elapsed = time.perf_counter() - t0
             print(
                 f"{update:>7}  {win_rate*100:>5.1f}%  "
                 f"{loss_acc['policy']/ns:>8.4f}  "
@@ -262,27 +273,29 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 f"{loss_acc['entropy']/ns:>8.4f}  "
                 f"{loss_acc['pred']/ns:>8.4f}  "
                 f"{loss_acc['total']/ns:>8.4f}  "
-                f"{current_lr:.2e}  "
-                f"[{elapsed:.1f}s  eps={total_eps}  pool={len(pool)}]"
+                f"{lr:.2e}  "
+                f"[{elapsed:.1f}s  eps={total_eps}  pool={len(pool)}  "
+                f"gn={loss_acc['grad_norm']/ns:.3f}  "
+                f"cf={loss_acc['clip_frac']/ns:.3f}  "
+                f"ev={loss_acc['explained_variance']/ns:.3f}]"
             )
 
-        # ── 4. Checkpoint ─────────────────────────────────────────────────────
+        # -- 5. Checkpoint ------------------------------------------------------------
         if update % cfg.checkpoint_freq == 0:
             ckpt_path = Path(cfg.checkpoint_dir) / f"agent_{update:06d}.pt"
             torch.save({
                 "update":    update,
                 "model":     agent.state_dict(),
                 "optimizer": optimizer.state_dict(),
-                "scheduler": scheduler.state_dict(),
             }, ckpt_path)
             print(f"  -> checkpoint saved: {ckpt_path}")
 
-        # ── 5. Update opponent pool ───────────────────────────────────────────
+        # -- 6. Update opponent pool --------------------------------------------------
         if update % cfg.pool_update_freq == 0:
             pool.add(agent)
 
 
-# ── Entry point ───────────────────────────────────────────────────────────────
+# -- Entry point --------------------------------------------------------------------
 
 if __name__ == "__main__":
     import argparse

@@ -42,7 +42,7 @@ def compute_losses(
     pred_loss:    torch.Tensor,   # scalar   PredictionHeads total loss
     *,
     clip_eps:  float = 0.2,
-    c_value:   float = 0.5,
+    c_value:   float = 1.0,       # P5: increased from 0.5 for critic stability
     c_entropy: float = 0.01,
     c_pred:    float = 0.5,
 ) -> dict[str, torch.Tensor]:
@@ -50,11 +50,12 @@ def compute_losses(
     Compute all PPO + auxiliary losses for one minibatch.
 
     Returns a dict with keys:
-        "policy"   — PPO-clip loss          (minimise)
-        "value"    — MSE value loss         (minimise)
-        "entropy"  — negative entropy       (minimise = maximise entropy)
-        "pred"     — predictor auxiliary    (minimise)
-        "total"    — weighted sum           (call .backward() on this)
+        "policy"   — PPO-clip loss              (minimise)
+        "value"    — MSE value loss             (minimise)
+        "entropy"  — negative entropy           (minimise = maximise entropy)
+        "pred"     — predictor auxiliary        (minimise)
+        "clip_frac"— fraction of clipped ratios (monitoring)
+        "total"    — weighted sum               (call .backward() on this)
     """
 
     # ── Advantage normalisation ───────────────────────────────────────────────
@@ -69,8 +70,17 @@ def compute_losses(
     surr2 = ratio.clamp(1.0 - clip_eps, 1.0 + clip_eps) * adv
     policy_loss = -torch.min(surr1, surr2).mean()
 
-    # ── Value loss (MSE) ──────────────────────────────────────────────────────
-    value_loss = F.mse_loss(values.squeeze(-1), returns)
+    # ── Clip fraction (monitoring) ───────────────────────────────────────────
+    clip_frac = ((ratio < 1.0 - clip_eps) | (ratio > 1.0 + clip_eps)).float().mean()
+
+    # ── Value loss (MSE with normalised returns) ──────────────────────────────
+    # P5: normalise returns to stabilise the critic scale
+    values  = values.squeeze(-1)
+    returns = (returns - returns.mean()) / (returns.std() + 1e-8)
+    value_loss = F.mse_loss(values, returns)
+
+    # ── Explained variance (monitoring) ──────────────────────────────────────
+    ev = 1.0 - ((returns - values)**2).sum() / ((returns - returns.mean())**2 + 1e-8)
 
     # ── Entropy bonus (legal actions only) ───────────────────────────────────
     # backbone already applied -1e9 to illegal slots → probs ≈ 0 for those.
@@ -89,9 +99,11 @@ def compute_losses(
     )
 
     return {
-        "policy":  policy_loss,
-        "value":   value_loss,
-        "entropy": entropy_loss,
-        "pred":    pred_loss,
-        "total":   total,
+        "policy":     policy_loss,
+        "value":      value_loss,
+        "entropy":    entropy_loss,
+        "pred":       pred_loss,
+        "clip_frac":  clip_frac.detach(),
+        "explained_variance": ev.detach(),
+        "total":      total,
     }
