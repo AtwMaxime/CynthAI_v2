@@ -71,11 +71,12 @@ def evaluate(
         remaining = n_battles - total
         envs      = min(n_envs, remaining)
 
+        min_steps = envs * 50  # enough steps for multiple battles to complete
         buffer = collect_rollout(
             agent_self = agent,
             agent_opp  = agent_opp,
             n_envs     = envs,
-            min_steps  = 1,
+            min_steps  = min_steps,
             format_id  = format_id,
             gamma      = 0.99,
             lam        = 0.95,
