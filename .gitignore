@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+.venv/
+venv/
+
+# Rust
+simulator/target/
+
+# IDE
+.vscode/
+.idea/
+
+# Checkpoints (large files)
+checkpoints/*.pt
+checkpoints/*.pth
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
