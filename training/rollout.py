@@ -242,24 +242,27 @@ def build_action_mask(state: dict, side_idx: int) -> torch.Tensor:
 
     active_pos = next(iter(active_set))
     active     = side["pokemon"][active_pos]
+    fainted    = bool(active.get("fainted", False))
     force_sw   = bool(active.get("force_switch_flag", False))
     trapped    = bool(active.get("trapped", False))
 
-    # Move slots 0-3
-    if not force_sw:
-        for i, mv in enumerate(active.get("moves", [])[:4]):
-            if not mv.get("disabled", False):
-                mask[i] = False   # normal move legal
+    # Fainted Pokémon must switch — no move slots legal
+    if not fainted:
+        # Move slots 0-3
+        if not force_sw:
+            for i, mv in enumerate(active.get("moves", [])[:4]):
+                if not mv.get("disabled", False):
+                    mask[i] = False   # normal move legal
 
-        # Mechanic slots 4-7: legal when Tera not yet used and base move is legal
-        tera_used = any(p.get("terastallized") is not None for p in side["pokemon"])
-        if not tera_used:
-            for i in range(4):
-                if not mask[i]:
-                    mask[i + 4] = False
+            # Mechanic slots 4-7: legal when Tera not yet used and base move is legal
+            tera_used = any(p.get("terastallized") is not None for p in side["pokemon"])
+            if not tera_used:
+                for i in range(4):
+                    if not mask[i]:
+                        mask[i + 4] = False
 
     # Switch slots 8-12
-    if force_sw or not trapped:
+    if fainted or force_sw or not trapped:
         bench = [
             j for j, p in enumerate(side["pokemon"])
             if j not in active_set and not p.get("fainted", False)
@@ -535,7 +538,23 @@ def collect_rollout(
                 c_self = action_to_choice(acts_self[i].item(), prev_states[i], side_self)
                 c_opp  = action_to_choice(acts_opp[i].item(),  prev_states[i], side_opp)
                 p1, p2 = (c_self, c_opp) if side_self == 0 else (c_opp, c_self)
-                envs[i].make_choices(p1, p2)
+                try:
+                    envs[i].make_choices(p1, p2)
+                except Exception:
+                    # Diagnostic: log the state that caused the crash
+                    import sys, traceback as _tb
+                    print(f"CRASH in make_choices env={i} p1={p1!r} p2={p2!r}", file=sys.stderr)
+                    s = prev_states[i]
+                    for si in [0, 1]:
+                        side = s["sides"][si]
+                        active_set = [a for a in side["active"] if a is not None]
+                        if active_set:
+                            p = side["pokemon"][active_set[0]]
+                            print(f"  side{si}: {p.get('species_id','?')} hp={p.get('hp','?')}/{p.get('maxhp','?')} "
+                                  f"fainted={p.get('fainted')} force_sw={p.get('force_switch_flag')} "
+                                  f"trapped={p.get('trapped')} status={p.get('status','')}", file=sys.stderr)
+                    _tb.print_exc()
+                    raise
                 curr_states.append(envs[i].get_state())
 
             for i in range(n_envs):
