@@ -1,6 +1,6 @@
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from simulator import PyBattle
 from env.state_encoder import encode_pokemon, N_SPECIES, N_MOVES, N_ITEMS, N_ABILITIES, N_TYPES, D_TYPE

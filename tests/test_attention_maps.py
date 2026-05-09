@@ -1,7 +1,7 @@
 """Test get_attention_maps on a real battle state."""
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import torch
 from simulator import PyBattle

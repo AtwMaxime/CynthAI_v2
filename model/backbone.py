@@ -127,6 +127,7 @@ class BattleBackbone(nn.Module):
                     attn_mask=attn_mask,
                     key_padding_mask=key_padding_mask,
                     need_weights=True,
+                    average_attn_weights=False,   # keep per-head [B, H, T, T]
                     is_causal=is_causal,
                 )
                 self._attention_maps.append(attn_out[1].detach().cpu())
