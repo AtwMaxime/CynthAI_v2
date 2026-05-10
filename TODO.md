@@ -2,12 +2,13 @@
 
 ## Déjà implémenté (vérifié dans le code)
 
-- [P1] POMDP Masking — `compute_mask_ratio()` + `apply_reveal_mask()` avec curriculum (warmup=200 → max_ratio=0.5)
-- [P2] Reward Curriculum — `compute_dense_scale()` avec decay linéaire 1.0 → 0.25
-- [P3] Pool Debug + Opponent Mixing — pool_size=20, snapshot_threshold=0.55, mixing 80% pool / 10% Random / 10% FullOffense
+- [P1] POMDP Masking — `compute_mask_ratio()` avec curriculum phase (0→0.5→1.0 aux breakpoints 600, 2500)
+- [P2] Reward Curriculum — `compute_dense_scale()` avec curriculum phase (1.0→0.5→0.1)
+- [P3] Pool Debug + Opponent Mixing — pool_size=30, snapshot_threshold=0.55, mixing 80% pool / 10% Random / 10% FullOffense
 - [P4] Régularisation & Monitoring — AdamW (wd=1e-4), clip_grad_norm=0.5, grad_norm/explained_variance/clip_frac loggés
-- [P5] Critic — c_value=1.0, return normalization dans `losses.py`
-- [P6] LR Schedule — warmup=20 + cosine decay, base_lr=2.5e-4
+- [P5] Critic — c_value=1.0, return normalization dans `losses.py`, mean-pooled value head (256→256→1)
+- [P6] LR Schedule — warmup=20 + cosine decay, base_lr=2.5e-4, lr_min=1e-5
+- [P7] Attention maps — `get_attention_maps()` avec itération manuelle des couches (pas de monkey-patch)
 
 ---
 
@@ -62,3 +63,17 @@ Actuellement, `apply_reveal_mask()` applique le **même** masque de révélation
 En pratique, avec K=4 et le curriculum P1 (mask_ratio qui monte jusqu'à 0.5), l'impact est limité : le modèle apprend à ne pas trop compter sur les attributs non-révélés. Mais l'approximation idéale serait de stocker un reveal state par turn dans le `BattleWindow` et de les appliquer individuellement.
 
 **Solution si nécessaire un jour** : stocker `reveal_state` à chaque push dans `BattleWindow`, et modifier `_build_sequence()` pour que `apply_reveal_mask()` reçoive un masque par turn au lieu d'un masque global. Pas prioritaire tant que les performances n'indiquent pas un plafond lié à ce comportement.
+
+---
+
+## P9 — Analyse des matchups (TODO)
+
+**Objectif** : Analyser quels types de Pokémon / moves l'agent maîtrise ou non.
+
+**Détail** :
+- Collecter par type de Pokémon adverse le win rate de l'agent (e.g., vs Pokémon de type Feu, vs type Eau, etc.)
+- Collecter par move catégorie (physique/spécial/statut) la fréquence d'utilisation et le win rate associé
+- Corrélation entre le win rate et les variables d'état (nombre de Pokémon restants, terrain, etc.)
+- Dashboard ou heatmap pour visualiser les forces/faiblesses de l'agent
+
+**Fichiers** : Nouveau module `training/matchup_analysis.py`, intégration dans `training/evaluate.py`

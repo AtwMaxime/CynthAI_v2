@@ -37,18 +37,18 @@ if __name__ == "__main__":
         total_updates   = 5000,
 
         # Rollout
-        n_envs          = args.n_envs,
-        min_steps       = 512,
+        n_envs          = 32,
+        min_steps       = 1024,
 
         # PPO
-        n_epochs        = 4,
+        n_epochs        = 2,
         batch_size      = 128,
         lr              = 2.5e-4,
         lr_min          = 1e-5,
         warmup_steps    = 20,
         c_value         = 1.0,
         c_entropy       = 0.02,     # doubled — explore more with POMDP masking
-        c_pred          = 0.8,      # push prediction heads harder
+        c_pred          = 0.6,      # moderately push prediction heads
         max_grad_norm   = 0.5,
         weight_decay    = 1e-4,
 
@@ -68,9 +68,9 @@ if __name__ == "__main__":
         dense_phase_values      = (1.0, 0.5, 0.1),
 
         # Checkpointing / eval
-        checkpoint_freq = 50,
-        eval_freq       = 30,
-        eval_n_games    = 500,
+        checkpoint_freq = 100,
+        eval_freq       = 100,
+        eval_n_games    = 10,
         log_every       = 1,
         win_rate_window = 100,
 

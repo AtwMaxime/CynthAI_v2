@@ -104,7 +104,7 @@ The entire battle simulation runs in Rust (`pokemon-showdown-rs`) via PyO3 bindi
 
 | Hyperparameter        | Value                          |
 |-----------------------|--------------------------------|
-| Total parameters      | ~3.9 M                         |
+| Total parameters      | ~3.1 M                         |
 | d_model               | 256                            |
 | Transformer layers    | 3                              |
 | Attention heads       | 4                              |
@@ -336,8 +336,8 @@ The reward is **zero-sum by design** in self-play: both sides experience symmetr
    - Auxiliary prediction loss: masked cross-entropy on opponent item/ability/tera/moves — only revealed attributes contribute to the gradient (coefficient 0.5)
 5. **Optimisation**: AdamW with `weight_decay=1e-4`; `clip_grad_norm_(max_norm=0.5)` before optim step. LR via warmup (20 steps) + cosine decay from 2.5e-4 (P4, P6).
 6. **Log metrics**: win rate, policy/value/entropy/pred/total loss, learning rate, pool size, grad_norm, explained_variance, clip_frac (P4).
-7. **Periodic evaluation**: Every `eval_freq` updates, run 500 games vs Random/FullOffense/pool opponents with the same masking ratio as training.
-8. **Checkpoint**: Save model every 50 updates; keep best based on win rate.
+7. **Periodic evaluation**: Every `eval_freq` updates, run 10 games vs Random/FullOffense/pool opponents with the same masking ratio as training.
+8. **Checkpoint**: Save model every 100 updates; keep best based on win rate.
 9. **Snapshot**: Copy frozen agent to opponent pool when `win_rate > 0.55` over last 100 games, with 5-update cooldown (P3).
 
 ### Key Design Details
@@ -427,7 +427,7 @@ Converts raw `PyBattle.get_state()` dictionaries into structured feature objects
 - **Transformer:** 3 Pre-LN layers, 4 heads, FFN 512, dropout 0.1, batch_first, `enable_nested_tensor=False`
 - **Value head:** MLP: Linear(13*256, 256) → ReLU → Linear(256, 1)
 - **Actor:** Cross-attention (Q=action_embeds, K=V=current_tokens) → Linear(256, 1) per slot → [B, 13] logits
-- **Attention maps:** `get_attention_maps()` monkey-patches each layer's `_sa_block` to capture attention weights (with fastpath workaround for PyTorch 2.11+)
+- **Attention maps:** `get_attention_maps()` iterates each transformer layer manually to capture attention weights with `need_weights=True`, bypassing PyTorch's MHA fastpath
 
 ### `model/prediction_heads.py`
 
@@ -556,43 +556,35 @@ Reads `metrics.csv` and generates 2×3 grid plots (win rate, policy/value/entrop
 
 | Parameter | Default | Notes |
 |-----------|---------|-------|
-| `lr` | 2.5e-4 | AdamW, weight_decay=1e-4, eps=1e-5 (P4: AdamW, P6: lowered from 3e-4) |
+| `lr` | 2.5e-4 | AdamW, weight_decay=1e-4, eps=1e-5 |
 | `lr_min` | 1e-5 | Cosine decay endpoint |
-| `warmup_steps` | 20 | Linear warmup before cosine decay (P6) |
-| `total_updates` | 2000 | Total PPO updates |
-| `n_envs` | 16 | Parallel battles |
-| `min_steps` | 512 | Min transitions per rollout |
-| `n_epochs` | 4 | PPO epochs per rollout |
+| `warmup_steps` | 20 | Linear warmup before cosine decay |
+| `total_updates` | 5000 | Total PPO updates |
+| `n_envs` | 32 | Parallel battles |
+| `min_steps` | 1024 | Min transitions per rollout |
+| `n_epochs` | 2 | PPO epochs per rollout |
 | `batch_size` | 128 | Minibatch size |
 | `gamma` | 0.99 | GAE discount |
 | `lam` | 0.95 | GAE lambda |
 | `clip_eps` | 0.2 | PPO clipping ε |
-| `c_value` | 1.0 | Value loss coefficient (P5: increased from 0.5) |
-| `c_entropy` | 0.01 | Entropy bonus coefficient |
-| `c_pred` | 0.5 | Predictor auxiliary coefficient |
-| `max_grad_norm` | 0.5 | Gradient clipping (P4) |
-| `weight_decay` | 1e-4 | AdamW L2 regularisation (P4) |
-| `pool_size` | 20 | Max opponent snapshots (P3: increased from 5) |
-| `pool_snapshot_threshold` | 0.55 | Win-rate threshold for snapshot (P3) |
-| `pool_cooldown` | 5 | Min updates between snapshots (P3) |
-| `eval_freq` | 20 | Run evaluation every N updates (P3) |
-| `eval_n_games` | 500 | Games per opponent in evaluation (P3) |
-| `checkpoint_freq` | 50 | Save .pt every N updates |
+| `c_value` | 1.0 | Value loss coefficient |
+| `c_entropy` | 0.02 | Entropy bonus coefficient |
+| `c_pred` | 0.6 | Predictor auxiliary coefficient |
+| `max_grad_norm` | 0.5 | Gradient clipping |
+| `weight_decay` | 1e-4 | AdamW L2 regularisation |
+| `pool_size` | 30 | Max opponent snapshots |
+| `pool_snapshot_threshold` | 0.55 | Win-rate threshold for snapshot |
+| `pool_cooldown` | 5 | Min updates between snapshots |
+| `eval_freq` | 100 | Run evaluation every N updates |
+| `eval_n_games` | 10 | Games per opponent in evaluation |
+| `checkpoint_freq` | 100 | Save .pt every N updates |
 | `log_every` | 1 | Log every update |
-| `mask_schedule` | `"linear"` | P1 schedule mode: linear, exp, step, phase |
-| `mask_warmup` | `200` | Updates before POMDP masking begins |
-| `mask_max_ratio` | `1.0` | Final POMDP masking probability |
-| `mask_exp_k` | `3.0` | Exponential ramp rate (exp mode) |
-| `mask_step_update` | `500` | Plateau length (step mode) |
-| `mask_phase_breakpoints` | `()` | Update breakpoints for phase mode |
-| `mask_phase_values` | `()` | Mask ratios at each phase |
-| `dense_schedule` | `"linear"` | P2 schedule mode: linear, exp, step, phase |
-| `dense_warmup` | `0` | Updates before reward decay begins |
-| `dense_min_scale` | `0.25` | Floor for dense_scale (min non-terminal reward multiplier) |
-| `dense_exp_k` | `3.0` | Exponential decay rate (exp mode) |
-| `dense_step_update` | `500` | Plateau length (step mode) |
-| `dense_phase_breakpoints` | `()` | Update breakpoints for phase mode |
-| `dense_phase_values` | `()` | Dense_scale at each phase |
+| `mask_schedule` | `"phase"` | P1 schedule mode: linear, exp, step, phase |
+| `mask_phase_breakpoints` | `(600, 2500)` | Update breakpoints for phase mode |
+| `mask_phase_values` | `(0.0, 0.5, 1.0)` | Mask ratios at each phase |
+| `dense_schedule` | `"phase"` | P2 schedule mode |
+| `dense_phase_breakpoints` | `(600, 2500)` | Update breakpoints for phase mode |
+| `dense_phase_values` | `(1.0, 0.5, 0.1)` | Dense_scale at each phase |
 
 ---
 
@@ -791,7 +783,7 @@ The peak-then-decline pattern suggests:
   2. `choose_switch`: validation de Pokémon actif corrigée (utilise `active.contains()` au lieu de `position < active.len()`)
   3. Exposition de `slot_conditions` à Python pour détecter Revival Blessing
   Détails : voir [`memo_rust.md`](memo_rust.md)
-- **Fastpath incompatibility:** PyTorch 2.11+ MHA fastpath bypasses Python-level hooks. The `get_attention_maps()` method disables it temporarily during attention extraction.
+- **Fastpath incompatibility:** PyTorch 2.11+ MHA fastpath bypasses Python-level `_sa_block`. The `get_attention_maps()` method uses a manual layer-by-layer forward pass instead, calling `self_attn()` directly to capture weights.
 
 ---
 

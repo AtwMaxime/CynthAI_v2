@@ -47,7 +47,7 @@ PyBattle.get_state()
 
   ③ current_tokens = output[:, -13:, :]   [B, 13, 256]
 
-  ④ value_head  MLP(13*256 → 256 → 1)    [B, 1]       ← critique V(s)
+  ④ value_head  MLP(mean-pooled 256 → 256 → 1)  [B, 1]       ← critique V(s)
 
         │
         ▼
@@ -156,14 +156,14 @@ Dérivé depuis `get_state()` dans `build_action_mask()` — le simulateur Rust 
 
 ```
 collect_rollout()
-  │  n_envs=16 combats parallèles
+  │  n_envs=32 combats parallèles
   │  épisodes complets (pas de troncature à longueur fixe)
   │  both agents sous torch.no_grad()
   │  transitions : champs int du PokemonBatch stockés (pas les float embeddings)
   │    → re-run de poke_emb() avec gradients à l'entraînement
   │  GAE en fin de buffer  γ=0.99, λ=0.95
   ▼
-training loop (n_epochs=4)
+training loop (n_epochs=2)
   │  minibatches de taille 128 (shufflés)
   │  forward agent (avec grad)
   │  pred_loss  = PredictionHeads.compute_loss(pred_logits, *targets)
@@ -172,7 +172,7 @@ training loop (n_epochs=4)
   │  clip_grad_norm_(agent, 0.5)
   │  Adam.step()
   ▼
-scheduler.step()   # LinearLR : 3e-4 → 1e-5
+scheduler.step()   # Warmup (20) + Cosine : 2.5e-4 → 1e-5
 ```
 
 ---
@@ -239,6 +239,4 @@ T3_own0  …  T3_own5  T3_opp0  …  T3_opp5  T3_field   (tour 3, actuel)
 
 ### Implémentation
 
-La méthode *monkey-patch* chaque couche d'auto-attention du Transformer pour forcer `need_weights=True` (désactivé par défaut dans `nn.TransformerEncoderLayer` pour économiser de la mémoire). Des hooks enregistrent les matrices `[B, H, 52, 52]` avant que les poids soient libérés. Le patch est restauré dans un `finally` block.
-
-Test : `test_attention_maps.py` vérifie shapes, somme à 1.0 par ligne, et affiche les liens d'attention les plus forts.`
+La méthode itère manuellement sur chaque couche du Transformer en appelant `self_attn()` avec `need_weights=True` pour capturer les matrices `[B, H, 52, 52]`, en contournant le `_sa_block` par défaut (qui utilise la fastpath PyTorch et ne retourne pas les poids d'attention).

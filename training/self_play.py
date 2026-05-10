@@ -48,7 +48,128 @@ from model.backbone import K_TURNS
 from training.rollout import collect_rollout, RandomPolicy
 from training.losses import compute_losses
 from training.evaluate import run_eval
+from training.monitor import save_eval_plots
 from env.bots import FullOffensePolicy
+import gc
+
+
+def _save_fig(fig, path_stem: str):
+    """Save figure as both PNG and PDF."""
+    for ext in [".png", ".pdf"]:
+        fig.savefig(f"{path_stem}{ext}", dpi=150, bbox_inches="tight")
+
+
+def save_attention_maps(
+    agent: "CynthAIAgent",
+    save_dir: str,
+    tag: str = "",
+    device: torch.device = torch.device("cpu"),
+) -> None:
+    """Run a forward pass on a real battle state and save attention heatmap PNGs.
+
+    Saves one grid image (all layers × heads) to {save_dir}/attn_{tag}.png
+    and one per layer to {save_dir}/attn_{tag}_layer{L}.png
+    """
+    try:
+        from simulator import PyBattle
+        from training.rollout import BattleWindow, encode_state
+        from model.embeddings import collate_features, collate_field_features
+        from model.backbone import K_TURNS, N_SLOTS, SEQ_LEN
+    except ImportError:
+        return  # missing dependencies during early development
+
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    agent.eval()
+    b = PyBattle("gen9randombattle", 42)
+    state = b.get_state()
+    window = BattleWindow()
+    for _ in range(K_TURNS):
+        poke_feats, field_feat = encode_state(state, side_idx=0)
+        window.push(poke_feats, field_feat)
+
+    poke_turns, field_turns = window.as_padded()
+    flat_poke = [p for turn in poke_turns for p in turn]
+    poke_batch = collate_features([flat_poke]).to(device)
+    field_tensor = collate_field_features(field_turns).field.unsqueeze(0).to(device)
+
+    with torch.no_grad():
+        pokemon_tokens = agent.poke_emb(poke_batch)
+        result = agent.backbone.get_attention_maps(pokemon_tokens, field_tensor)
+
+    attn_maps = result["attention_maps"]
+    if not attn_maps:
+        print(f"  WARNING: no attention maps captured, skipping attention save")
+        return
+    n_layers = len(attn_maps)
+    n_heads = attn_maps[0].shape[1]
+    labels = result["token_labels"]
+
+    def _plot_single(ax, mat, title_str, show_labels=True, colorbar=False):
+        """Plot one attention heatmap with proper token labels and optional colorbar."""
+        im = ax.imshow(mat, cmap="viridis", aspect="equal", vmin=0.0, vmax=mat.max())
+        ax.set_title(title_str, fontsize=9)
+        ax.set_xlabel("Key token", fontsize=6)
+        ax.set_ylabel("Query token", fontsize=6)
+        ax.set_xticks(range(SEQ_LEN))
+        ax.set_yticks(range(SEQ_LEN))
+        ax.set_xticklabels(labels if show_labels else [], fontsize=4, rotation=90)
+        ax.set_yticklabels(labels if show_labels else [], fontsize=4)
+        if colorbar:
+            plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+
+    # 1. Grid: all layers × heads
+    fig, axes = plt.subplots(n_layers, n_heads, figsize=(5 * n_heads, 5 * n_layers))
+    fig.suptitle(f"Attention Maps — {tag}", fontsize=14, fontweight="bold")
+    if n_layers == 1:
+        axes = [axes]
+    for li in range(n_layers):
+        for hi in range(n_heads):
+            ax = axes[li][hi] if n_layers > 1 else axes[hi]
+            _plot_single(ax, attn_maps[li][0, hi].numpy(),
+                         f"Layer {li}, Head {hi}",
+                         show_labels=(li == n_layers - 1),
+                         colorbar=(hi == n_heads - 1))
+    fig.tight_layout()
+    attn_dir = Path(save_dir) / "attn"
+    attn_dir.mkdir(parents=True, exist_ok=True)
+    _save_fig(fig, attn_dir / f"{tag}_grid")
+    plt.close(fig)
+
+    # 2. Individual per-head plots with colorbar + top-5 analysis
+    for li in range(n_layers):
+        for hi in range(n_heads):
+            mat = attn_maps[li][0, hi].numpy()
+            fig, ax = plt.subplots(figsize=(7, 6))
+            _plot_single(ax, mat, f"Layer {li}, Head {hi}", show_labels=True, colorbar=True)
+
+            # Top-5 attended keys for current-turn query tokens (last 13)
+            cur_start = SEQ_LEN - 13
+            topk = 5
+            txt_lines = ["Top-5 attended keys (current turn queries):"]
+            for query_offset in range(13):
+                query_idx = cur_start + query_offset
+                q_label = labels[query_idx]
+                row = mat[query_idx]
+                top_indices = np.argsort(row)[-topk:][::-1]
+                short_q = q_label.split("_", 1)[1] if "_" in q_label else q_label
+                keys_str = " ".join(
+                    lbl.split("_", 1)[1] if "_" in lbl else lbl
+                    for lbl in [labels[i] for i in top_indices]
+                )
+                txt_lines.append(f"{short_q:>10} -> {keys_str}")
+            ax.text(1.02, 0.98, "\n".join(txt_lines), transform=ax.transAxes,
+                    fontsize=5.5, family="monospace", verticalalignment="top",
+                    bbox=dict(boxstyle="round,pad=0.3", fc="wheat", alpha=0.8))
+
+            fig.tight_layout()
+            _save_fig(fig, attn_dir / f"{tag}_L{li}_H{hi}")
+            plt.close(fig)
+
+    print(f"  -> attention maps saved to {attn_dir}/  [{tag}]")
 
 
 # -- Training configuration -------------------------------------------------------
@@ -271,17 +392,23 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
     device = torch.device(cfg.device)
 
     # Auto-generate run name and checkpoint dir
-    if not cfg.run_name:
-        cfg.run_name = f"curriculum_max_{datetime.now():%Y%m%d_%H%M}"
-    if not cfg.checkpoint_dir:
-        cfg.checkpoint_dir = str(Path("checkpoints") / cfg.run_name)
+    if cfg.resume:
+        # When resuming, reuse the existing checkpoint directory
+        resume_path = Path(cfg.resume)
+        cfg.checkpoint_dir = str(resume_path.parent)
+        cfg.run_name = Path(cfg.checkpoint_dir).name
+    else:
+        if not cfg.run_name:
+            cfg.run_name = f"curriculum_max_{datetime.now():%Y%m%d_%H%M}"
+        if not cfg.checkpoint_dir:
+            cfg.checkpoint_dir = str(Path("checkpoints") / cfg.run_name)
     Path(cfg.checkpoint_dir).mkdir(parents=True, exist_ok=True)
 
-    # CSV loggers
+    # CSV loggers — don't re-write headers on resume
     metrics_path = Path(cfg.checkpoint_dir) / "metrics.csv"
     eval_path    = Path(cfg.checkpoint_dir) / "eval.csv"
-    _first_metrics = True
-    _first_eval    = True
+    _first_metrics = not metrics_path.exists()
+    _first_eval    = not eval_path.exists()
 
     agent     = CynthAIAgent().to(device)
     optimizer = torch.optim.AdamW(
@@ -564,6 +691,13 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     _first_eval = False
                 w.writerow(row)
 
+            # Save evaluation diagnostic plots
+            try:
+                save_eval_plots(eval_results, cfg.checkpoint_dir,
+                                tag=f"update{update:06d}")
+            except Exception as e:
+                print(f"  WARNING: eval plots failed: {e}")
+
             # Snapshot agent when pool eval WR exceeds threshold
             if (pool_wr > cfg.pool_snapshot_threshold
                 and update - last_snapshot_update >= cfg.pool_cooldown):
@@ -584,6 +718,13 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 "optimizer": optimizer.state_dict(),
             }, ckpt_path)
             print(f"  -> checkpoint saved: {ckpt_path}")
+
+            # Save attention maps alongside checkpoint
+            save_attention_maps(agent, cfg.checkpoint_dir,
+                                tag=f"update{update:06d}", device=device)
+
+        # Collect garbage to prevent Rust PyBattle objects from accumulating
+        gc.collect()
 
 
 # -- Entry point --------------------------------------------------------------------

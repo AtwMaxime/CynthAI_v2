@@ -1,19 +1,19 @@
-"""
-CynthAI_v2 Rollout — Trajectory collection for PPO self-play.
+﻿"""
+CynthAI_v2 Rollout â€” Trajectory collection for PPO self-play.
 
 Reward design (zero-sum):
-  Win / Loss          : +1.0 / -1.0    — terminal, sparse
-  Opponent KO         : +0.05          — clear positive event
-  Own KO              : -0.05          — symmetric penalty
-  Delta HP advantage  : 0.01 * Δadv    — dense proxy for battle progress
+  Win / Loss          : +1.0 / -1.0    â€” terminal, sparse
+  Opponent KO         : +0.05          â€” clear positive event
+  Own KO              : -0.05          â€” symmetric penalty
+  Delta HP advantage  : 0.01 * Î”adv    â€” dense proxy for battle progress
 
   HP advantage = (own total hp / own total maxhp) - (opp total hp / opp total maxhp)
-  Δadv = adv_current - adv_previous   (bounded ≈ [-1, 1] per turn)
+  Î”adv = adv_current - adv_previous   (bounded â‰ˆ [-1, 1] per turn)
 
 Collection strategy:
   - Complete episodes (not fixed-length rollout): cleaner with terminal win/loss reward
   - N parallel battles (n_envs=16 default): fills buffer fast, GIL released in Rust sim
-  - GAE with γ=0.99, λ=0.95 computed after collection
+  - GAE with Î³=0.99, Î»=0.95 computed after collection
 
 Self-play:
   - agent_self and agent_opp are separate nn.Module instances
@@ -58,7 +58,7 @@ if TYPE_CHECKING:
     from model.agent import CynthAIAgent
 
 
-# ── Reward hyperparameters ────────────────────────────────────────────────────
+# â”€â”€ Reward hyperparameters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 WIN_REWARD     =  1.0
 LOSS_REWARD    = -1.0
@@ -67,7 +67,7 @@ OWN_KO_PENALTY = -0.05
 HP_ADV_SCALE   =  0.01
 
 
-# ── Random policy (for evaluation) ───────────────────────────────────────────
+# â”€â”€ Random policy (for evaluation) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @dataclass
 class RandomPolicyOutput:
@@ -110,13 +110,13 @@ class RandomPolicy:
         return {}
 
 
-# ── Transition ────────────────────────────────────────────────────────────────
+# â”€â”€ Transition â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @dataclass
 class Transition:
     """One (s, a, r, done) step for one player, stored on CPU."""
 
-    # ── State for the backbone (K turns already stacked) ─────────────────────
+    # â”€â”€ State for the backbone (K turns already stacked) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     # Stored as PokemonBatch fields (int indices) rather than float tensors so
     # training can re-run poke_emb with gradients.
     species_idx:  torch.Tensor    # [K*12]
@@ -129,24 +129,27 @@ class Transition:
     scalars:      torch.Tensor    # [K*12, N_SCALARS]
     field_tensor: torch.Tensor    # [K, FIELD_DIM]
 
-    # ── ActionEncoder inputs (current turn, active Pokémon) ───────────────────
+    # â”€â”€ ActionEncoder inputs (current turn, active PokÃ©mon) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     move_idx:          torch.Tensor   # [4]  int64
     pp_ratio:          torch.Tensor   # [4]  float32
     move_disabled:     torch.Tensor   # [4]  float32
     mechanic_id:       int
     mechanic_type_idx: int
 
-    # ── Action / mask ─────────────────────────────────────────────────────────
+    # â”€â”€ Action / mask â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     action:       int
     log_prob_old: float
     action_mask:  torch.Tensor   # [13] bool
 
-    # ── Reward / episode ──────────────────────────────────────────────────────
+    # â”€â”€ Reward / episode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     reward:    float
     done:      bool
     value_old: float
 
-    # ── Reveal state (from RevealedTracker) ────────────────────────────────────
+    # Reward decomposition (populated during eval, empty during training)
+    reward_components: dict = dc_field(default_factory=dict)
+
+    # â”€â”€ Reveal state (from RevealedTracker) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     reveal_state: dict = dc_field(default_factory=dict)   # species/item/ability/tera/moves bools
 
     def to_poke_batch(self) -> PokemonBatch:
@@ -162,7 +165,7 @@ class Transition:
         )
 
 
-# ── Reward ────────────────────────────────────────────────────────────────────
+# â”€â”€ Reward â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _hp_ratio(pokemon_list: list[dict]) -> float:
     total_hp    = sum(p["hp"]    for p in pokemon_list)
@@ -177,9 +180,12 @@ def compute_step_reward(
     won:        bool | None,
     side_idx:   int = 0,
     dense_scale: float = 1.0,   # P2: scale non-terminal rewards (0 = sparse only)
-) -> float:
+) -> tuple[float, dict]:
+    """Returns (total_reward, components_dict) where components has keys:
+    ko_own, ko_opp, hp_adv, terminal."""
     reward  = 0.0
     opp_idx = 1 - side_idx
+    components: dict[str, float] = {"ko_own": 0.0, "ko_opp": 0.0, "hp_adv": 0.0, "terminal": 0.0}
 
     own_prev = prev_state["sides"][side_idx]
     opp_prev = prev_state["sides"][opp_idx]
@@ -188,19 +194,26 @@ def compute_step_reward(
 
     new_opp_ko = opp_curr["total_fainted"] - opp_prev["total_fainted"]
     new_own_ko = own_curr["total_fainted"] - own_prev["total_fainted"]
-    reward += KO_REWARD      * max(new_opp_ko, 0) * dense_scale
-    reward += OWN_KO_PENALTY * max(new_own_ko, 0) * dense_scale
+    ko_opp_rew = KO_REWARD      * max(new_opp_ko, 0) * dense_scale
+    ko_own_rew = OWN_KO_PENALTY * max(new_own_ko, 0) * dense_scale
+    reward += ko_opp_rew + ko_own_rew
+    components["ko_opp"] = ko_opp_rew
+    components["ko_own"] = ko_own_rew
 
     hp_adv_prev = _hp_ratio(own_prev["pokemon"]) - _hp_ratio(opp_prev["pokemon"])
     hp_adv_curr = _hp_ratio(own_curr["pokemon"]) - _hp_ratio(opp_curr["pokemon"])
-    reward += HP_ADV_SCALE * (hp_adv_curr - hp_adv_prev) * dense_scale
+    hp_rew = HP_ADV_SCALE * (hp_adv_curr - hp_adv_prev) * dense_scale
+    reward += hp_rew
+    components["hp_adv"] = hp_rew
 
     if done:
-        reward += WIN_REWARD if won else LOSS_REWARD   # terminal rewards never scaled
-    return reward
+        terminal = WIN_REWARD if won else LOSS_REWARD   # terminal rewards never scaled
+        components["terminal"] = terminal
+        reward += terminal
+    return reward, components
 
 
-# ── State encoding helpers ────────────────────────────────────────────────────
+# â”€â”€ State encoding helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _encode_side_pokemon(state: dict, side_idx: int) -> list[PokemonFeatures]:
     """6 PokemonFeatures for one side: active first, then bench in team order."""
@@ -228,7 +241,7 @@ def encode_state(state: dict, side_idx: int) -> tuple[list[PokemonFeatures], Fie
       [6-11] opponent side (active first)
 
     Note: POMDP masking (hiding unrevealed opponent info) is deferred to v2.
-    For v1 self-play, both sides see full state — fine for random battle training.
+    For v1 self-play, both sides see full state â€” fine for random battle training.
     """
     own = _encode_side_pokemon(state, side_idx)
     opp = _encode_side_pokemon(state, 1 - side_idx)
@@ -252,12 +265,12 @@ def build_action_mask(state: dict, side_idx: int) -> torch.Tensor:
     force_sw   = bool(active.get("force_switch_flag", False))
     trapped    = bool(active.get("trapped", False))
 
-    # Use the Rust sim's own request_state if available — it's the source of truth
+    # Use the Rust sim's own request_state if available â€” it's the source of truth
     # for whether a switch is expected, covering cases like U-turn, Baton Pass, etc.
     req_state = side.get("request_state", "")
 
     # Guard: if the Rust sim has no active request for this side, ALL actions
-    # are illegal — even if we have an active, unfainted Pokémon. This prevents
+    # are illegal â€” even if we have an active, unfainted PokÃ©mon. This prevents
     # trying to act in an inconsistent sim state (e.g. after a partial turn
     # resolution where one side has "None" request_state but the other has
     # "Switch"). The env will be reset by the caller.
@@ -267,19 +280,19 @@ def build_action_mask(state: dict, side_idx: int) -> torch.Tensor:
     # When Rust sim expects a switch, only switch slots are legal
     if req_state == "Switch":
         # Check for Revival Blessing: when the active slot has revivalblessing
-        # condition, we MUST target a fainted Pokémon (the Rust sim rejects
+        # condition, we MUST target a fainted PokÃ©mon (the Rust sim rejects
         # non-fainted targets during revival blessing).
         slot_conds = side.get("slot_conditions", {})
         is_revival = "revivalblessing" in slot_conds.get(active.get("position", 0), [])
 
         if is_revival:
-            # Revival Blessing: only fainted bench Pokémon are legal targets
+            # Revival Blessing: only fainted bench PokÃ©mon are legal targets
             bench = [
                 j for j, p in enumerate(side["pokemon"])
                 if j not in active_set and p.get("fainted", False)
             ]
         else:
-            # Normal switch: only alive bench Pokémon are legal targets
+            # Normal switch: only alive bench PokÃ©mon are legal targets
             bench = [
                 j for j, p in enumerate(side["pokemon"])
                 if j not in active_set and not p.get("fainted", False)
@@ -288,7 +301,7 @@ def build_action_mask(state: dict, side_idx: int) -> torch.Tensor:
             mask[8 + k] = False
         return mask
 
-    # Fainted Pokémon must switch — no move slots legal
+    # Fainted PokÃ©mon must switch â€” no move slots legal
     if not fainted:
         # Move slots 0-3
         if not force_sw:
@@ -324,7 +337,7 @@ def action_to_choice(action: int, state: dict, side_idx: int) -> str:
     if 8 <= action <= 12:
         side       = state["sides"][side_idx]
         active_set = {i for i in side["active"] if i is not None}
-        # Detect Revival Blessing — during revival, the bench includes fainted Pokémon
+        # Detect Revival Blessing â€” during revival, the bench includes fainted PokÃ©mon
         if active_set:
             active_pos = next(iter(active_set))
             active = side["pokemon"][active_pos]
@@ -341,7 +354,7 @@ def action_to_choice(action: int, state: dict, side_idx: int) -> str:
     raise ValueError(f"Invalid action index: {action}")
 
 
-# ── Sliding window per env ────────────────────────────────────────────────────
+# â”€â”€ Sliding window per env â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class BattleWindow:
     """K=4 sliding window of encoded turns for one battle environment."""
@@ -367,7 +380,7 @@ class BattleWindow:
         return poke, field
 
 
-# ── Rollout buffer + GAE ──────────────────────────────────────────────────────
+# â”€â”€ Rollout buffer + GAE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class RolloutBuffer:
     """Stores complete episodes; computes GAE; yields shuffled minibatches."""
@@ -453,7 +466,7 @@ class RolloutBuffer:
         }
 
 
-# ── Batch input builder ───────────────────────────────────────────────────────
+# â”€â”€ Batch input builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _build_agent_inputs(
     windows:    list[BattleWindow],
@@ -465,7 +478,7 @@ def _build_agent_inputs(
     Build batched model inputs for N parallel envs from their BattleWindows.
 
     Returns (poke_batch, field_tensor, move_idx, pp_ratio, move_disabled,
-             mechanic_id, mechanic_type_idx) — all on device.
+             mechanic_id, mechanic_type_idx) â€” all on device.
     """
     B = len(windows)
 
@@ -532,14 +545,14 @@ def _sample_action(log_probs: torch.Tensor, action_mask: torch.Tensor) -> torch.
     probs = torch.zeros_like(log_probs)
     legal = ~action_mask
     probs[legal] = log_probs[legal].exp()
-    # Fallback if no legal actions (all Pokémon fainted): pick action 0
+    # Fallback if no legal actions (all PokÃ©mon fainted): pick action 0
     no_legal = ~legal.any(dim=1)
     if no_legal.any():
         probs[no_legal, 0] = 1.0
     return torch.multinomial(probs, num_samples=1).squeeze(1)   # [B]
 
 
-# ── Main collection function ──────────────────────────────────────────────────
+# â”€â”€ Main collection function â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def collect_rollout(
     agent_self: "CynthAIAgent",
@@ -592,7 +605,7 @@ def collect_rollout(
             masks_self = torch.stack([build_action_mask(s, side_self) for s in prev_states]).to(device)
             masks_opp  = torch.stack([build_action_mask(s, side_opp)  for s in prev_states]).to(device)
 
-            # P1: POMDP masking — apply reveal mask during rollout decision
+            # P1: POMDP masking â€” apply reveal mask during rollout decision
             unmasked_pb = ins_self[0]
             if mask_ratio > 0.0:
                 rs = [tracker.get_state(i) for i in range(n_envs)]
@@ -612,7 +625,7 @@ def collect_rollout(
 
             # Bot vs neural opponent dispatch
             if hasattr(agent_opp, "act"):
-                # Rule-based bot (e.g. FullOffensePolicy) — use .act(states)
+                # Rule-based bot (e.g. FullOffensePolicy) â€” use .act(states)
                 acts_opp = agent_opp.act(prev_states, side_opp, masks_opp)
                 # Bot provides no value/log_probs; use zeros for buffer
                 _bot_value    = torch.zeros(n_envs, 1, device=device)
@@ -635,14 +648,14 @@ def collect_rollout(
             subt_envs: dict[int, tuple] = {}  # env_idx -> (fresh_state, req_self, req_opp)
 
             for i in range(n_envs):
-                # ── Couche 1 : re-valider avec un état frais ─────────────────
+                # â”€â”€ Couche 1 : re-valider avec un Ã©tat frais â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 fresh_state = envs[i].get_state()
                 req_self = fresh_state["sides"][side_self].get("request_state", "")
                 req_opp = fresh_state["sides"][side_opp].get("request_state", "")
 
-                # ── Détection Switch sub-turn (après KO / forced switch) ────
+                # â”€â”€ DÃ©tection Switch sub-turn (aprÃ¨s KO / forced switch) â”€â”€â”€â”€
                 if req_self == "None" or req_opp == "None":
-                    # Les deux en None → la bataille n'attend rien, on avance
+                    # Les deux en None â†’ la bataille n'attend rien, on avance
                     if req_self != "Switch" and req_opp != "Switch":
                         curr_states.append(fresh_state)
                         skip_buffer.add(i)
@@ -650,14 +663,14 @@ def collect_rollout(
                         chosen_actions_opp.append(0)
                         continue
 
-                    # Sub-turn Switch : collecter pour forward pass après la boucle
+                    # Sub-turn Switch : collecter pour forward pass aprÃ¨s la boucle
                     subt_envs[i] = (fresh_state, req_self, req_opp)
-                    curr_states.append(fresh_state)  # placeholder, sera mis à jour
+                    curr_states.append(fresh_state)  # placeholder, sera mis Ã  jour
                     chosen_actions_self.append(0)  # placeholder
                     chosen_actions_opp.append(0)
                     continue
 
-                # ── Tour normal : les deux sides ont des requests valides ──
+                # â”€â”€ Tour normal : les deux sides ont des requests valides â”€â”€
                 fresh_mask_self = build_action_mask(fresh_state, side_self)
                 fresh_mask_opp  = build_action_mask(fresh_state, side_opp)
 
@@ -677,7 +690,7 @@ def collect_rollout(
                     curr_states.append(envs[i].get_state())
                     tracker.update(i, log_entries, curr_states[-1], side_opp)
                 else:
-                    # Choice invalide → reset env, skip transition.
+                    # Choice invalide â†’ reset env, skip transition.
                     print(f"INVALID choice env={i} p1={p1!r} p2={p2!r}", file=sys.stderr)
                     envs[i] = PyBattle(format_id, seed=next_seed)
                     next_seed += 1
@@ -687,7 +700,7 @@ def collect_rollout(
                     curr_states.append(envs[i].get_state())
                     crashed.add(i)
 
-            # ── Traitement des Switch sub-turns : forward pass dédié ─────────
+            # â”€â”€ Traitement des Switch sub-turns : forward pass dÃ©diÃ© â”€â”€â”€â”€â”€â”€â”€â”€â”€
             if subt_envs:
                 # Grouper par side qui doit switcher
                 self_need_switch = {i: v for i, v in subt_envs.items() if v[1] == "Switch"}
@@ -697,7 +710,8 @@ def collect_rollout(
                 if self_need_switch:
                     indices = list(self_need_switch.keys())
                     sub_states = [self_need_switch[i][0] for i in indices]
-                    sub_ins = _build_agent_inputs(wins_self, sub_states, side_self, device)
+                    sub_wins = [wins_self[i] for i in indices]
+                    sub_ins = _build_agent_inputs(sub_wins, sub_states, side_self, device)
                     sub_masks = torch.stack(
                         [build_action_mask(s, side_self) for s in sub_states]
                     ).to(device)
@@ -723,7 +737,7 @@ def collect_rollout(
                             done = envs[i].ended
                             winner = envs[i].winner
                             won = (winner == "p1") if side_self == 0 else (winner == "p2")
-                            reward = compute_step_reward(
+                            reward, components = compute_step_reward(
                                 fresh_state, new_state, done,
                                 won if done else None, side_self, dense_scale
                             )
@@ -748,6 +762,7 @@ def collect_rollout(
                                 action_mask       = sub_masks[j].cpu(),
                                 reveal_state      = tracker.get_state(i),
                                 reward            = reward,
+                                reward_components = components,
                                 done              = done,
                                 value_old         = sub_out.value[j, 0].item(),
                             ))
@@ -780,7 +795,8 @@ def collect_rollout(
                         # Bot policy
                         acts_opp_list = agent_opp.act(sub_states, side_opp, sub_masks)
                     else:
-                        sub_ins = _build_agent_inputs(wins_opp, sub_states, side_opp, device)
+                        sub_wins = [wins_opp[i] for i in indices]
+                        sub_ins = _build_agent_inputs(sub_wins, sub_states, side_opp, device)
                         sub_out = agent_opp(*sub_ins, sub_masks)
                         acts_opp_list = _sample_action(sub_out.log_probs, sub_masks)
 
@@ -817,12 +833,12 @@ def collect_rollout(
 
             for i in range(n_envs):
                 if i in crashed or i in skip_buffer:
-                    continue  # transition skip — switch sub-turn ou données corrompues
+                    continue  # transition skip â€” switch sub-turn ou donnÃ©es corrompues
 
                 done   = envs[i].ended
                 winner = envs[i].winner
                 won    = (winner == "p1") if side_self == 0 else (winner == "p2")
-                reward = compute_step_reward(prev_states[i], curr_states[i], done, won if done else None, side_self, dense_scale)
+                reward, components = compute_step_reward(prev_states[i], curr_states[i], done, won if done else None, side_self, dense_scale)
 
                 pb    = unmasked_pb
                 ft    = ins_self[1]
@@ -831,7 +847,7 @@ def collect_rollout(
                 mdis  = ins_self[4]
                 mech  = ins_self[5][i].item()
                 mtype = ins_self[6][i].item()
-                action = chosen_actions_self[i]   # action réellement jouée (peut différer de acts_self)
+                action = chosen_actions_self[i]   # action rÃ©ellement jouÃ©e (peut diffÃ©rer de acts_self)
 
                 buffer.add(Transition(
                     species_idx       = pb.species_idx[i].cpu(),
@@ -853,6 +869,7 @@ def collect_rollout(
                     action_mask       = masks_self[i].cpu(),
                     reveal_state      = tracker.get_state(i),
                     reward            = reward,
+                    reward_components = components,
                     done              = done,
                     value_old         = out_self.value[i, 0].item(),
                 ))

@@ -56,6 +56,14 @@ def run_eval(
     ties   = 0
     total  = 0
 
+    # Diagnostic collection
+    battle_lengths: list[int] = []
+    action_histogram = [0] * 13
+    reward_decomp_sum: dict[str, float] = {"ko_own": 0.0, "ko_opp": 0.0, "hp_adv": 0.0, "terminal": 0.0}
+    reward_decomp_n = 0
+    value_preds: list[float] = []
+    value_returns: list[float] = []
+
     t0 = time.perf_counter()
 
     while total < n_games:
@@ -78,9 +86,30 @@ def run_eval(
             mask_ratio = mask_ratio,
         )
 
-        for t in buffer._transitions:
+        # --- Collect diagnostics from this batch ---
+        ep_len = 0
+        for t_idx, t in enumerate(buffer._transitions):
+            # Action histogram
+            if 0 <= t.action < 13:
+                action_histogram[t.action] += 1
+
+            # Value calibration
+            if t_idx < len(buffer._returns):
+                value_preds.append(t.value_old)
+                value_returns.append(buffer._returns[t_idx])
+
+            # Reward decomposition
+            if t.reward_components:
+                for k in reward_decomp_sum:
+                    reward_decomp_sum[k] += t.reward_components.get(k, 0.0)
+                reward_decomp_n += 1
+
+            # Battle length and win/loss tracking
+            ep_len += 1
             if t.done:
                 total += 1
+                battle_lengths.append(ep_len)
+                ep_len = 0
                 if t.reward > 0.0:
                     wins += 1
                 elif t.reward < 0.0:
@@ -101,6 +130,10 @@ def run_eval(
     ci_low  = max(0.0, centre - margin)
     ci_high = min(1.0, centre + margin)
 
+    reward_decomp_avg = {}
+    if reward_decomp_n > 0:
+        reward_decomp_avg = {k: v / reward_decomp_n for k, v in reward_decomp_sum.items()}
+
     return {
         "win_rate": win_rate,
         "wins":     wins,
@@ -109,6 +142,13 @@ def run_eval(
         "total":    total,
         "ci_low":   ci_low,
         "ci_high":  ci_high,
+
+        # Diagnostics
+        "battle_lengths":    battle_lengths,
+        "action_histogram":  action_histogram,
+        "reward_decomp_avg": reward_decomp_avg,
+        "value_preds":       value_preds,
+        "value_returns":     value_returns,
     }
 
 
