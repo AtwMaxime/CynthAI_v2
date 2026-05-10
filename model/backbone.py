@@ -85,8 +85,10 @@ class BattleBackbone(nn.Module):
         )
 
         # ── Value head (Critic) ───────────────────────────────────────────────
+        # Pooled (mean over 13 slots) → Linear → ReLU → Linear
+        # Mean pooling avoids the 3328→256 bottleneck and adds ~65k params
         self.value_head = nn.Sequential(
-            nn.Linear(N_SLOTS * D_MODEL, D_MODEL),
+            nn.Linear(D_MODEL, D_MODEL),
             nn.ReLU(),
             nn.Linear(D_MODEL, 1),
         )
@@ -238,9 +240,9 @@ class BattleBackbone(nn.Module):
 
         current_tokens = seq[:, -N_SLOTS:, :]                      # [B, 13, D_MODEL]
 
-        B    = current_tokens.shape[0]
-        flat  = current_tokens.reshape(B, N_SLOTS * D_MODEL)
-        value = self.value_head(flat)                               # [B, 1]
+        B      = current_tokens.shape[0]
+        pooled = current_tokens.mean(dim=1)                         # [B, D_MODEL]
+        value  = self.value_head(pooled)                            # [B, 1]
 
         return current_tokens, value
 

@@ -12,8 +12,8 @@ Tests:
   8. Training losses (compute_losses)
   9. Checkpoint save + load round-trip
 
-Run with:
-    .venv\\Scripts\\python.exe test_full_pipeline.py
+Run from the CynthAI_v2 directory:
+    .venv\\Scripts\\python.exe tests/test_full_pipeline.py
 """
 
 import sys
@@ -89,11 +89,11 @@ dummy_field = {
         "weather":        "sunnyday",
         "terrain":        "electricterrain",
         "pseudo_weather": ["trickroom"],
-        "sides": [
-            {"side_conditions": {"stealthrock": 1}, "pokemon_left": 5, "total_fainted": 1},
-            {"side_conditions": {"spikes": 2},       "pokemon_left": 4, "total_fainted": 2},
-        ],
-    }
+    },
+    "sides": [
+        {"side_conditions": {"stealthrock": 1}, "pokemon_left": 5, "total_fainted": 1},
+        {"side_conditions": {"spikes": 2},       "pokemon_left": 4, "total_fainted": 2},
+    ],
 }
 
 ff = encode_field(dummy_field)
@@ -101,6 +101,10 @@ check("encode_field returns FieldFeatures",       isinstance(ff, FieldFeatures))
 check("weather set",                              ff.weather[1] == 1.0)
 check("terrain set",                              ff.terrain[1] == 1.0)
 check("pseudo_weather trickroom",                 ff.pseudo_weather[2] == 1.0)
+check("side0 stealthrock = 1.0",                  ff.side0.conditions[0] == 1.0)
+check("side1 spikes = 2/3",                       abs(ff.side1.conditions[1] - 2/3) < 1e-6)
+check("side0 pokemon_left = 5/6",                 abs(ff.side0.pokemon_left - 5/6) < 1e-6)
+check("side1 total_fainted = 2/6",                abs(ff.side1.total_fainted - 2/6) < 1e-6)
 
 
 # ── 2. Collation ──────────────────────────────────────────────────────────────

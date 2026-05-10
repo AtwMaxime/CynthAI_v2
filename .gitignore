@@ -6,6 +6,9 @@ __pycache__/
 dist/
 build/
 
+# Compiled Rust binding (built locally by maturin)
+simulator.pyd
+
 # Virtual environment
 .venv/
 venv/
@@ -17,9 +20,16 @@ simulator/target/
 .vscode/
 .idea/
 
-# Checkpoints (large files)
+# Checkpoints (large files + generated metrics)
 checkpoints/*.pt
 checkpoints/*.pth
+checkpoints/*.csv
+checkpoints/_test_*/
+checkpoints/debug_*/
+checkpoints/exp_*/
+
+# Generated plots
+plots/
 
 # OS
 .DS_Store

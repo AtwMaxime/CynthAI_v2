@@ -1,0 +1,6406 @@
+[
+ {
+  "seed": 1,
+  "total_turns": 41,
+  "winner": "p2",
+  "turns": [
+   {
+    "turn": 1,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|1a|Knock Off|2a",
+     "|-supereffective|p2a",
+     "|-damage|p2a|260/324",
+     "|-enditem|p2a|Vile Vial|[from] move: Knock Off|[of] p1a",
+     "|move|2a|Snowscape|2a",
+     "|-weather|Snowscape",
+     "|",
+     "|-weather|Snowscape|[upkeep]",
+     "|upkeep",
+     "|turn|2"
+    ],
+    "ability_entries": [],
+    "item_entries": [
+     "|-enditem|p2a|Vile Vial|[from] move: Knock Off|[of] p1a"
+    ],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|260/324"
+    ]
+   },
+   {
+    "turn": 2,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|1a|Knock Off|2a",
+     "|-supereffective|p2a",
+     "|-damage|p2a|218/324",
+     "|move|2a|Snowscape||[still]",
+     "||-fail||p2a: Slowbro-Mega",
+     "|",
+     "|-weather|Snowscape|[upkeep]",
+     "|upkeep",
+     "|turn|3"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|218/324"
+    ]
+   },
+   {
+    "turn": 3,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|1a|Knock Off|2a",
+     "|-supereffective|p2a",
+     "|-damage|p2a|176/324",
+     "|move|2a|Snowscape||[still]",
+     "||-fail||p2a: Slowbro-Mega",
+     "|",
+     "|-weather|Snowscape|[upkeep]",
+     "|upkeep",
+     "|turn|4"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|176/324"
+    ]
+   },
+   {
+    "turn": 4,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|1a|Knock Off|2a",
+     "|-supereffective|p2a",
+     "|-damage|p2a|134/324",
+     "|move|2a|Snowscape||[still]",
+     "||-fail||p2a: Slowbro-Mega",
+     "|",
+     "|-weather|Snowscape|[upkeep]",
+     "|upkeep",
+     "|turn|5"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|134/324"
+    ]
+   },
+   {
+    "turn": 5,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|1a|Knock Off|2a",
+     "|-supereffective|p2a",
+     "|-damage|p2a|92/324",
+     "|move|2a|Snowscape||[still]",
+     "||-fail||p2a: Slowbro-Mega",
+     "|",
+     "|-weather|none",
+     "|upkeep",
+     "|turn|6"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|92/324"
+    ]
+   },
+   {
+    "turn": 6,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|1a|Knock Off|2a",
+     "|-supereffective|p2a",
+     "|-damage|p2a|50/324",
+     "|move|2a|Snowscape|2a",
+     "|-weather|Snowscape",
+     "|",
+     "|-weather|Snowscape|[upkeep]",
+     "|upkeep",
+     "|turn|7"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|50/324"
+    ]
+   },
+   {
+    "turn": 7,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|1a|Knock Off|2a",
+     "|-supereffective|p2a",
+     "|-damage|p2a|10/324",
+     "|move|2a|Snowscape||[still]",
+     "||-fail||p2a: Slowbro-Mega",
+     "|",
+     "|-weather|Snowscape|[upkeep]",
+     "|upkeep",
+     "|turn|8"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|10/324"
+    ]
+   },
+   {
+    "turn": 8,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|1a|Knock Off|2a",
+     "|-supereffective|p2a",
+     "|-damage|p2a|0/324",
+     "|faint|p2a: Slowbro",
+     "|",
+     "|-weather|Snowscape|[upkeep]",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|0/324"
+    ]
+   },
+   {
+    "turn": 9,
+    "p1_choice": "move 1",
+    "p2_choice": "switch 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|switch|p2: Latias|latiasmega, L53, F|168/168",
+     "|turn|9"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p2: Latias|latiasmega, L53, F|168/168"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 10,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Water Gun|1a",
+     "|-damage|p1a|215/240",
+     "|move|1a|Knock Off|2a",
+     "|-supereffective|p2a",
+     "|-damage|p2a|4/168",
+     "|-enditem|p2a|TR61|[from] move: Knock Off|[of] p1a",
+     "|",
+     "|-weather|Snowscape|[upkeep]",
+     "|upkeep",
+     "|turn|10"
+    ],
+    "ability_entries": [],
+    "item_entries": [
+     "|-enditem|p2a|TR61|[from] move: Knock Off|[of] p1a"
+    ],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|215/240",
+     "|-damage|p2a|4/168"
+    ]
+   },
+   {
+    "turn": 11,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Water Gun|1a",
+     "|-damage|p1a|189/240",
+     "|move|1a|Knock Off|2a",
+     "|-supereffective|p2a",
+     "|-damage|p2a|0/168",
+     "|faint|p2a: Latias",
+     "|",
+     "|-weather|none",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|189/240",
+     "|-damage|p2a|0/168"
+    ]
+   },
+   {
+    "turn": 12,
+    "p1_choice": "move 1",
+    "p2_choice": "switch 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|switch|p2: Mantine|mantine, L56, F|185/185",
+     "|turn|11"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p2: Mantine|mantine, L56, F|185/185"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 13,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|1a|Knock Off|2a",
+     "|-damage|p2a|79/185",
+     "|-enditem|p2a|Dark Memory|[from] move: Knock Off|[of] p1a",
+     "|move|2a|Punishment|1a",
+     "|-damage|p1a|173/240",
+     "|",
+     "|upkeep",
+     "|turn|12"
+    ],
+    "ability_entries": [],
+    "item_entries": [
+     "|-enditem|p2a|Dark Memory|[from] move: Knock Off|[of] p1a"
+    ],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|79/185",
+     "|-damage|p1a|173/240"
+    ]
+   },
+   {
+    "turn": 14,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|1a|Knock Off|2a",
+     "|-damage|p2a|7/185",
+     "|move|2a|Punishment|1a",
+     "|-damage|p1a|159/240",
+     "|",
+     "|upkeep",
+     "|turn|13"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|7/185",
+     "|-damage|p1a|159/240"
+    ]
+   },
+   {
+    "turn": 15,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|1a|Knock Off|2a",
+     "|-damage|p2a|0/185",
+     "|faint|p2a: Mantine",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|0/185"
+    ]
+   },
+   {
+    "turn": 16,
+    "p1_choice": "move 1",
+    "p2_choice": "switch 4",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|switch|p2: Cinderace|cinderacegmax, L63, M|206/206",
+     "|turn|14"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p2: Cinderace|cinderacegmax, L63, M|206/206"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 17,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Psychic|1a",
+     "|-damage|p1a|114/240",
+     "|-unboost|p1: Grubbin|spd|1",
+     "|move|1a|Knock Off|2a",
+     "|-damage|p2a|122/206",
+     "|-enditem|p2a|Apicot Berry|[from] move: Knock Off|[of] p1a",
+     "|",
+     "|upkeep",
+     "|turn|15"
+    ],
+    "ability_entries": [],
+    "item_entries": [
+     "|-enditem|p2a|Apicot Berry|[from] move: Knock Off|[of] p1a"
+    ],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|114/240",
+     "|-damage|p2a|122/206"
+    ]
+   },
+   {
+    "turn": 18,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Psychic|1a",
+     "|-damage|p1a|45/240",
+     "|move|1a|Knock Off|2a",
+     "|-damage|p2a|69/206",
+     "|",
+     "|upkeep",
+     "|turn|16"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|45/240",
+     "|-damage|p2a|69/206"
+    ]
+   },
+   {
+    "turn": 19,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Psychic|1a",
+     "|-damage|p1a|0/240",
+     "|faint|p1a: Grubbin",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|0/240"
+    ]
+   },
+   {
+    "turn": 20,
+    "p1_choice": "switch 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|switch|p1: Genesect|genesectshock, L88|263/263",
+     "|-boost|p1: Genesect|spa|1",
+     "|turn|17"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Genesect|genesectshock, L88|263/263"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 21,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|1a|Vise Grip|2a",
+     "|-damage|p2a|0/206",
+     "|faint|p2a: Cinderace",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|0/206"
+    ]
+   },
+   {
+    "turn": 22,
+    "p1_choice": "move 1",
+    "p2_choice": "switch 5",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|switch|p2: Zacian|zacian, L95|331/331",
+     "|-ability|p2: Zacian|intrepidsword|boost",
+     "|-boost|p2: Zacian|atk|1",
+     "|turn|18"
+    ],
+    "ability_entries": [
+     "|-ability|p2: Zacian|intrepidsword|boost"
+    ],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p2: Zacian|zacian, L95|331/331"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 23,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Zen Headbutt|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|202/263",
+     "|move|1a|Vise Grip|2a",
+     "|-damage|p2a|297/331",
+     "|",
+     "|upkeep",
+     "|turn|19"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|202/263",
+     "|-damage|p2a|297/331"
+    ]
+   },
+   {
+    "turn": 24,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Zen Headbutt|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|140/263",
+     "|move|1a|Vise Grip|2a",
+     "|-damage|p2a|265/331",
+     "|",
+     "|upkeep",
+     "|turn|20"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|140/263",
+     "|-damage|p2a|265/331"
+    ]
+   },
+   {
+    "turn": 25,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Zen Headbutt|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|75/263",
+     "|move|1a|Vise Grip|2a",
+     "|-damage|p2a|231/331",
+     "|",
+     "|upkeep",
+     "|turn|21"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|75/263",
+     "|-damage|p2a|231/331"
+    ]
+   },
+   {
+    "turn": 26,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Zen Headbutt|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|15/263",
+     "|move|1a|Vise Grip|2a",
+     "|-damage|p2a|196/331",
+     "|",
+     "|upkeep",
+     "|turn|22"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|15/263",
+     "|-damage|p2a|196/331"
+    ]
+   },
+   {
+    "turn": 27,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Zen Headbutt|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|0/263",
+     "|faint|p1a: Genesect",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|0/263"
+    ]
+   },
+   {
+    "turn": 28,
+    "p1_choice": "switch 3",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|switch|p1: Glimmora|glimmora, F|322/322",
+     "|turn|23"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Glimmora|glimmora, F|322/322"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 29,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Zen Headbutt|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|124/322",
+     "|-activate|p1a|ability: Toxic Debris",
+     "|move|1a|Gastro Acid|2a",
+     "|-endability|p2a",
+     "|",
+     "|upkeep",
+     "|turn|24"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|124/322"
+    ]
+   },
+   {
+    "turn": 30,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Zen Headbutt|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|0/322",
+     "|-activate|p1a|ability: Toxic Debris",
+     "|faint|p1a: Glimmora",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|0/322"
+    ]
+   },
+   {
+    "turn": 31,
+    "p1_choice": "switch 4",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|switch|p1: Golem|golemalola, L98, F|288/288",
+     "|turn|25"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Golem|golemalola, L98, F|288/288"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 32,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Zen Headbutt|1a",
+     "|-damage|p1a|197/288",
+     "|cant|p1a|flinch",
+     "|",
+     "|upkeep",
+     "|turn|26"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|197/288"
+    ]
+   },
+   {
+    "turn": 33,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Zen Headbutt|1a",
+     "|-damage|p1a|101/288",
+     "|move|1a|G-Max Terror|2a",
+     "|-damage|p2a|195/331",
+     "|-activate|p2a|trapped",
+     "|",
+     "|upkeep",
+     "|turn|27"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|101/288",
+     "|-damage|p2a|195/331"
+    ]
+   },
+   {
+    "turn": 34,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Zen Headbutt|1a",
+     "|-damage|p1a|12/288",
+     "|move|1a|G-Max Terror|2a",
+     "|-damage|p2a|194/331",
+     "|",
+     "|upkeep",
+     "|turn|28"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|12/288",
+     "|-damage|p2a|194/331"
+    ]
+   },
+   {
+    "turn": 35,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Zen Headbutt|1a",
+     "|-damage|p1a|0/288",
+     "|faint|p1a: Golem",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|0/288"
+    ]
+   },
+   {
+    "turn": 36,
+    "p1_choice": "switch 5",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|switch|p1: Vivillon|vivillonsavanna, L99, F|290/290",
+     "|turn|29"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Vivillon|vivillonsavanna, L99, F|290/290"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 37,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Zen Headbutt|1a|[miss]",
+     "|-miss|p2a: Zacian|p1a: Vivillon-Savanna",
+     "|move|1a|Origin Pulse|2a|[spread] 4",
+     "|-damage|p2a|104/331",
+     "|",
+     "|upkeep",
+     "|turn|30"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|104/331"
+    ]
+   },
+   {
+    "turn": 38,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Zen Headbutt|1a",
+     "|-damage|p1a|127/290",
+     "|move|1a|Origin Pulse|2a|[spread] ",
+     "|-miss|p1a: Vivillon-Savanna|p2a: Zacian",
+     "|",
+     "|upkeep",
+     "|turn|31"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|127/290"
+    ]
+   },
+   {
+    "turn": 39,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Zen Headbutt|1a",
+     "|-crit|p1a",
+     "|-damage|p1a|0/290",
+     "|faint|p1a: Vivillon",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|0/290"
+    ]
+   },
+   {
+    "turn": 40,
+    "p1_choice": "switch 6",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|switch|p1: Grovyle|grovyle, L85, M|208/208",
+     "|turn|32"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Grovyle|grovyle, L85, M|208/208"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 41,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": "p2",
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Zen Headbutt|1a",
+     "|-damage|p1a|0/208",
+     "|faint|p1a: Grovyle",
+     "|",
+     "|win|p2"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|0/208"
+    ]
+   }
+  ]
+ },
+ {
+  "seed": 42,
+  "total_turns": 53,
+  "winner": "p2",
+  "turns": [
+   {
+    "turn": 1,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Wicked Blow|1a",
+     "|-crit|p1a",
+     "|-damage|p1a|55/166",
+     "|move|1a|Dragon Ascent|2a",
+     "|-supereffective|p2a",
+     "|-damage|p2a|164/258",
+     "|-unboost|p1: Genesect|def|1",
+     "|-unboost|p1: Genesect|spd|1",
+     "|",
+     "|upkeep",
+     "|turn|2"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|55/166",
+     "|-damage|p2a|164/258"
+    ]
+   },
+   {
+    "turn": 2,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Wicked Blow|1a",
+     "|-crit|p1a",
+     "|-damage|p1a|0/166",
+     "|faint|p1a: Genesect",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|0/166"
+    ]
+   },
+   {
+    "turn": 3,
+    "p1_choice": "switch 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|switch|p1: Eelektrik|eelektrik, L71, M|200/200",
+     "|turn|3"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Eelektrik|eelektrik, L71, M|200/200"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 4,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Wicked Blow|1a",
+     "|-crit|p1a",
+     "|-damage|p1a|86/200",
+     "|move|1a|Diamond Storm|2a|[spread] 0",
+     "|-resisted|p2a",
+     "|-damage|p2a|154/258",
+     "|-boost|p1: Eelektrik|def|2",
+     "|",
+     "|upkeep",
+     "|turn|4"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|86/200",
+     "|-damage|p2a|154/258"
+    ]
+   },
+   {
+    "turn": 5,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Wicked Blow|1a",
+     "|-crit|p1a",
+     "|-damage|p1a|0/200",
+     "|faint|p1a: Eelektrik",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|0/200"
+    ]
+   },
+   {
+    "turn": 6,
+    "p1_choice": "switch 3",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|switch|p1: Scattervein|scattervein, L75, F|214/214",
+     "|turn|5"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Scattervein|scattervein, L75, F|214/214"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 7,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Wicked Blow|1a",
+     "|-resisted|p1a",
+     "|-crit|p1a",
+     "|-damage|p1a|172/214",
+     "|move|1a|Light Screen|1a",
+     "|-sidestart|p1|move: Light Screen",
+     "|",
+     "|upkeep",
+     "|turn|6"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|172/214"
+    ]
+   },
+   {
+    "turn": 8,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Wicked Blow|1a",
+     "|-resisted|p1a",
+     "|-crit|p1a",
+     "|-damage|p1a|132/214",
+     "|move|1a|Light Screen||[still]",
+     "||-fail||p1a: Scattervein",
+     "|",
+     "|upkeep",
+     "|turn|7"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|132/214"
+    ]
+   },
+   {
+    "turn": 9,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Wicked Blow|1a",
+     "|-resisted|p1a",
+     "|-crit|p1a",
+     "|-damage|p1a|90/214",
+     "|move|1a|Light Screen||[still]",
+     "||-fail||p1a: Scattervein",
+     "|",
+     "|upkeep",
+     "|turn|8"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|90/214"
+    ]
+   },
+   {
+    "turn": 10,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Wicked Blow|1a",
+     "|-resisted|p1a",
+     "|-crit|p1a",
+     "|-damage|p1a|50/214",
+     "|move|1a|Light Screen||[still]",
+     "||-fail||p1a: Scattervein",
+     "|",
+     "|upkeep",
+     "|turn|9"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|50/214"
+    ]
+   },
+   {
+    "turn": 11,
+    "p1_choice": "move 1",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Sunny Day|2a",
+     "|-weather|SunnyDay",
+     "|-activate|p2a|ability: Protosynthesis",
+     "|-start|p2a|protosynthesisAtk",
+     "|move|1a|Light Screen||[still]",
+     "||-fail||p1a: Scattervein",
+     "|",
+     "|-weather|SunnyDay|[upkeep]",
+     "|upkeep",
+     "|turn|10"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 12,
+    "p1_choice": "move 1",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Sunny Day||[still]",
+     "||-fail||p2a: Great Tusk",
+     "|move|1a|Light Screen|1a",
+     "|-sidestart|p1|move: Light Screen",
+     "|",
+     "|-weather|SunnyDay|[upkeep]",
+     "|upkeep",
+     "|turn|11"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 13,
+    "p1_choice": "move 1",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Sunny Day||[still]",
+     "||-fail||p2a: Great Tusk",
+     "|move|1a|Light Screen||[still]",
+     "||-fail||p1a: Scattervein",
+     "|",
+     "|-weather|SunnyDay|[upkeep]",
+     "|upkeep",
+     "|turn|12"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 14,
+    "p1_choice": "move 1",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368086",
+     "|move|2a|Sunny Day||[still]",
+     "||-fail||p2a: Great Tusk",
+     "|move|1a|Light Screen||[still]",
+     "||-fail||p1a: Scattervein",
+     "|",
+     "|-weather|SunnyDay|[upkeep]",
+     "|upkeep",
+     "|turn|13"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 15,
+    "p1_choice": "move 1",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Sunny Day||[still]",
+     "||-fail||p2a: Great Tusk",
+     "|move|1a|Light Screen||[still]",
+     "||-fail||p1a: Scattervein",
+     "|",
+     "|-weather|none",
+     "|-end|p2a|Protosynthesis",
+     "|upkeep",
+     "|turn|14"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 16,
+    "p1_choice": "move 1",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Sunny Day|2a",
+     "|-weather|SunnyDay",
+     "|-activate|p2a|ability: Protosynthesis",
+     "|-start|p2a|protosynthesisAtk",
+     "|move|1a|Light Screen||[still]",
+     "||-fail||p1a: Scattervein",
+     "|",
+     "|-weather|SunnyDay|[upkeep]",
+     "|upkeep",
+     "|turn|15"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 17,
+    "p1_choice": "move 1",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Sunny Day||[still]",
+     "||-fail||p2a: Great Tusk",
+     "|move|1a|Light Screen|1a",
+     "|-sidestart|p1|move: Light Screen",
+     "|",
+     "|-weather|SunnyDay|[upkeep]",
+     "|upkeep",
+     "|turn|16"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 18,
+    "p1_choice": "move 1",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Sunny Day||[still]",
+     "||-fail||p2a: Great Tusk",
+     "|move|1a|Light Screen||[still]",
+     "||-fail||p1a: Scattervein",
+     "|",
+     "|-weather|SunnyDay|[upkeep]",
+     "|upkeep",
+     "|turn|17"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 19,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Brick Break|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|0/214",
+     "|faint|p1a: Scattervein",
+     "|",
+     "|-weather|SunnyDay|[upkeep]",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|0/214"
+    ]
+   },
+   {
+    "turn": 20,
+    "p1_choice": "switch 4",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|switch|p1: Celebi|celebi, L56|204/204",
+     "|turn|18"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Celebi|celebi, L56|204/204"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 21,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Glaive Rush|2a",
+     "|-damage|p2a|117/258",
+     "|-singlemove|p1a|Glaive Rush|[silent]",
+     "|move|2a|Brick Break|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|56/204",
+     "|",
+     "|-weather|none",
+     "|-end|p2a|Protosynthesis",
+     "|upkeep",
+     "|turn|19"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|117/258",
+     "|-damage|p1a|56/204"
+    ]
+   },
+   {
+    "turn": 22,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Glaive Rush|2a",
+     "|-damage|p2a|83/258",
+     "|-singlemove|p1a|Glaive Rush|[silent]",
+     "|move|2a|Brick Break|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|0/204",
+     "|faint|p1a: Celebi",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|83/258",
+     "|-damage|p1a|0/204"
+    ]
+   },
+   {
+    "turn": 23,
+    "p1_choice": "switch 5",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|switch|p1: Litwick|litwick, L91, M|242/242",
+     "|turn|20"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Litwick|litwick, L91, M|242/242"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 24,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Brick Break|1a",
+     "|-immune|p1a",
+     "|move|1a|Crunch|2a",
+     "|-resisted|p2a",
+     "|-damage|p2a|67/258",
+     "|",
+     "|upkeep",
+     "|turn|21"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|67/258"
+    ]
+   },
+   {
+    "turn": 25,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Brick Break|1a",
+     "|-immune|p1a",
+     "|move|1a|Crunch|2a",
+     "|-resisted|p2a",
+     "|-damage|p2a|51/258",
+     "|",
+     "|upkeep",
+     "|turn|22"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|51/258"
+    ]
+   },
+   {
+    "turn": 26,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Brick Break|1a",
+     "|-immune|p1a",
+     "|move|1a|Crunch|2a",
+     "|-resisted|p2a",
+     "|-damage|p2a|35/258",
+     "|",
+     "|upkeep",
+     "|turn|23"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|35/258"
+    ]
+   },
+   {
+    "turn": 27,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Brick Break|1a",
+     "|-immune|p1a",
+     "|move|1a|Crunch|2a",
+     "|-resisted|p2a",
+     "|-damage|p2a|20/258",
+     "|-unboost|p2: Great Tusk|def|1",
+     "|",
+     "|upkeep",
+     "|turn|24"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|20/258"
+    ]
+   },
+   {
+    "turn": 28,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Brick Break|1a",
+     "|-immune|p1a",
+     "|move|1a|Crunch|2a",
+     "|-resisted|p2a",
+     "|-damage|p2a|0/258",
+     "|faint|p2a: Great Tusk",
+     "|-end|p2a|Protosynthesis|[silent]",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|0/258"
+    ]
+   },
+   {
+    "turn": 29,
+    "p1_choice": "move 1",
+    "p2_choice": "switch 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|switch|p2: Braviary|braviaryhisui, L72, M|259/259",
+     "|turn|25"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p2: Braviary|braviaryhisui, L72, M|259/259"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 30,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Fairy Wind|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|229/242",
+     "|move|1a|Crunch|2a",
+     "|-supereffective|p2a",
+     "|-damage|p2a|179/259",
+     "|-unboost|p2: Braviary|def|1",
+     "|",
+     "|upkeep",
+     "|turn|26"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|229/242",
+     "|-damage|p2a|179/259"
+    ]
+   },
+   {
+    "turn": 31,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Fairy Wind|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|214/242",
+     "|move|1a|Crunch|2a",
+     "|-supereffective|p2a",
+     "|-damage|p2a|49/259",
+     "|",
+     "|upkeep",
+     "|turn|27"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|214/242",
+     "|-damage|p2a|49/259"
+    ]
+   },
+   {
+    "turn": 32,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Fairy Wind|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|199/242",
+     "|move|1a|Crunch|2a",
+     "|-supereffective|p2a",
+     "|-damage|p2a|0/259",
+     "|faint|p2a: Braviary",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|199/242",
+     "|-damage|p2a|0/259"
+    ]
+   },
+   {
+    "turn": 33,
+    "p1_choice": "move 1",
+    "p2_choice": "switch 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|switch|p2: Leavanny|leavanny, L77, F|238/238",
+     "|turn|28"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p2: Leavanny|leavanny, L77, F|238/238"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 34,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Shift Gear|2a",
+     "|-boost|p2: Leavanny|atk|1",
+     "|-boost|p2: Leavanny|spe|2",
+     "|move|1a|Crunch|2a",
+     "|-damage|p2a|198/238",
+     "|",
+     "|upkeep",
+     "|turn|29"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|198/238"
+    ]
+   },
+   {
+    "turn": 35,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Shift Gear|2a",
+     "|-boost|p2: Leavanny|atk|1",
+     "|-boost|p2: Leavanny|spe|2",
+     "|move|1a|Crunch|2a",
+     "|-damage|p2a|157/238",
+     "|",
+     "|upkeep",
+     "|turn|30"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|157/238"
+    ]
+   },
+   {
+    "turn": 36,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Shift Gear|2a",
+     "|-boost|p2: Leavanny|atk|1",
+     "|-boost|p2: Leavanny|spe|2",
+     "|move|1a|Crunch|2a",
+     "|-damage|p2a|119/238",
+     "|",
+     "|upkeep",
+     "|turn|31"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|119/238"
+    ]
+   },
+   {
+    "turn": 37,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Shift Gear|2a",
+     "|-boost|p2: Leavanny|atk|1",
+     "|-boost|p2: Leavanny|spe|0",
+     "|move|1a|Crunch|2a",
+     "|-damage|p2a|80/238",
+     "|-unboost|p2: Leavanny|def|1",
+     "|",
+     "|upkeep",
+     "|turn|32"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|80/238"
+    ]
+   },
+   {
+    "turn": 38,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Shift Gear|2a",
+     "|-boost|p2: Leavanny|atk|1",
+     "|-boost|p2: Leavanny|spe|0",
+     "|move|1a|Crunch|2a",
+     "|-damage|p2a|20/238",
+     "|",
+     "|upkeep",
+     "|turn|33"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|20/238"
+    ]
+   },
+   {
+    "turn": 39,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Shift Gear|2a",
+     "|-boost|p2: Leavanny|atk|1",
+     "|-boost|p2: Leavanny|spe|0",
+     "|move|1a|Crunch|2a",
+     "|-damage|p2a|0/238",
+     "|faint|p2a: Leavanny",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|0/238"
+    ]
+   },
+   {
+    "turn": 40,
+    "p1_choice": "move 1",
+    "p2_choice": "switch 4",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|switch|p2: Corphish|corphish, L55, M|138/138",
+     "|turn|34"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p2: Corphish|corphish, L55, M|138/138"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 41,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|G-Max Resonance|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|198/242",
+     "|move|1a|Crunch|2a",
+     "|-damage|p2a|102/138",
+     "|",
+     "|upkeep",
+     "|turn|35"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|198/242",
+     "|-damage|p2a|102/138"
+    ]
+   },
+   {
+    "turn": 42,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|G-Max Resonance|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|197/242",
+     "|move|1a|Crunch|2a",
+     "|-damage|p2a|66/138",
+     "|",
+     "|upkeep",
+     "|turn|36"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|197/242",
+     "|-damage|p2a|66/138"
+    ]
+   },
+   {
+    "turn": 43,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|G-Max Resonance|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|196/242",
+     "|move|1a|Crunch|2a",
+     "|-damage|p2a|27/138",
+     "|",
+     "|upkeep",
+     "|turn|37"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|196/242",
+     "|-damage|p2a|27/138"
+    ]
+   },
+   {
+    "turn": 44,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|G-Max Resonance|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|195/242",
+     "|move|1a|Crunch|2a",
+     "|-damage|p2a|0/138",
+     "|faint|p2a: Corphish",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|195/242",
+     "|-damage|p2a|0/138"
+    ]
+   },
+   {
+    "turn": 45,
+    "p1_choice": "move 1",
+    "p2_choice": "switch 5",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|switch|p2: Cubone|cubone, L89, F|219/219",
+     "|turn|38"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p2: Cubone|cubone, L89, F|219/219"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 46,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Shadow Sneak|1a",
+     "|-supereffective|p1a",
+     "|-crit|p1a",
+     "|-damage|p1a|103/242",
+     "|move|1a|Crunch|2a",
+     "|-damage|p2a|204/219",
+     "|",
+     "|upkeep",
+     "|turn|39"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|103/242",
+     "|-damage|p2a|204/219"
+    ]
+   },
+   {
+    "turn": 47,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Shadow Sneak|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|41/242",
+     "|move|1a|Crunch|2a",
+     "|-damage|p2a|175/219",
+     "|",
+     "|upkeep",
+     "|turn|40"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|41/242",
+     "|-damage|p2a|175/219"
+    ]
+   },
+   {
+    "turn": 48,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Shadow Sneak|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|0/242",
+     "|faint|p1a: Litwick",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|0/242"
+    ]
+   },
+   {
+    "turn": 49,
+    "p1_choice": "switch 6",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|switch|p1: Poltchageist|poltchageist, L91|197/197",
+     "|turn|41"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Poltchageist|poltchageist, L91|197/197"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 50,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Shadow Sneak|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|135/197",
+     "|move|1a|Howl|1a",
+     "|-boost|p1: Poltchageist|atk|1",
+     "|",
+     "|upkeep",
+     "|turn|42"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|135/197"
+    ]
+   },
+   {
+    "turn": 51,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Shadow Sneak|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|67/197",
+     "|move|1a|Howl|1a",
+     "|-boost|p1: Poltchageist|atk|1",
+     "|",
+     "|-enditem|p1a: Poltchageist|goldberry|[eat]",
+     "|-heal|p1a|97/197|[from] goldberry|[of] p1a",
+     "|upkeep",
+     "|turn|43"
+    ],
+    "ability_entries": [],
+    "item_entries": [
+     "|-enditem|p1a: Poltchageist|goldberry|[eat]"
+    ],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|67/197"
+    ]
+   },
+   {
+    "turn": 52,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Shadow Sneak|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|27/197",
+     "|move|1a|Howl|1a",
+     "|-boost|p1: Poltchageist|atk|1",
+     "|",
+     "|upkeep",
+     "|turn|44"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|27/197"
+    ]
+   },
+   {
+    "turn": 53,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": "p2",
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Shadow Sneak|1a",
+     "|-supereffective|p1a",
+     "|-crit|p1a",
+     "|-damage|p1a|0/197",
+     "|faint|p1a: Poltchageist",
+     "|",
+     "|win|p2"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|0/197"
+    ]
+   }
+  ]
+ },
+ {
+  "seed": 99,
+  "total_turns": 48,
+  "winner": "p2",
+  "turns": [
+   {
+    "turn": 1,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Hex|2a",
+     "|-supereffective|p2a",
+     "|-damage|p2a|61/207",
+     "|move|2a|Hurricane|1a",
+     "|-damage|p1a|183/222",
+     "|",
+     "|upkeep",
+     "|turn|2"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|61/207",
+     "|-damage|p1a|183/222"
+    ]
+   },
+   {
+    "turn": 2,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Hex|2a",
+     "|-supereffective|p2a",
+     "|-damage|p2a|0/207",
+     "|faint|p2a: Pajantom",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|0/207"
+    ]
+   },
+   {
+    "turn": 3,
+    "p1_choice": "move 1",
+    "p2_choice": "switch 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|switch|p2: Rotom|rotomfrost, L68|160/160",
+     "|turn|3"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p2: Rotom|rotomfrost, L68|160/160"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 4,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Hex|2a",
+     "|-damage|p2a|126/160",
+     "|move|2a|Scorching Sands|1a",
+     "|-damage|p1a|137/222",
+     "|",
+     "|upkeep",
+     "|turn|4"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|126/160",
+     "|-damage|p1a|137/222"
+    ]
+   },
+   {
+    "turn": 5,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Hex|2a",
+     "|-damage|p2a|95/160",
+     "|move|2a|Scorching Sands|1a",
+     "|-damage|p1a|93/222",
+     "|-status|p1a|brn",
+     "|",
+     "|-damage|p1a|80/222|[from] brn",
+     "|upkeep",
+     "|turn|5"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|95/160",
+     "|-damage|p1a|93/222",
+     "|-damage|p1a|80/222|[from] brn"
+    ]
+   },
+   {
+    "turn": 6,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Hex|2a",
+     "|-damage|p2a|63/160",
+     "|move|2a|Scorching Sands|1a",
+     "|-damage|p1a|30/222",
+     "|",
+     "|-damage|p1a|17/222|[from] brn",
+     "|upkeep",
+     "|turn|6"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|63/160",
+     "|-damage|p1a|30/222",
+     "|-damage|p1a|17/222|[from] brn"
+    ]
+   },
+   {
+    "turn": 7,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Hex|2a",
+     "|-damage|p2a|31/160",
+     "|move|2a|Scorching Sands|1a",
+     "|-damage|p1a|0/222",
+     "|faint|p1a: Bruxish",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|31/160",
+     "|-damage|p1a|0/222"
+    ]
+   },
+   {
+    "turn": 8,
+    "p1_choice": "switch 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|switch|p1: Eldegoss|eldegoss, L77, M|217/217",
+     "|turn|7"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Eldegoss|eldegoss, L77, M|217/217"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 9,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Scorching Sands|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|202/217",
+     "|-unboost|p2: Rotom|spe|1",
+     "|move|1a|Catastropika|2a",
+     "|-resisted|p2a",
+     "|-damage|p2a|0/160",
+     "|faint|p2a: Rotom",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|202/217",
+     "|-damage|p2a|0/160"
+    ]
+   },
+   {
+    "turn": 10,
+    "p1_choice": "move 2",
+    "p2_choice": "switch 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|switch|p2: Zacian|zacian, L78|251/251",
+     "|-ability|p2: Zacian|intrepidsword|boost",
+     "|-boost|p2: Zacian|atk|1",
+     "|turn|8"
+    ],
+    "ability_entries": [
+     "|-ability|p2: Zacian|intrepidsword|boost"
+    ],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p2: Zacian|zacian, L78|251/251"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 11,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Curse|2a",
+     "|-boost|p2: Zacian|atk|1",
+     "|-boost|p2: Zacian|def|1",
+     "|-unboost|p2: Zacian|spe|1",
+     "|move|1a|Shore Up|1a",
+     "|-heal|p1a|217/217",
+     "|",
+     "|upkeep",
+     "|turn|9"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 12,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Curse|2a",
+     "|-boost|p2: Zacian|atk|1",
+     "|-boost|p2: Zacian|def|1",
+     "|-unboost|p2: Zacian|spe|1",
+     "|move|1a|Shore Up|1a",
+     "|-fail|p1a|heal",
+     "|",
+     "|upkeep",
+     "|turn|10"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 13,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Shore Up|1a",
+     "|-fail|p1a|heal",
+     "|move|2a|Curse|2a",
+     "|-boost|p2: Zacian|atk|1",
+     "|-boost|p2: Zacian|def|1",
+     "|-unboost|p2: Zacian|spe|1",
+     "|",
+     "|upkeep",
+     "|turn|11"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 14,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Shore Up|1a",
+     "|-fail|p1a|heal",
+     "|move|2a|Curse|2a",
+     "|-boost|p2: Zacian|atk|1",
+     "|-boost|p2: Zacian|def|1",
+     "|-unboost|p2: Zacian|spe|1",
+     "|",
+     "|upkeep",
+     "|turn|12"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 15,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Shore Up|1a",
+     "|-fail|p1a|heal",
+     "|move|2a|Curse|2a",
+     "|-boost|p2: Zacian|atk|1",
+     "|-boost|p2: Zacian|def|1",
+     "|-unboost|p2: Zacian|spe|1",
+     "|",
+     "|upkeep",
+     "|turn|13"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 16,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Shore Up|1a",
+     "|-fail|p1a|heal",
+     "|move|2a|Curse|2a",
+     "|-boost|p2: Zacian|def|1",
+     "|-unboost|p2: Zacian|spe|1",
+     "|",
+     "|upkeep",
+     "|turn|14"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 17,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Shore Up|1a",
+     "|-fail|p1a|heal",
+     "|move|2a|Curse|2a",
+     "|",
+     "|upkeep",
+     "|turn|15"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 18,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Shore Up|1a",
+     "|-fail|p1a|heal",
+     "|move|2a|Curse|2a",
+     "|",
+     "|upkeep",
+     "|turn|16"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 19,
+    "p1_choice": "move 3",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Nightmare||[still]",
+     "||-fail||p1a: Eldegoss",
+     "|move|2a|Curse|2a",
+     "|",
+     "|upkeep",
+     "|turn|17"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 20,
+    "p1_choice": "move 3",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Nightmare||[still]",
+     "||-fail||p1a: Eldegoss",
+     "|move|2a|Curse|2a",
+     "|",
+     "|upkeep",
+     "|turn|18"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 21,
+    "p1_choice": "move 3",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Nightmare||[still]",
+     "||-fail||p1a: Eldegoss",
+     "|move|2a|Curse|2a",
+     "|",
+     "|upkeep",
+     "|turn|19"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 22,
+    "p1_choice": "move 3",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Nightmare||[still]",
+     "||-fail||p1a: Eldegoss",
+     "|move|2a|Curse|2a",
+     "|",
+     "|upkeep",
+     "|turn|20"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 23,
+    "p1_choice": "move 3",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Nightmare||[still]",
+     "||-fail||p1a: Eldegoss",
+     "|move|2a|Curse|2a",
+     "|",
+     "|upkeep",
+     "|turn|21"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 24,
+    "p1_choice": "move 3",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Nightmare||[still]",
+     "||-fail||p1a: Eldegoss",
+     "|move|2a|Curse|2a",
+     "|",
+     "|upkeep",
+     "|turn|22"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 25,
+    "p1_choice": "move 3",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Nightmare||[still]",
+     "||-fail||p1a: Eldegoss",
+     "|move|2a|Curse|2a",
+     "|",
+     "|upkeep",
+     "|turn|23"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 26,
+    "p1_choice": "move 3",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Nightmare||[still]",
+     "||-fail||p1a: Eldegoss",
+     "|move|2a|Curse|2a",
+     "|",
+     "|upkeep",
+     "|turn|24"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 27,
+    "p1_choice": "move 3",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Nightmare||[still]",
+     "||-fail||p1a: Eldegoss",
+     "|move|2a|G-Max Malodor|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|215/217",
+     "|-status|p1a|psn",
+     "|",
+     "|-damage|p1a|188/217|[from] psn",
+     "|upkeep",
+     "|turn|25"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|215/217",
+     "|-damage|p1a|188/217|[from] psn"
+    ]
+   },
+   {
+    "turn": 28,
+    "p1_choice": "move 3",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Nightmare||[still]",
+     "||-fail||p1a: Eldegoss",
+     "|move|2a|G-Max Malodor|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|186/217",
+     "|",
+     "|-damage|p1a|159/217|[from] psn",
+     "|upkeep",
+     "|turn|26"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|186/217",
+     "|-damage|p1a|159/217|[from] psn"
+    ]
+   },
+   {
+    "turn": 29,
+    "p1_choice": "move 3",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Nightmare||[still]",
+     "||-fail||p1a: Eldegoss",
+     "|move|2a|G-Max Malodor|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|157/217",
+     "|",
+     "|-damage|p1a|130/217|[from] psn",
+     "|upkeep",
+     "|turn|27"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|157/217",
+     "|-damage|p1a|130/217|[from] psn"
+    ]
+   },
+   {
+    "turn": 30,
+    "p1_choice": "move 3",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Nightmare||[still]",
+     "||-fail||p1a: Eldegoss",
+     "|move|2a|G-Max Malodor|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|128/217",
+     "|",
+     "|-damage|p1a|101/217|[from] psn",
+     "|upkeep",
+     "|turn|28"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|128/217",
+     "|-damage|p1a|101/217|[from] psn"
+    ]
+   },
+   {
+    "turn": 31,
+    "p1_choice": "move 3",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Nightmare||[still]",
+     "||-fail||p1a: Eldegoss",
+     "|move|2a|G-Max Malodor|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|99/217",
+     "|",
+     "|-damage|p1a|72/217|[from] psn",
+     "|upkeep",
+     "|turn|29"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|99/217",
+     "|-damage|p1a|72/217|[from] psn"
+    ]
+   },
+   {
+    "turn": 32,
+    "p1_choice": "move 3",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Nightmare||[still]",
+     "||-fail||p1a: Eldegoss",
+     "|move|2a|G-Max Malodor|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|70/217",
+     "|",
+     "|-damage|p1a|43/217|[from] psn",
+     "|upkeep",
+     "|turn|30"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|70/217",
+     "|-damage|p1a|43/217|[from] psn"
+    ]
+   },
+   {
+    "turn": 33,
+    "p1_choice": "move 3",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Nightmare||[still]",
+     "||-fail||p1a: Eldegoss",
+     "|move|2a|G-Max Malodor|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|41/217",
+     "|",
+     "|-damage|p1a|14/217|[from] psn",
+     "|upkeep",
+     "|turn|31"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|41/217",
+     "|-damage|p1a|14/217|[from] psn"
+    ]
+   },
+   {
+    "turn": 34,
+    "p1_choice": "move 3",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Nightmare||[still]",
+     "||-fail||p1a: Eldegoss",
+     "|move|2a|G-Max Malodor|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|12/217",
+     "|",
+     "|-damage|p1a|0/217|[from] psn",
+     "|faint|p1a: Eldegoss",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|12/217",
+     "|-damage|p1a|0/217|[from] psn"
+    ]
+   },
+   {
+    "turn": 35,
+    "p1_choice": "switch 3",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|switch|p1: Absol|absolmega, L73, M|201/201",
+     "|turn|32"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Absol|absolmega, L73, M|201/201"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 36,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Tachyon Cutter|2a",
+     "|-supereffective|p2a",
+     "|-damage|p2a|199/251",
+     "|-supereffective|p2a",
+     "|-damage|p2a|147/251",
+     "|-hitcount|p2a: Zacian|2",
+     "|move|2a|Zing Zap|1a",
+     "|-damage|p1a|0/201",
+     "|faint|p1a: Absol",
+     "|-heal|p2a|172/251|[from] shellbell|[of] p1a",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|199/251",
+     "|-damage|p2a|147/251",
+     "|-damage|p1a|0/201"
+    ]
+   },
+   {
+    "turn": 37,
+    "p1_choice": "switch 4",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|switch|p1: Ribombee|ribombee, L93, M|262/262",
+     "|turn|33"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Ribombee|ribombee, L93, M|262/262"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 38,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Amnesia|1a",
+     "|-boost|p1: Ribombee|spd|2",
+     "|move|2a|Zing Zap|1a",
+     "|-damage|p1a|28/262",
+     "|-heal|p2a|201/251|[from] shellbell|[of] p1a",
+     "|",
+     "|upkeep",
+     "|turn|34"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|28/262"
+    ]
+   },
+   {
+    "turn": 39,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Amnesia|1a",
+     "|-boost|p1: Ribombee|spd|2",
+     "|move|2a|Zing Zap|1a",
+     "|-damage|p1a|0/262",
+     "|faint|p1a: Ribombee",
+     "|-heal|p2a|204/251|[from] shellbell|[of] p1a",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|0/262"
+    ]
+   },
+   {
+    "turn": 40,
+    "p1_choice": "switch 5",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|switch|p1: Mismagius|mismagius, L53, M|148/148",
+     "|turn|35"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Mismagius|mismagius, L53, M|148/148"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 41,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Tearful Look|2a",
+     "|-unboost|p2: Zacian|atk|1",
+     "|-unboost|p2: Zacian|spa|1",
+     "|move|2a|Zing Zap|1a",
+     "|-damage|p1a|0/148",
+     "|faint|p1a: Mismagius",
+     "|-heal|p2a|222/251|[from] shellbell|[of] p1a",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|0/148"
+    ]
+   },
+   {
+    "turn": 42,
+    "p1_choice": "switch 6",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|switch|p1: Thwackey|thwackey, L95, F|284/284",
+     "|turn|36"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Thwackey|thwackey, L95, F|284/284"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 43,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|G-Max Resonance|2a",
+     "|-damage|p2a|221/251",
+     "|move|2a|Zing Zap|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|232/284",
+     "|-heal|p2a|227/251|[from] shellbell|[of] p1a",
+     "|",
+     "|upkeep",
+     "|turn|37"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|221/251",
+     "|-damage|p1a|232/284"
+    ]
+   },
+   {
+    "turn": 44,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|G-Max Resonance|2a",
+     "|-damage|p2a|226/251",
+     "|move|2a|Zing Zap|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|184/284",
+     "|-heal|p2a|232/251|[from] shellbell|[of] p1a",
+     "|",
+     "|upkeep",
+     "|turn|38"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|226/251",
+     "|-damage|p1a|184/284"
+    ]
+   },
+   {
+    "turn": 45,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|G-Max Resonance|2a",
+     "|-damage|p2a|231/251",
+     "|move|2a|Zing Zap|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|138/284",
+     "|-heal|p2a|236/251|[from] shellbell|[of] p1a",
+     "|",
+     "|upkeep",
+     "|turn|39"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|231/251",
+     "|-damage|p1a|138/284"
+    ]
+   },
+   {
+    "turn": 46,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|G-Max Resonance|2a",
+     "|-damage|p2a|234/251",
+     "|move|2a|Zing Zap|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|86/284",
+     "|-heal|p2a|240/251|[from] shellbell|[of] p1a",
+     "|",
+     "|upkeep",
+     "|turn|40"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|234/251",
+     "|-damage|p1a|86/284"
+    ]
+   },
+   {
+    "turn": 47,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|G-Max Resonance|2a",
+     "|-crit|p2a",
+     "|-damage|p2a|238/251",
+     "|move|2a|Zing Zap|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|39/284",
+     "|-heal|p2a|243/251|[from] shellbell|[of] p1a",
+     "|",
+     "|upkeep",
+     "|turn|41"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|238/251",
+     "|-damage|p1a|39/284"
+    ]
+   },
+   {
+    "turn": 48,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": "p2",
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|G-Max Resonance|2a",
+     "|-damage|p2a|242/251",
+     "|move|2a|Zing Zap|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|0/284",
+     "|faint|p1a: Thwackey",
+     "|-heal|p2a|246/251|[from] shellbell|[of] p1a",
+     "|",
+     "|win|p2"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|242/251",
+     "|-damage|p1a|0/284"
+    ]
+   }
+  ]
+ },
+ {
+  "seed": 123,
+  "total_turns": 56,
+  "winner": "p2",
+  "turns": [
+   {
+    "turn": 1,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Power Whip|1a",
+     "|-damage|p1a|117/181",
+     "|move|1a|Psychic|2a",
+     "|-resisted|p2a",
+     "|-damage|p2a|214/232",
+     "|",
+     "|upkeep",
+     "|turn|2"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|117/181",
+     "|-damage|p2a|214/232"
+    ]
+   },
+   {
+    "turn": 2,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Power Whip|1a",
+     "|-damage|p1a|57/181",
+     "|move|1a|Psychic|2a",
+     "|-resisted|p2a",
+     "|-damage|p2a|194/232",
+     "|",
+     "|upkeep",
+     "|turn|3"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|57/181",
+     "|-damage|p2a|194/232"
+    ]
+   },
+   {
+    "turn": 3,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Power Whip|1a",
+     "|-damage|p1a|0/181",
+     "|faint|p1a: Swirlix",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|0/181"
+    ]
+   },
+   {
+    "turn": 4,
+    "p1_choice": "switch 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|switch|p1: Tinkaton|tinkaton, L98, F|316/316",
+     "|-ability|p1a|Mold Breaker",
+     "|turn|4"
+    ],
+    "ability_entries": [
+     "|-ability|p1a|Mold Breaker"
+    ],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Tinkaton|tinkaton, L98, F|316/316"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 5,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Power Trick|1a",
+     "|-start|p1a|Power Trick",
+     "|move|2a|Power Whip|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|296/316",
+     "|",
+     "|upkeep",
+     "|turn|5"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|296/316"
+    ]
+   },
+   {
+    "turn": 6,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Power Trick|1a",
+     "|-end|p1a|Power Trick",
+     "|move|2a|Power Whip|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|280/316",
+     "|",
+     "|upkeep",
+     "|turn|6"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|280/316"
+    ]
+   },
+   {
+    "turn": 7,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Power Trick|1a",
+     "|-start|p1a|Power Trick",
+     "|move|2a|Power Whip|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|262/316",
+     "|",
+     "|upkeep",
+     "|turn|7"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|262/316"
+    ]
+   },
+   {
+    "turn": 8,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Power Trick|1a",
+     "|-end|p1a|Power Trick",
+     "|move|2a|Power Whip|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|245/316",
+     "|",
+     "|upkeep",
+     "|turn|8"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|245/316"
+    ]
+   },
+   {
+    "turn": 9,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Power Trick|1a",
+     "|-start|p1a|Power Trick",
+     "|move|2a|Power Whip|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|227/316",
+     "|",
+     "|upkeep",
+     "|turn|9"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|227/316"
+    ]
+   },
+   {
+    "turn": 10,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Power Trick|1a",
+     "|-end|p1a|Power Trick",
+     "|move|2a|Power Whip|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|209/316",
+     "|",
+     "|upkeep",
+     "|turn|10"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|209/316"
+    ]
+   },
+   {
+    "turn": 11,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Power Trick|1a",
+     "|-start|p1a|Power Trick",
+     "|move|2a|Power Whip|1a|[miss]",
+     "|-miss|p2a: Corviknight|p1a: Tinkaton",
+     "|",
+     "|upkeep",
+     "|turn|11"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 12,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Power Trick|1a",
+     "|-end|p1a|Power Trick",
+     "|move|2a|Power Whip|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|194/316",
+     "|",
+     "|upkeep",
+     "|turn|12"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|194/316"
+    ]
+   },
+   {
+    "turn": 13,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Power Trick|1a",
+     "|-start|p1a|Power Trick",
+     "|move|2a|Power Whip|1a|[miss]",
+     "|-miss|p2a: Corviknight|p1a: Tinkaton",
+     "|",
+     "|upkeep",
+     "|turn|13"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 14,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Power Trick|1a",
+     "|-end|p1a|Power Trick",
+     "|move|2a|Power Whip|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|179/316",
+     "|",
+     "|upkeep",
+     "|turn|14"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|179/316"
+    ]
+   },
+   {
+    "turn": 15,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Power Trick|1a",
+     "|-start|p1a|Power Trick",
+     "|move|2a|Power Whip|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|159/316",
+     "|",
+     "|upkeep",
+     "|turn|15"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|159/316"
+    ]
+   },
+   {
+    "turn": 16,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Power Trick|1a",
+     "|-end|p1a|Power Trick",
+     "|move|2a|Power Whip|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|144/316",
+     "|",
+     "|upkeep",
+     "|turn|16"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|144/316"
+    ]
+   },
+   {
+    "turn": 17,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Power Trick|1a",
+     "|-start|p1a|Power Trick",
+     "|move|2a|Power Whip|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|124/316",
+     "|",
+     "|upkeep",
+     "|turn|17"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|124/316"
+    ]
+   },
+   {
+    "turn": 18,
+    "p1_choice": "move 1",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Power Trick|1a",
+     "|-end|p1a|Power Trick",
+     "|move|2a|Luster Purge|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|113/316",
+     "|-unboost|p1: Tinkaton|spd|1",
+     "|",
+     "|upkeep",
+     "|turn|18"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|113/316"
+    ]
+   },
+   {
+    "turn": 19,
+    "p1_choice": "move 1",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Power Trick|1a",
+     "|-start|p1a|Power Trick",
+     "|move|2a|Luster Purge|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|96/316",
+     "|-unboost|p1: Tinkaton|spd|1",
+     "|",
+     "|upkeep",
+     "|turn|19"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|96/316"
+    ]
+   },
+   {
+    "turn": 20,
+    "p1_choice": "move 1",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Power Trick|1a",
+     "|-end|p1a|Power Trick",
+     "|move|2a|Luster Purge|1a",
+     "|-resisted|p1a",
+     "|-crit|p1a",
+     "|-damage|p1a|66/316",
+     "|-unboost|p1: Tinkaton|spd|1",
+     "|",
+     "|upkeep",
+     "|turn|20"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|66/316"
+    ]
+   },
+   {
+    "turn": 21,
+    "p1_choice": "move 2",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Freezing Glare|2a",
+     "|-resisted|p2a",
+     "|-damage|p2a|154/232",
+     "|move|2a|Luster Purge|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|37/316",
+     "|",
+     "|upkeep",
+     "|turn|21"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|154/232",
+     "|-damage|p1a|37/316"
+    ]
+   },
+   {
+    "turn": 22,
+    "p1_choice": "move 2",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Freezing Glare|2a",
+     "|-resisted|p2a",
+     "|-damage|p2a|112/232",
+     "|move|2a|Luster Purge|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|9/316",
+     "|",
+     "|upkeep",
+     "|turn|22"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|112/232",
+     "|-damage|p1a|9/316"
+    ]
+   },
+   {
+    "turn": 23,
+    "p1_choice": "move 2",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Freezing Glare|2a",
+     "|-resisted|p2a",
+     "|-damage|p2a|72/232",
+     "|move|2a|Luster Purge|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|0/316",
+     "|faint|p1a: Tinkaton",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|72/232",
+     "|-damage|p1a|0/316"
+    ]
+   },
+   {
+    "turn": 24,
+    "p1_choice": "switch 3",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|switch|p1: Wobbuffet|wobbuffet, L89, F|478/478",
+     "|turn|23"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Wobbuffet|wobbuffet, L89, F|478/478"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 25,
+    "p1_choice": "move 1",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Luster Purge|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|461/478",
+     "|-unboost|p1: Wobbuffet|spd|1",
+     "|move|1a|Counter||[still]",
+     "|-fail|p1a: Wobbuffet",
+     "|",
+     "|upkeep",
+     "|turn|24"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|461/478"
+    ]
+   },
+   {
+    "turn": 26,
+    "p1_choice": "move 1",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Luster Purge|1a",
+     "|-resisted|p1a",
+     "|-damage|p1a|436/478",
+     "|-unboost|p1: Wobbuffet|spd|1",
+     "|move|1a|Counter||[still]",
+     "|-fail|p1a: Wobbuffet",
+     "|",
+     "|upkeep",
+     "|turn|25"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|436/478"
+    ]
+   },
+   {
+    "turn": 27,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Strength Sap|1a",
+     "|-unboost|p1: Wobbuffet|atk|1",
+     "|-heal|p2a|161/232",
+     "|move|1a|Counter||[still]",
+     "|-fail|p1a: Wobbuffet",
+     "|",
+     "|upkeep",
+     "|turn|26"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 28,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Strength Sap|1a",
+     "|-unboost|p1: Wobbuffet|atk|1",
+     "|-heal|p2a|220/232",
+     "|move|1a|Counter||[still]",
+     "|-fail|p1a: Wobbuffet",
+     "|",
+     "|upkeep",
+     "|turn|27"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 29,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Strength Sap|1a",
+     "|-unboost|p1: Wobbuffet|atk|1",
+     "|-heal|p2a|232/232",
+     "|move|1a|Counter||[still]",
+     "|-fail|p1a: Wobbuffet",
+     "|",
+     "|upkeep",
+     "|turn|28"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 30,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Strength Sap|1a",
+     "|-unboost|p1: Wobbuffet|atk|1",
+     "|move|1a|Counter||[still]",
+     "|-fail|p1a: Wobbuffet",
+     "|",
+     "|upkeep",
+     "|turn|29"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 31,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Strength Sap|1a",
+     "|-unboost|p1: Wobbuffet|atk|1",
+     "|move|1a|Counter||[still]",
+     "|-fail|p1a: Wobbuffet",
+     "|",
+     "|upkeep",
+     "|turn|30"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 32,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Strength Sap|1a",
+     "|-unboost|p1: Wobbuffet|atk|1",
+     "|move|1a|Counter||[still]",
+     "|-fail|p1a: Wobbuffet",
+     "|",
+     "|upkeep",
+     "|turn|31"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 33,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Strength Sap||[still]",
+     "||-fail||p2a: Corviknight",
+     "|move|1a|Counter||[still]",
+     "|-fail|p1a: Wobbuffet",
+     "|",
+     "|upkeep",
+     "|turn|32"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 34,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Strength Sap||[still]",
+     "||-fail||p2a: Corviknight",
+     "|move|1a|Counter||[still]",
+     "|-fail|p1a: Wobbuffet",
+     "|",
+     "|upkeep",
+     "|turn|33"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 35,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Strength Sap||[still]",
+     "||-fail||p2a: Corviknight",
+     "|move|1a|Counter||[still]",
+     "|-fail|p1a: Wobbuffet",
+     "|",
+     "|upkeep",
+     "|turn|34"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 36,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Strength Sap||[still]",
+     "||-fail||p2a: Corviknight",
+     "|move|1a|Counter||[still]",
+     "|-fail|p1a: Wobbuffet",
+     "|",
+     "|upkeep",
+     "|turn|35"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 37,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Strength Sap||[still]",
+     "||-fail||p2a: Corviknight",
+     "|move|1a|Counter||[still]",
+     "|-fail|p1a: Wobbuffet",
+     "|",
+     "|upkeep",
+     "|turn|36"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 38,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Strength Sap||[still]",
+     "||-fail||p2a: Corviknight",
+     "|move|1a|Counter||[still]",
+     "|-fail|p1a: Wobbuffet",
+     "|",
+     "|upkeep",
+     "|turn|37"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 39,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Strength Sap||[still]",
+     "||-fail||p2a: Corviknight",
+     "|move|1a|Counter||[still]",
+     "|-fail|p1a: Wobbuffet",
+     "|",
+     "|upkeep",
+     "|turn|38"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 40,
+    "p1_choice": "move 1",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Strength Sap||[still]",
+     "||-fail||p2a: Corviknight",
+     "|move|1a|Counter||[still]",
+     "|-fail|p1a: Wobbuffet",
+     "|",
+     "|upkeep",
+     "|turn|39"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 41,
+    "p1_choice": "move 2",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Strength Sap||[still]",
+     "||-fail||p2a: Corviknight",
+     "|move|1a|Sinister Arrow Raid|2a",
+     "|-damage|p2a|214/232",
+     "|",
+     "|upkeep",
+     "|turn|40"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|214/232"
+    ]
+   },
+   {
+    "turn": 42,
+    "p1_choice": "move 3",
+    "p2_choice": "move 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Strength Sap||[still]",
+     "||-fail||p2a: Corviknight",
+     "|move|1a|Pin Missile|2a|[miss]",
+     "|-miss|p1a: Wobbuffet|p2a: Corviknight",
+     "|",
+     "|upkeep",
+     "|turn|41"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 43,
+    "p1_choice": "move 3",
+    "p2_choice": "move 4",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Fiery Dance|1a",
+     "|-damage|p1a|376/478",
+     "|-boost|p2: Corviknight|spa|1",
+     "|move|1a|Pin Missile|2a",
+     "|-resisted|p2a",
+     "|-damage|p2a|213/232",
+     "|-resisted|p2a",
+     "|-damage|p2a|212/232",
+     "|-hitcount|p2a: Corviknight|2",
+     "|",
+     "|upkeep",
+     "|turn|42"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|376/478",
+     "|-damage|p2a|213/232",
+     "|-damage|p2a|212/232"
+    ]
+   },
+   {
+    "turn": 44,
+    "p1_choice": "move 3",
+    "p2_choice": "move 4",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Fiery Dance|1a",
+     "|-damage|p1a|293/478",
+     "|move|1a|Pin Missile|2a",
+     "|-resisted|p2a",
+     "|-crit|p2a",
+     "|-damage|p2a|208/232",
+     "|-resisted|p2a",
+     "|-damage|p2a|207/232",
+     "|-hitcount|p2a: Corviknight|2",
+     "|",
+     "|upkeep",
+     "|turn|43"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|293/478",
+     "|-damage|p2a|208/232",
+     "|-damage|p2a|207/232"
+    ]
+   },
+   {
+    "turn": 45,
+    "p1_choice": "move 3",
+    "p2_choice": "move 4",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Fiery Dance|1a",
+     "|-damage|p1a|202/478",
+     "|-boost|p2: Corviknight|spa|1",
+     "|move|1a|Pin Missile|2a",
+     "|-resisted|p2a",
+     "|-damage|p2a|206/232",
+     "|-resisted|p2a",
+     "|-damage|p2a|205/232",
+     "|-resisted|p2a",
+     "|-damage|p2a|204/232",
+     "|-hitcount|p2a: Corviknight|3",
+     "|",
+     "|upkeep",
+     "|turn|44"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|202/478",
+     "|-damage|p2a|206/232",
+     "|-damage|p2a|205/232",
+     "|-damage|p2a|204/232"
+    ]
+   },
+   {
+    "turn": 46,
+    "p1_choice": "move 3",
+    "p2_choice": "move 4",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Fiery Dance|1a",
+     "|-damage|p1a|94/478",
+     "|move|1a|Pin Missile|2a",
+     "|-resisted|p2a",
+     "|-damage|p2a|203/232",
+     "|-resisted|p2a",
+     "|-damage|p2a|202/232",
+     "|-hitcount|p2a: Corviknight|2",
+     "|",
+     "|upkeep",
+     "|turn|45"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|94/478",
+     "|-damage|p2a|203/232",
+     "|-damage|p2a|202/232"
+    ]
+   },
+   {
+    "turn": 47,
+    "p1_choice": "move 3",
+    "p2_choice": "move 4",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Fiery Dance|1a",
+     "|-damage|p1a|0/478",
+     "|faint|p1a: Wobbuffet",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|0/478"
+    ]
+   },
+   {
+    "turn": 48,
+    "p1_choice": "switch 4",
+    "p2_choice": "move 4",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|switch|p1: Vivillon|vivillonsandstorm, L90, M|262/262",
+     "|turn|46"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Vivillon|vivillonsandstorm, L90, M|262/262"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 49,
+    "p1_choice": "move 1",
+    "p2_choice": "move 4",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Mud Sport|1a",
+     "|-fieldstart|move: Mud Sport",
+     "|move|2a|Fiery Dance|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|140/262",
+     "|",
+     "|upkeep",
+     "|turn|47"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|140/262"
+    ]
+   },
+   {
+    "turn": 50,
+    "p1_choice": "move 1",
+    "p2_choice": "move 4",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Mud Sport||[still]",
+     "||-fail||p1a: Vivillon-Sandstorm",
+     "|move|2a|Fiery Dance|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|28/262",
+     "|-boost|p2: Corviknight|spa|1",
+     "|",
+     "|upkeep",
+     "|turn|48"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|28/262"
+    ]
+   },
+   {
+    "turn": 51,
+    "p1_choice": "move 1",
+    "p2_choice": "move 4",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Mud Sport||[still]",
+     "||-fail||p1a: Vivillon-Sandstorm",
+     "|move|2a|Fiery Dance|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|0/262",
+     "|-boost|p2: Corviknight|spa|1",
+     "|faint|p1a: Vivillon",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|0/262"
+    ]
+   },
+   {
+    "turn": 52,
+    "p1_choice": "switch 5",
+    "p2_choice": "move 4",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|switch|p1: Sandaconda|sandaconda, L51, F|149/149",
+     "|turn|49"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Sandaconda|sandaconda, L51, F|149/149"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 53,
+    "p1_choice": "move 1",
+    "p2_choice": "move 4",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|2a|Fiery Dance|1a",
+     "|-damage|p1a|22/149",
+     "|-weather|Sandstorm",
+     "|move|1a|Chloroblast|2a",
+     "|-resisted|p2a",
+     "|-damage|p2a|193/232",
+     "|-damage|p1a|0/149|[from] recoil",
+     "|faint|p1a: Sandaconda",
+     "|",
+     "|weather|-weather|Sandstorm|[upkeep]",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|22/149",
+     "|-damage|p2a|193/232",
+     "|-damage|p1a|0/149|[from] recoil"
+    ]
+   },
+   {
+    "turn": 54,
+    "p1_choice": "switch 6",
+    "p2_choice": "move 4",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|switch|p1: Pokestar Black Door|pokestarblackdoor, L74, F|257/257",
+     "|turn|50"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Pokestar Black Door|pokestarblackdoor, L74, F|257/257"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 55,
+    "p1_choice": "move 1",
+    "p2_choice": "move 4",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Never-Ending Nightmare|2a",
+     "|-damage|p2a|192/232",
+     "|move|2a|Fiery Dance|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|121/257",
+     "|",
+     "|weather|-weather|Sandstorm|[upkeep]",
+     "|-damage|p1a|105/257|[from] Sandstorm",
+     "|upkeep",
+     "|turn|51"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|192/232",
+     "|-damage|p1a|121/257",
+     "|-damage|p1a|105/257|[from] Sandstorm"
+    ]
+   },
+   {
+    "turn": 56,
+    "p1_choice": "move 2",
+    "p2_choice": "move 4",
+    "winner": "p2",
+    "log_entries": [
+     "|",
+     "|t:|1778368087",
+     "|move|1a|Zap Cannon|2a|[miss]",
+     "|-miss|p1a: Pokestar Black Door|p2a: Corviknight",
+     "|move|2a|Fiery Dance|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|0/257",
+     "|faint|p1a: Pokestar Black Door",
+     "|",
+     "|win|p2"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|0/257"
+    ]
+   }
+  ]
+ },
+ {
+  "seed": 256,
+  "total_turns": 77,
+  "winner": "p1",
+  "turns": [
+   {
+    "turn": 1,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|1a|U-turn|2a",
+     "|-resisted|p2a",
+     "|-damage|p2a|175/201"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|175/201"
+    ]
+   },
+   {
+    "turn": 2,
+    "p1_choice": "switch 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|-end|p1a|Protosynthesis|[silent]",
+     "|switch|p1: Minior|miniorindigo, L71, M|193/193|[from] uturn",
+     "|-formechange|p1a|Minior-Meteor|[from] ability: Shields Down",
+     "|move|2a|G-Max Volt Crash|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|191/193",
+     "|",
+     "|upkeep",
+     "|turn|2"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Minior|miniorindigo, L71, M|193/193|[from] uturn"
+    ],
+    "faint_entries": [
+     "|-damage|p1a|191/193"
+    ]
+   },
+   {
+    "turn": 3,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|G-Max Volt Crash|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|189/193",
+     "|move|1a|Psycho Shift||[still]",
+     "||-fail||p1a: Minior-Indigo",
+     "|",
+     "|upkeep",
+     "|turn|3"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|189/193"
+    ]
+   },
+   {
+    "turn": 4,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|G-Max Volt Crash|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|187/193",
+     "|move|1a|Psycho Shift||[still]",
+     "||-fail||p1a: Minior-Indigo",
+     "|",
+     "|upkeep",
+     "|turn|4"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|187/193"
+    ]
+   },
+   {
+    "turn": 5,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|G-Max Volt Crash|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|185/193",
+     "|move|1a|Psycho Shift||[still]",
+     "||-fail||p1a: Minior-Indigo",
+     "|",
+     "|upkeep",
+     "|turn|5"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|185/193"
+    ]
+   },
+   {
+    "turn": 6,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|G-Max Volt Crash|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|183/193",
+     "|move|1a|Psycho Shift||[still]",
+     "||-fail||p1a: Minior-Indigo",
+     "|",
+     "|upkeep",
+     "|turn|6"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|183/193"
+    ]
+   },
+   {
+    "turn": 7,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|G-Max Volt Crash|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|181/193",
+     "|move|1a|Psycho Shift||[still]",
+     "||-fail||p1a: Minior-Indigo",
+     "|",
+     "|upkeep",
+     "|turn|7"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|181/193"
+    ]
+   },
+   {
+    "turn": 8,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|G-Max Volt Crash|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|179/193",
+     "|move|1a|Psycho Shift||[still]",
+     "||-fail||p1a: Minior-Indigo",
+     "|",
+     "|upkeep",
+     "|turn|8"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|179/193"
+    ]
+   },
+   {
+    "turn": 9,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|G-Max Volt Crash|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|177/193",
+     "|move|1a|Psycho Shift||[still]",
+     "||-fail||p1a: Minior-Indigo",
+     "|",
+     "|upkeep",
+     "|turn|9"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|177/193"
+    ]
+   },
+   {
+    "turn": 10,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|G-Max Volt Crash|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|173/193",
+     "|move|1a|Psycho Shift||[still]",
+     "||-fail||p1a: Minior-Indigo",
+     "|",
+     "|upkeep",
+     "|turn|10"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|173/193"
+    ]
+   },
+   {
+    "turn": 11,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|G-Max Volt Crash|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|171/193",
+     "|move|1a|Psycho Shift||[still]",
+     "||-fail||p1a: Minior-Indigo",
+     "|",
+     "|upkeep",
+     "|turn|11"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|171/193"
+    ]
+   },
+   {
+    "turn": 12,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|G-Max Volt Crash|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|169/193",
+     "|move|1a|Psycho Shift||[still]",
+     "||-fail||p1a: Minior-Indigo",
+     "|",
+     "|upkeep",
+     "|turn|12"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|169/193"
+    ]
+   },
+   {
+    "turn": 13,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|G-Max Volt Crash|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|167/193",
+     "|move|1a|Psycho Shift||[still]",
+     "||-fail||p1a: Minior-Indigo",
+     "|",
+     "|upkeep",
+     "|turn|13"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|167/193"
+    ]
+   },
+   {
+    "turn": 14,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|G-Max Volt Crash|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|165/193",
+     "|move|1a|Psycho Shift||[still]",
+     "||-fail||p1a: Minior-Indigo",
+     "|",
+     "|upkeep",
+     "|turn|14"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|165/193"
+    ]
+   },
+   {
+    "turn": 15,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|G-Max Volt Crash|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|163/193",
+     "|move|1a|Psycho Shift||[still]",
+     "||-fail||p1a: Minior-Indigo",
+     "|",
+     "|upkeep",
+     "|turn|15"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|163/193"
+    ]
+   },
+   {
+    "turn": 16,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|G-Max Volt Crash|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|161/193",
+     "|move|1a|Psycho Shift||[still]",
+     "||-fail||p1a: Minior-Indigo",
+     "|",
+     "|upkeep",
+     "|turn|16"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|161/193"
+    ]
+   },
+   {
+    "turn": 17,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|G-Max Volt Crash|1a",
+     "|-supereffective|p1a",
+     "|-damage|p1a|159/193",
+     "|move|1a|Psycho Shift||[still]",
+     "||-fail||p1a: Minior-Indigo",
+     "|",
+     "|upkeep",
+     "|turn|17"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|159/193"
+    ]
+   },
+   {
+    "turn": 18,
+    "p1_choice": "move 1",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|Entrainment||[still]",
+     "||-fail||p2a: Ekans",
+     "|move|1a|Psycho Shift||[still]",
+     "||-fail||p1a: Minior-Indigo",
+     "|",
+     "|upkeep",
+     "|turn|18"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 19,
+    "p1_choice": "move 2",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|Entrainment||[still]",
+     "||-fail||p2a: Ekans",
+     "|move|1a|Sparkling Aria|2a|[spread] 0",
+     "|-damage|p2a|141/201",
+     "|",
+     "|upkeep",
+     "|turn|19"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|141/201"
+    ]
+   },
+   {
+    "turn": 20,
+    "p1_choice": "move 2",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|Entrainment||[still]",
+     "||-fail||p2a: Ekans",
+     "|move|1a|Sparkling Aria|2a|[spread] 0",
+     "|-damage|p2a|104/201",
+     "|",
+     "|upkeep",
+     "|turn|20"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|104/201"
+    ]
+   },
+   {
+    "turn": 21,
+    "p1_choice": "move 2",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|Entrainment||[still]",
+     "||-fail||p2a: Ekans",
+     "|move|1a|Sparkling Aria|2a|[spread] 0",
+     "|-damage|p2a|66/201",
+     "|",
+     "|upkeep",
+     "|turn|21"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|66/201"
+    ]
+   },
+   {
+    "turn": 22,
+    "p1_choice": "move 2",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|Entrainment||[still]",
+     "||-fail||p2a: Ekans",
+     "|move|1a|Sparkling Aria|2a|[spread] 0",
+     "|-damage|p2a|32/201",
+     "|",
+     "|upkeep",
+     "|turn|22"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|32/201"
+    ]
+   },
+   {
+    "turn": 23,
+    "p1_choice": "move 2",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|Entrainment||[still]",
+     "||-fail||p2a: Ekans",
+     "|move|1a|Sparkling Aria|2a|[spread] 0",
+     "|-damage|p2a|0/201",
+     "|faint|p2a: Ekans",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|0/201"
+    ]
+   },
+   {
+    "turn": 24,
+    "p1_choice": "move 2",
+    "p2_choice": "switch 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|switch|p2: Milotic|milotic, L93, F|328/328",
+     "|turn|23"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p2: Milotic|milotic, L93, F|328/328"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 25,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|Bide|2a",
+     "|-start|p2a|move: Bide",
+     "|move|1a|Sparkling Aria|2a|[spread] 1",
+     "|-resisted|p2a",
+     "|-crit|p2a",
+     "|-damage|p2a|314/328",
+     "|",
+     "|upkeep",
+     "|turn|24"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|314/328"
+    ]
+   },
+   {
+    "turn": 26,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|-activate|p2a|move: Bide",
+     "|move|1a|Sparkling Aria|2a|[spread] 1",
+     "|-resisted|p2a",
+     "|-damage|p2a|303/328",
+     "|",
+     "|upkeep",
+     "|turn|25"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|303/328"
+    ]
+   },
+   {
+    "turn": 27,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|-end|p2a|move: Bide",
+     "|-damage|p1a|109/193",
+     "|-end|p2a|move: Bide|[silent]",
+     "|move|1a|Sparkling Aria|2a|[spread] 1",
+     "|-resisted|p2a",
+     "|-damage|p2a|292/328",
+     "|",
+     "|upkeep",
+     "|turn|26"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|109/193",
+     "|-damage|p2a|292/328"
+    ]
+   },
+   {
+    "turn": 28,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|Bide|2a",
+     "|-start|p2a|move: Bide",
+     "|move|1a|Sparkling Aria|2a|[spread] 1",
+     "|-resisted|p2a",
+     "|-damage|p2a|282/328",
+     "|",
+     "|upkeep",
+     "|turn|27"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|282/328"
+    ]
+   },
+   {
+    "turn": 29,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|-activate|p2a|move: Bide",
+     "|move|1a|Sparkling Aria|2a|[spread] 1",
+     "|-resisted|p2a",
+     "|-damage|p2a|272/328",
+     "|",
+     "|upkeep",
+     "|turn|28"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|272/328"
+    ]
+   },
+   {
+    "turn": 30,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|-end|p2a|move: Bide",
+     "|-damage|p1a|69/193",
+     "|-end|p2a|move: Bide|[silent]",
+     "|move|1a|Sparkling Aria|2a|[spread] 1",
+     "|-resisted|p2a",
+     "|-damage|p2a|262/328",
+     "|",
+     "|-formechange|p1a|Minior|[from] ability: Shields Down",
+     "|upkeep",
+     "|turn|29"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|69/193",
+     "|-damage|p2a|262/328"
+    ]
+   },
+   {
+    "turn": 31,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|Bide|2a",
+     "|-start|p2a|move: Bide",
+     "|move|1a|Sparkling Aria|2a|[spread] 1",
+     "|-resisted|p2a",
+     "|-damage|p2a|248/328",
+     "|",
+     "|upkeep",
+     "|turn|30"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|248/328"
+    ]
+   },
+   {
+    "turn": 32,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|-activate|p2a|move: Bide",
+     "|move|1a|Sparkling Aria|2a|[spread] 1",
+     "|-resisted|p2a",
+     "|-damage|p2a|235/328",
+     "|",
+     "|upkeep",
+     "|turn|31"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|235/328"
+    ]
+   },
+   {
+    "turn": 33,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|-end|p2a|move: Bide",
+     "|-damage|p1a|15/193",
+     "|-end|p2a|move: Bide|[silent]",
+     "|move|1a|Sparkling Aria|2a|[spread] 1",
+     "|-resisted|p2a",
+     "|-damage|p2a|222/328",
+     "|",
+     "|upkeep",
+     "|turn|32"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|15/193",
+     "|-damage|p2a|222/328"
+    ]
+   },
+   {
+    "turn": 34,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|Bide|2a",
+     "|-start|p2a|move: Bide",
+     "|move|1a|Sparkling Aria|2a|[spread] 1",
+     "|-resisted|p2a",
+     "|-damage|p2a|207/328",
+     "|",
+     "|upkeep",
+     "|turn|33"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|207/328"
+    ]
+   },
+   {
+    "turn": 35,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|-activate|p2a|move: Bide",
+     "|move|1a|Sparkling Aria|2a|[spread] 1",
+     "|-resisted|p2a",
+     "|-damage|p2a|192/328",
+     "|",
+     "|upkeep",
+     "|turn|34"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|192/328"
+    ]
+   },
+   {
+    "turn": 36,
+    "p1_choice": "move 3",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|-end|p2a|move: Bide",
+     "|-damage|p1a|0/193",
+     "|-end|p2a|move: Bide|[silent]",
+     "|faint|p1a: Minior",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|0/193"
+    ]
+   },
+   {
+    "turn": 37,
+    "p1_choice": "switch 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|switch|p1: Gouging Fire|gougingfire, L81|288/288",
+     "|turn|35"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Gouging Fire|gougingfire, L81|288/288"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 38,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|Bide|2a",
+     "|-start|p2a|move: Bide",
+     "|move|1a|U-turn|2a",
+     "|-damage|p2a|140/328"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|140/328"
+    ]
+   },
+   {
+    "turn": 39,
+    "p1_choice": "switch 3",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|-end|p1a|Protosynthesis|[silent]",
+     "|switch|p1: Squawkabilly|squawkabillyblue, L51, F|164/164|[from] uturn",
+     "|-ability|p1a: Squawkabilly|Intimidate|boost",
+     "|-unboost|p2: Milotic|atk|1",
+     "|",
+     "|upkeep",
+     "|turn|36"
+    ],
+    "ability_entries": [
+     "|-ability|p1a: Squawkabilly|Intimidate|boost"
+    ],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Squawkabilly|squawkabillyblue, L51, F|164/164|[from] uturn"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 40,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|-activate|p2a|move: Bide",
+     "|move|1a|Heal Bell||[still]",
+     "|-activate|p1a|move: Heal Bell",
+     "||-fail||p1a: Squawkabilly-Blue",
+     "|",
+     "|upkeep",
+     "|turn|37"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 41,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|-end|p2a|move: Bide",
+     "|-damage|p1a|60/164",
+     "|-end|p2a|move: Bide|[silent]",
+     "|move|1a|Heal Bell||[still]",
+     "|-activate|p1a|move: Heal Bell",
+     "||-fail||p1a: Squawkabilly-Blue",
+     "|",
+     "|upkeep",
+     "|turn|38"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|60/164"
+    ]
+   },
+   {
+    "turn": 42,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|Bide|2a",
+     "|-start|p2a|move: Bide",
+     "|move|1a|Heal Bell||[still]",
+     "|-activate|p1a|move: Heal Bell",
+     "||-fail||p1a: Squawkabilly-Blue",
+     "|",
+     "|upkeep",
+     "|turn|39"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 43,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|-activate|p2a|move: Bide",
+     "|move|1a|Heal Bell||[still]",
+     "|-activate|p1a|move: Heal Bell",
+     "||-fail||p1a: Squawkabilly-Blue",
+     "|",
+     "|upkeep",
+     "|turn|40"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 44,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|-end|p2a|move: Bide",
+     "|-fail|p2a",
+     "|-end|p2a|move: Bide|[silent]",
+     "|move|1a|Heal Bell||[still]",
+     "|-activate|p1a|move: Heal Bell",
+     "||-fail||p1a: Squawkabilly-Blue",
+     "|",
+     "|upkeep",
+     "|turn|41"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 45,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|Bide|2a",
+     "|-start|p2a|move: Bide",
+     "|move|1a|Heal Bell||[still]",
+     "|-activate|p1a|move: Heal Bell",
+     "||-fail||p1a: Squawkabilly-Blue",
+     "|",
+     "|upkeep",
+     "|turn|42"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 46,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|-activate|p2a|move: Bide",
+     "|move|1a|Heal Bell||[still]",
+     "|-activate|p1a|move: Heal Bell",
+     "||-fail||p1a: Squawkabilly-Blue",
+     "|",
+     "|upkeep",
+     "|turn|43"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 47,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|-end|p2a|move: Bide",
+     "|-fail|p2a",
+     "|-end|p2a|move: Bide|[silent]",
+     "|move|1a|Heal Bell||[still]",
+     "|-activate|p1a|move: Heal Bell",
+     "||-fail||p1a: Squawkabilly-Blue",
+     "|",
+     "|upkeep",
+     "|turn|44"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": []
+   },
+   {
+    "turn": 48,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|Bide|2a",
+     "|-start|p2a|move: Bide",
+     "|move|1a|Psychic Noise|2a",
+     "|-damage|p2a|131/328",
+     "|-start|p2a|move: Heal Block",
+     "|",
+     "|upkeep",
+     "|turn|45"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|131/328"
+    ]
+   },
+   {
+    "turn": 49,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|-activate|p2a|move: Bide",
+     "|move|1a|Psychic Noise|2a",
+     "|-damage|p2a|122/328",
+     "|",
+     "|-end|p2a|move: Heal Block",
+     "|upkeep",
+     "|turn|46"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|122/328"
+    ]
+   },
+   {
+    "turn": 50,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|-end|p2a|move: Bide",
+     "|-damage|p1a|24/164",
+     "|-end|p2a|move: Bide|[silent]",
+     "|move|1a|Psychic Noise|2a",
+     "|-damage|p2a|112/328",
+     "|-start|p2a|move: Heal Block",
+     "|",
+     "|upkeep",
+     "|turn|47"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|24/164",
+     "|-damage|p2a|112/328"
+    ]
+   },
+   {
+    "turn": 51,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|Bide|2a",
+     "|-start|p2a|move: Bide",
+     "|move|1a|Psychic Noise|2a",
+     "|-damage|p2a|103/328",
+     "|",
+     "|-end|p2a|move: Heal Block",
+     "|upkeep",
+     "|turn|48"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|103/328"
+    ]
+   },
+   {
+    "turn": 52,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|-activate|p2a|move: Bide",
+     "|move|1a|Psychic Noise|2a",
+     "|-damage|p2a|95/328",
+     "|-start|p2a|move: Heal Block",
+     "|",
+     "|upkeep",
+     "|turn|49"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|95/328"
+    ]
+   },
+   {
+    "turn": 53,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|-end|p2a|move: Bide",
+     "|-damage|p1a|0/164",
+     "|-end|p2a|move: Bide|[silent]",
+     "|faint|p1a: Squawkabilly",
+     "|",
+     "|-end|p2a|move: Heal Block",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|0/164"
+    ]
+   },
+   {
+    "turn": 54,
+    "p1_choice": "switch 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|switch|p1: Gouging Fire|gougingfire, L81|288/288",
+     "|turn|50"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Gouging Fire|gougingfire, L81|288/288"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 55,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|2a|Bide|2a",
+     "|-start|p2a|move: Bide",
+     "|move|1a|U-turn|2a",
+     "|-damage|p2a|47/328"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|47/328"
+    ]
+   },
+   {
+    "turn": 56,
+    "p1_choice": "switch 4",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|-end|p1a|Protosynthesis|[silent]",
+     "|switch|p1: Koraidon|koraidon, L88|304/304|[from] uturn",
+     "|-weather|SunnyDay",
+     "|-weather|SunnyDay|[from] ability: Orichalcum Pulse|[of] p1a",
+     "|-activate|p1a|Orichalcum Pulse|[source]",
+     "|",
+     "|-weather|SunnyDay|[upkeep]",
+     "|upkeep",
+     "|turn|51"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p1: Koraidon|koraidon, L88|304/304|[from] uturn"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 57,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|-activate|p2a|move: Bide",
+     "|move|1a|Eerie Spell|2a",
+     "|-damage|p2a|8/328",
+     "|-activate|p2a|move: Eerie Spell|Bide|3",
+     "|",
+     "|-weather|SunnyDay|[upkeep]",
+     "|upkeep",
+     "|turn|52"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|8/328"
+    ]
+   },
+   {
+    "turn": 58,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|-end|p2a|move: Bide",
+     "|-damage|p1a|130/304",
+     "|-end|p2a|move: Bide|[silent]",
+     "|move|1a|Eerie Spell|2a",
+     "|-damage|p2a|0/328",
+     "|faint|p2a: Milotic",
+     "|",
+     "|-weather|SunnyDay|[upkeep]",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p1a|130/304",
+     "|-damage|p2a|0/328"
+    ]
+   },
+   {
+    "turn": 59,
+    "p1_choice": "move 1",
+    "p2_choice": "switch 3",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|switch|p2: Cottonee|cottonee, L88, M|202/202",
+     "|turn|53"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p2: Cottonee|cottonee, L88, M|202/202"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 60,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|1a|Eerie Spell|2a",
+     "|-damage|p2a|121/202",
+     "|move|2a|Pound|1a",
+     "|-damage|p1a|119/304",
+     "|",
+     "|-weather|SunnyDay|[upkeep]",
+     "|upkeep",
+     "|turn|54"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|121/202",
+     "|-damage|p1a|119/304"
+    ]
+   },
+   {
+    "turn": 61,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|1a|Eerie Spell|2a",
+     "|-damage|p2a|26/202",
+     "|-activate|p2a|move: Eerie Spell|Pound|3",
+     "|move|2a|Pound|1a",
+     "|-damage|p1a|108/304",
+     "|",
+     "|-weather|none",
+     "|upkeep",
+     "|turn|55"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|26/202",
+     "|-damage|p1a|108/304"
+    ]
+   },
+   {
+    "turn": 62,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|1a|Eerie Spell|2a",
+     "|-damage|p2a|0/202",
+     "|faint|p2a: Cottonee",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|0/202"
+    ]
+   },
+   {
+    "turn": 63,
+    "p1_choice": "move 1",
+    "p2_choice": "switch 4",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|switch|p2: Vivillon|vivillonmarine, L84, F|244/244",
+     "|turn|56"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p2: Vivillon|vivillonmarine, L84, F|244/244"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 64,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|1a|Eerie Spell|2a",
+     "|-damage|p2a|168/244",
+     "|move|2a|Aurora Veil||[still]",
+     "|-fail|p2a: Vivillon-Marine",
+     "|",
+     "|upkeep",
+     "|turn|57"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|168/244"
+    ]
+   },
+   {
+    "turn": 65,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|1a|Eerie Spell|2a",
+     "|-damage|p2a|96/244",
+     "|move|2a|Aurora Veil||[still]",
+     "|-fail|p2a: Vivillon-Marine",
+     "|",
+     "|upkeep",
+     "|turn|58"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|96/244"
+    ]
+   },
+   {
+    "turn": 66,
+    "p1_choice": "move 1",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|1a|Eerie Spell|2a",
+     "|-damage|p2a|18/244",
+     "|move|2a|Aurora Veil||[still]",
+     "|-fail|p2a: Vivillon-Marine",
+     "|",
+     "|upkeep",
+     "|turn|59"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|18/244"
+    ]
+   },
+   {
+    "turn": 67,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|1a|Psystrike|2a",
+     "|-damage|p2a|0/244",
+     "|faint|p2a: Vivillon",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|0/244"
+    ]
+   },
+   {
+    "turn": 68,
+    "p1_choice": "move 2",
+    "p2_choice": "switch 5",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|switch|p2: Dipplin|dipplin, L95, M|290/290",
+     "|-ability|p2a|Supersweet Syrup",
+     "|-unboost|p1: Koraidon|evasion|1",
+     "|turn|60"
+    ],
+    "ability_entries": [
+     "|-ability|p2a|Supersweet Syrup"
+    ],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p2: Dipplin|dipplin, L95, M|290/290"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 69,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|1a|Psystrike|2a",
+     "|-damage|p2a|241/290",
+     "|move|2a|Tectonic Rage|1a",
+     "|-damage|p1a|107/304",
+     "|",
+     "|upkeep",
+     "|turn|61"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|241/290",
+     "|-damage|p1a|107/304"
+    ]
+   },
+   {
+    "turn": 70,
+    "p1_choice": "move 2",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|1a|Psystrike|2a",
+     "|-damage|p2a|190/290",
+     "|move|2a|Tail Whip|1a|[spread] 3",
+     "|-unboost|p1: Koraidon|def|1",
+     "|",
+     "|upkeep",
+     "|turn|62"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|190/290"
+    ]
+   },
+   {
+    "turn": 71,
+    "p1_choice": "move 2",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|1a|Psystrike|2a",
+     "|-damage|p2a|141/290",
+     "|move|2a|Tail Whip|1a|[spread] 3",
+     "|-unboost|p1: Koraidon|def|1",
+     "|",
+     "|upkeep",
+     "|turn|63"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|141/290"
+    ]
+   },
+   {
+    "turn": 72,
+    "p1_choice": "move 2",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|1a|Psystrike|2a",
+     "|-damage|p2a|85/290",
+     "|move|2a|Tail Whip|1a|[spread] 3",
+     "|-unboost|p1: Koraidon|def|1",
+     "|",
+     "|upkeep",
+     "|turn|64"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|85/290"
+    ]
+   },
+   {
+    "turn": 73,
+    "p1_choice": "move 2",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|1a|Psystrike|2a",
+     "|-crit|p2a",
+     "|-damage|p2a|5/290",
+     "|move|2a|Tail Whip|1a|[spread] 3",
+     "|-unboost|p1: Koraidon|def|1",
+     "|",
+     "|upkeep",
+     "|turn|65"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|5/290"
+    ]
+   },
+   {
+    "turn": 74,
+    "p1_choice": "move 2",
+    "p2_choice": "move 2",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|1a|Psystrike|2a",
+     "|-damage|p2a|0/290",
+     "|faint|p2a: Dipplin",
+     "|",
+     "|upkeep"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|0/290"
+    ]
+   },
+   {
+    "turn": 75,
+    "p1_choice": "move 2",
+    "p2_choice": "switch 6",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|switch|p2: Chinchou|chinchou, L73, M|209/209",
+     "|turn|66"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [
+     "|switch|p2: Chinchou|chinchou, L73, M|209/209"
+    ],
+    "faint_entries": []
+   },
+   {
+    "turn": 76,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": null,
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|1a|Psystrike|2a",
+     "|-damage|p2a|40/209",
+     "|move|2a|Aura Wheel||[still]",
+     "|-fail|p2a|move: Aura Wheel",
+     "|-hint|Only a Pokemon whose form is Morpeko or Morpeko-Hangry can use this move.",
+     "|",
+     "|upkeep",
+     "|turn|67"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|40/209"
+    ]
+   },
+   {
+    "turn": 77,
+    "p1_choice": "move 2",
+    "p2_choice": "move 1",
+    "winner": "p1",
+    "log_entries": [
+     "|",
+     "|t:|1778368088",
+     "|move|1a|Psystrike|2a",
+     "|-damage|p2a|0/209",
+     "|faint|p2a: Chinchou",
+     "|",
+     "|win|p1"
+    ],
+    "ability_entries": [],
+    "item_entries": [],
+    "switch_entries": [],
+    "faint_entries": [
+     "|-damage|p2a|0/209"
+    ]
+   }
+  ]
+ }
+]

@@ -34,14 +34,15 @@ import math
 import random
 import time
 from collections import deque, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from pathlib import Path
+from datetime import datetime
 
 import torch
 import torch.nn as nn
 
 from model.agent import CynthAIAgent
-from model.embeddings import PokemonBatch
+from model.embeddings import PokemonBatch, apply_reveal_mask
 from model.prediction_heads import PredictionHeads
 from model.backbone import K_TURNS
 from training.rollout import collect_rollout, RandomPolicy
@@ -82,8 +83,28 @@ class TrainingConfig:
     pool_snapshot_threshold: float = 0.55  # P3: snapshot agent when win_rate exceeds this
     pool_cooldown:    int   = 5         # P3: min updates between snapshots
 
+    # P1: POMDP mask curriculum
+    mask_schedule:      str   = "linear"  # "linear", "exp", "step", "phase"
+    mask_warmup:        int   = 200       # updates before masking begins
+    mask_max_ratio:     float = 1.0       # final masking probability
+    mask_exp_k:         float = 3.0       # exponential ramp rate
+    mask_step_update:   int   = 500       # plateau length for step schedule
+    mask_phase_breakpoints: tuple = ()    # update breakpoints for "phase" mode
+    mask_phase_values:      tuple = ()    # mask ratios at each phase
+
+    # P2: Reward curriculum
+    dense_schedule:         str   = "linear"  # "linear", "exp", "step", "phase"
+    dense_warmup:           int   = 0         # updates before decay begins
+    dense_min_scale:        float = 0.25      # floor for dense_scale
+    dense_exp_k:            float = 3.0       # exponential decay rate
+    dense_step_update:      int   = 500       # plateau length for step schedule
+    dense_phase_breakpoints: tuple = ()       # update breakpoints for "phase" mode
+    dense_phase_values:      tuple = ()       # dense_scale at each phase
+
     # Checkpointing / logging
-    checkpoint_dir:  str = "checkpoints"
+    # Run metadata
+    run_name:      str = ""         # auto-generated if empty: curriculum_max_YYYYMMDD_HHMM
+    checkpoint_dir: str = ""         # auto-generated from run_name if empty
     checkpoint_freq: int = 50
     log_every:       int = 1
     win_rate_window: int = 100
@@ -149,12 +170,118 @@ def _slice_opp_batch(poke_batch: PokemonBatch) -> PokemonBatch:
     )
 
 
+# -- Mask schedule (P1 POMDP curriculum) ----------------------------------------
+
+def compute_mask_ratio(
+    update: int,
+    total:  int,
+    schedule: str = "linear",
+    warmup: int = 200,
+    max_ratio: float = 1.0,
+    exp_k: float = 3.0,
+    step_update: int = 500,
+    phase_breakpoints: tuple = (),
+    phase_values: tuple = (),
+) -> float:
+    """Return masking probability at the given update.
+
+    Schedules:
+      linear : linear ramp 0.0 -> max_ratio over [warmup, total]
+      exp    : exp ramp 0.0 -> max_ratio (faster initial rise)
+      step   : 0.0 until step_update, then max_ratio
+      phase  : manual phases defined by (breakpoints, values) tuples.
+               e.g. breakpoints=(600, 2500), values=(0.0, 0.5, 1.0) means
+               [0, 600] → 0.0, (600, 2500] → 0.5, (2500, ∞) → 1.0
+               When using "phase", warmup is ignored (breakpoints are absolute).
+    """
+    if schedule == "phase":
+        if not phase_breakpoints:
+            return 0.0
+        for i, bp in enumerate(phase_breakpoints):
+            if update <= bp:
+                return phase_values[i]
+        return phase_values[-1]
+
+    if update <= warmup:
+        return 0.0
+
+    progress = (update - warmup) / (total - warmup)
+
+    if schedule == "linear":
+        return min(max_ratio, progress * max_ratio)
+    elif schedule == "exp":
+        return max_ratio * (1.0 - math.exp(-exp_k * progress))
+    elif schedule == "step":
+        return max_ratio if update - warmup >= step_update else 0.0
+    else:
+        raise ValueError(f"Unknown mask_schedule: {schedule}")
+
+
+# -- Dense scale schedule (P2 reward curriculum) ---------------------------------
+
+def compute_dense_scale(
+    update: int,
+    total:  int,
+    schedule: str = "linear",
+    warmup: int = 0,
+    min_scale: float = 0.25,
+    exp_k: float = 3.0,
+    step_update: int = 500,
+    phase_breakpoints: tuple = (),
+    phase_values: tuple = (),
+) -> float:
+    """Return dense_scale for non-terminal rewards at the given update.
+
+    Schedules:
+      linear : linear decay 1.0 -> min_scale over [warmup, total]
+      exp    : exp decay from 1.0 towards min_scale
+      step   : 1.0 until step_update, then min_scale
+      phase  : manual phases defined by (breakpoints, values) tuples.
+               e.g. breakpoints=(600, 2500), values=(1.0, 0.5, 0.1) means
+               [0, 600] → 1.0, (600, 2500] → 0.5, (2500, ∞) → 0.1
+               When using "phase", warmup is ignored (breakpoints are absolute).
+    """
+    if schedule == "phase":
+        if not phase_breakpoints:
+            return 1.0
+        for i, bp in enumerate(phase_breakpoints):
+            if update <= bp:
+                return phase_values[i]
+        return phase_values[-1]
+
+    if update <= warmup:
+        return 1.0
+
+    progress = (update - warmup) / (total - warmup)
+
+    if schedule == "linear":
+        return max(min_scale, 1.0 - progress * (1.0 - min_scale))
+    elif schedule == "exp":
+        return max(min_scale, (1.0 - min_scale) * math.exp(-exp_k * progress) + min_scale)
+    elif schedule == "step":
+        return min_scale if update - warmup >= step_update else 1.0
+    else:
+        raise ValueError(f"Unknown dense_schedule: {schedule}")
+
+
 # -- Main training loop -----------------------------------------------------------
 
 def train(cfg: TrainingConfig = TrainingConfig()) -> None:
     """PPO self-play loop. Blocks until cfg.total_updates complete."""
     device = torch.device(cfg.device)
+
+    # Auto-generate run name and checkpoint dir
+    if not cfg.run_name:
+        cfg.run_name = f"curriculum_max_{datetime.now():%Y%m%d_%H%M}"
+    if not cfg.checkpoint_dir:
+        cfg.checkpoint_dir = str(Path("checkpoints") / cfg.run_name)
     Path(cfg.checkpoint_dir).mkdir(parents=True, exist_ok=True)
+
+    # CSV loggers
+    metrics_path = Path(cfg.checkpoint_dir) / "metrics.csv"
+    eval_path    = Path(cfg.checkpoint_dir) / "eval.csv"
+    _first_metrics = True
+    _first_eval    = True
 
     agent     = CynthAIAgent().to(device)
     optimizer = torch.optim.AdamW(
@@ -170,7 +297,13 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
         agent.load_state_dict(ckpt["model"])
         optimizer.load_state_dict(ckpt["optimizer"])
         start_update = ckpt["update"] + 1
+        # Restore saved config (except resume path — keep the new one)
+        if "config" in ckpt:
+            saved = dict(ckpt["config"])
+            saved["resume"] = cfg.resume
+            cfg = TrainingConfig(**saved)
         print(f"Resumed from {cfg.resume}  (update {ckpt['update']})")
+        print(f"  run_name={cfg.run_name}  total_updates={cfg.total_updates}")
 
     pool        = OpponentPool(pool_size=cfg.pool_size)
     win_history : deque[int] = deque(maxlen=cfg.win_rate_window)
@@ -206,6 +339,26 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
 
         # -- 1b. Rollout collection ----------------------------------------------------
         agent.eval()
+        mask_ratio = compute_mask_ratio(
+            update, cfg.total_updates,
+            schedule         = cfg.mask_schedule,
+            warmup           = cfg.mask_warmup,
+            max_ratio        = cfg.mask_max_ratio,
+            exp_k            = cfg.mask_exp_k,
+            step_update      = cfg.mask_step_update,
+            phase_breakpoints = cfg.mask_phase_breakpoints,
+            phase_values     = cfg.mask_phase_values,
+        )
+        dense_scale = compute_dense_scale(
+            update, cfg.total_updates,
+            schedule          = cfg.dense_schedule,
+            warmup            = cfg.dense_warmup,
+            min_scale         = cfg.dense_min_scale,
+            exp_k             = cfg.dense_exp_k,
+            step_update       = cfg.dense_step_update,
+            phase_breakpoints = cfg.dense_phase_breakpoints,
+            phase_values      = cfg.dense_phase_values,
+        )
 
         buffer = collect_rollout(
             agent_self = agent,
@@ -216,6 +369,8 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
             gamma      = cfg.gamma,
             lam        = cfg.lam,
             device     = device,
+            mask_ratio = mask_ratio,
+            dense_scale = dense_scale,
         )
 
         for t in buffer._transitions:
@@ -234,8 +389,23 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
             for batch in buffer.minibatches(cfg.batch_size, device):
                 optimizer.zero_grad()
 
+                # POMDP masking: apply reveal mask before forward pass
+                # build targets from GROUND TRUTH (unmasked batch)
+                if "reveal_species" in batch:
+                    masked_poke = apply_reveal_mask(
+                        batch["poke_batch"],
+                        reveal_species = batch["reveal_species"],
+                        reveal_item    = batch["reveal_item"],
+                        reveal_ability = batch["reveal_ability"],
+                        reveal_tera    = batch["reveal_tera"],
+                        reveal_moves   = batch["reveal_moves"],
+                        mask_ratio     = mask_ratio,
+                    )
+                else:
+                    masked_poke = batch["poke_batch"]  # backward compat
+
                 out = agent(
-                    batch["poke_batch"],
+                    masked_poke,
                     batch["field_tensor"],
                     batch["move_idx"],
                     batch["pp_ratio"],
@@ -245,9 +415,21 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     batch["action_mask"],
                 )
 
-                opp_batch = _slice_opp_batch(batch["poke_batch"])
+                opp_batch = _slice_opp_batch(batch["poke_batch"])  # ground truth
                 targets   = PredictionHeads.build_targets(opp_batch)
-                pred_loss = PredictionHeads.compute_loss(out.pred_logits, *targets)["total"]
+
+                # Override prediction loss masks with actual reveal state
+                if "reveal_species" in batch:
+                    pred_loss = PredictionHeads.compute_loss(
+                        out.pred_logits,
+                        targets[0], targets[1], targets[2], targets[3],
+                        item_mask    = batch["reveal_item"],
+                        ability_mask = batch["reveal_ability"],
+                        tera_mask    = batch["reveal_tera"],
+                        move_mask    = batch["reveal_moves"],
+                    )["total"]
+                else:
+                    pred_loss = PredictionHeads.compute_loss(out.pred_logits, *targets)["total"]
 
                 losses = compute_losses(
                     logits_new   = out.action_logits,
@@ -303,6 +485,27 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 f"opp={opp_label}]"
             )
 
+            # CSV log
+            with open(metrics_path, "a", newline="") as f:
+                import csv
+                row = {
+                    "update": update, "win_rate": win_rate,
+                    "policy": loss_acc["policy"]/ns, "value": loss_acc["value"]/ns,
+                    "entropy": loss_acc["entropy"]/ns, "pred": loss_acc["pred"]/ns,
+                    "total": loss_acc["total"]/ns, "lr": lr,
+                    "grad_norm": loss_acc["grad_norm"]/ns,
+                    "clip_frac": loss_acc["clip_frac"]/ns,
+                    "explained_variance": loss_acc["explained_variance"]/ns,
+                    "eps": total_eps, "pool": len(pool),
+                    "mask_ratio": mask_ratio, "dense_scale": dense_scale,
+                    "opp": opp_label,
+                }
+                w = csv.DictWriter(f, fieldnames=list(row.keys()))
+                if _first_metrics:
+                    w.writeheader()
+                    _first_metrics = False
+                w.writerow(row)
+
         # -- 5. Periodic evaluation ---------------------------------------------------
         # P3: every eval_freq updates, run 500 games vs each opponent type
         if update % cfg.eval_freq == 0:
@@ -323,6 +526,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     n_envs   = cfg.n_envs,
                     format_id= cfg.format_id,
                     device   = device,
+                    mask_ratio = mask_ratio,
                 )
                 eval_results[label] = res
                 print(f"  eval {label}: WR={res['win_rate']*100:.1f}%  "
@@ -336,12 +540,29 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 n_envs            = cfg.n_envs,
                 format_id         = cfg.format_id,
                 device            = device,
+                mask_ratio        = mask_ratio,
                 opponent_sampler  = lambda: pool.sample(agent),
             )
             pool_wr = eval_results["pool"]["win_rate"]
             print(f"  eval pool: WR={pool_wr*100:.1f}%  "
                   f"W={eval_results['pool']['wins']} L={eval_results['pool']['losses']}  "
                   f"({eval_results['pool']['total']} games)")
+
+            # CSV eval log
+            with open(eval_path, "a", newline="") as f:
+                import csv
+                row = {"update": update}
+                for label in ("random", "fulloff", "pool"):
+                    r = eval_results[label]
+                    row[f"{label}_wr"] = r["win_rate"]
+                    row[f"{label}_w"]  = r["wins"]
+                    row[f"{label}_l"]  = r["losses"]
+                    row[f"{label}_n"]  = r["total"]
+                w = csv.DictWriter(f, fieldnames=list(row.keys()))
+                if _first_eval:
+                    w.writeheader()
+                    _first_eval = False
+                w.writerow(row)
 
             # Snapshot agent when pool eval WR exceeds threshold
             if (pool_wr > cfg.pool_snapshot_threshold
@@ -358,6 +579,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
             ckpt_path = Path(cfg.checkpoint_dir) / f"agent_{update:06d}.pt"
             torch.save({
                 "update":    update,
+                "config":    asdict(cfg),
                 "model":     agent.state_dict(),
                 "optimizer": optimizer.state_dict(),
             }, ckpt_path)

@@ -1,100 +1,17 @@
-# CynthAI_v2 — TODO Améliorations
+# CynthAI_v2 — TODO
 
-## P1 — POMDP Masking
+## Déjà implémenté (vérifié dans le code)
 
-**Objectif** : Forcer les prédiction heads à fonctionner en masquant progressivement les infos adverses.
-
-**Détail** :
-- Dans `encode_state()` dans `rollout.py`, ajouter un paramètre `mask_opponent_ratio: float = 0.0`
-- Quand `mask_ratio > 0`, pour chaque attribut opponent (item, ability, moves, tera, species), zero-mask avec probabilité `mask_ratio`
-- La reconstruction loss (`pred_logits`) est calculée *sur les valeurs originales non masquées*
-- Courbe : mask_ratio = 0 pour les 200 premiers updates, puis linear increase jusqu'à 0.50 à l'update 2000
-- Dans l'entraînement, le mask_ratio est calculé à partir de l'update courant
-
-**Fichiers** : `env/state_encoder.py`, `training/rollout.py`, `training/self_play.py`
+- [P1] POMDP Masking — `compute_mask_ratio()` + `apply_reveal_mask()` avec curriculum (warmup=200 → max_ratio=0.5)
+- [P2] Reward Curriculum — `compute_dense_scale()` avec decay linéaire 1.0 → 0.25
+- [P3] Pool Debug + Opponent Mixing — pool_size=20, snapshot_threshold=0.55, mixing 80% pool / 10% Random / 10% FullOffense
+- [P4] Régularisation & Monitoring — AdamW (wd=1e-4), clip_grad_norm=0.5, grad_norm/explained_variance/clip_frac loggés
+- [P5] Critic — c_value=1.0, return normalization dans `losses.py`
+- [P6] LR Schedule — warmup=20 + cosine decay, base_lr=2.5e-4
 
 ---
 
-## P2 — Reward Curriculum (Sparsification progressive)
-
-**Objectif** : Éviter que l'agent overfit sur les récompenses proxy (HP adv, KO) et force la priorité sur la victoire.
-
-**Détail** :
-- Multiplicateur `dense_scale` qui décroît linéairement de 1.0 → 0.25 sur la durée de l'entraînement
-- Ce facteur s'applique à `KO_REWARD`, `OWN_KO_PENALTY`, `HP_ADV_SCALE`
-- Le terminal WIN/REWARD (±1.0) n'est jamais affecté
-- Courbe : `dense_scale = max(0.25, 1.0 - update / total_updates * 0.75)`
-- Paramètres ajustés : `KO_REWARD = 0.05 * dense_scale`, `HP_ADV_SCALE = 0.01 * dense_scale`
-
-**Fichiers** : `training/rollout.py` (dans `compute_step_reward`)
-
----
-
-## P3 — Pool Size Debug + Opponent Mixing
-
-**Objectif** : Empêcher le sur-apprentissage au pool d'opposants et diversifier les adversaires.
-
-**Détail** :
-- **Debug** : Vérifier le seuil de snapshot dans `self_play.py` — actuellement pool_size=5 bloqué. Ajouter un ratio (ex: snapshot quand `win_rate > 0.55` sur les 50 dernières parties) au lieu d'un seuil fixe.
-- **Opponent mixing** : À chaque rollout, avec probabilité 20%, remplacer `agent_opp` par une politique externe :
-  - 10% `RandomPolicy`
-  - 10% random move selection (sélectionne un move légal aléatoirement parmis les 4, mais pas switch — style "weak bot")
-- Ces opponents ne sont pas ajoutés au pool, ils servent juste de bruit régularisant
-
-**Fichiers** : `training/self_play.py`, `training/rollout.py`
-
----
-
-## P4 — Régularisation & Monitoring
-
-**Objectif** : Stabiliser l'entraînement et détecter les dérives.
-
-**Détail** :
-- **Weight decay** : `optimizer = torch.optim.AdamW(lr, weight_decay=1e-4)` (remplace Adam)
-- **Gradient clipping** : `torch.nn.utils.clip_grad_norm_(agent.parameters(), max_norm=0.5)` avant l'optim step
-- **Monitoring** : Logger dans metrics.csv :
-  - `grad_norm` : norme totale des gradients
-  - `explained_variance` : `1 - var(returns - values) / var(returns)` — qualité du critic
-  - `clip_frac` : fraction d'échantillons clippés dans PPO
-  - `pool_size` (déjà loggé)
-- **Entropy bonus** : Si l'entropie tombe sous un seuil (`min_entropy = -2.8`), augmenter le coefficient dans la loss PPO
-
-**Fichiers** : `training/self_play.py` (optimizer, logging), `model/agent.py` (si besoin)
-
----
-
-## P5 — Optimisation du Critic (Value Loss)
-
-**Objectif** : Stabiliser V(s) qui oscille fortement.
-
-**Détail** :
-- **Coefficient value loss** : Passer de `c_value = 0.5` à `c_value = 1.0` pour donner plus de poids au critic
-- **Return normalisation** : Normaliser les returns avant de calculer la value loss :
-  ```python
-  returns = (returns - returns.mean()) / (returns.std() + 1e-8)
-  ```
-- **Value clipping** : Optionnellement, ajouter du clipping sur la value loss (similaire au PPO clip) :
-  - Clipping la différence entre V(s) et la target (return) à ±1.0 en valeur absolue (Huber-like)
-
-**Fichiers** : `training/self_play.py` (loss computation)
-
----
-
-## P6 — Learning Rate Schedule
-
-**Objectif** : Meilleur schedule que le linear decay actuel.
-
-**Détail** :
-- **Warmup** : 20 premiers updates, LR = `base_lr * (update + 1) / warmup_steps`
-- **Cosine decay** : Après warmup, LR = `base_lr * 0.5 * (1 + cos(π * (update - warmup) / (total_updates - warmup)))`
-- **Base LR** : Passer de 3e-4 à 2.5e-4 (légère baisse pour stabilité)
-- Fin du training : LR ~ 2.5e-4 * 0.5 * (1 + cos(π)) ≈ 0 (decroissance complète)
-
-**Fichiers** : `training/self_play.py`
-
----
-
-## P7 — Vérification K (à mesurer avant décision)
+## P7 — Vérification K (analyse attention)
 
 **Objectif** : Décider si augmenter K=4 → K=6 ou K=8.
 
@@ -104,11 +21,11 @@
 - Si les poids d'attention sur les vieux tokens sont proches de zéro → augmenter K ne sert à rien
 - Si le modèle distribue son attention sur tout l'historique → K=6 (78 tokens) peut aider
 
-**Fichiers** : `test_attention_maps.py`, `model/backbone.py`
+**Fichiers** : `tests/test_attention_maps.py`, `model/backbone.py`
 
 ---
 
-## P8 — Opponent Action Query System (futur, après tout le reste)
+## P8 — Opponent Action Query System (futur)
 
 **Objectif** : Prédire l'action adverse et l'injecter dans la décision.
 
@@ -118,21 +35,30 @@
   - Cross-attend queries adverses sur les tokens d'état (symétrique à l'actor head)
   - Loss de prédiction cross-entropy sur l'action adverse réelle
 - Injection : concaténer la prédiction d'action adverse aux action_embeds
-- À faire seulement après que POMDP masking (P1) est en place, car les deux sont complémentaires
+- À faire seulement après avoir validé que POMDP masking (P1) fonctionne bien, car les deux sont complémentaires
 
 **Fichiers** : Nouveau fichier `model/opponent_head.py`, modifications dans `model/agent.py`, `training/rollout.py`
 
 ---
 
-## Résumé de l'ordre d'implémentation
+## Notes diverses (non-bloquantes)
 
-| # | Tâche | Effort | Impact |
-|---|-------|--------|--------|
-| P1 | POMDP Masking | 1 journée | Élevé |
-| P2 | Reward Curriculum | 2h | Moyen |
-| P3 | Pool Debug + Opponent Mixing | 4h | Élevé |
-| P4 | Régularisation & Monitoring | 2h | Moyen |
-| P5 | Optimisation Critic | 1h | Moyen |
-| P6 | LR Schedule | 1h | Faible-Moyen |
-| P7 | Vérification K | 30 min | Information |
-| P8 | Opponent Action Query | 2-3 jours | Futur |
+### N1 — Persistance du `sent_log_pos` dans PyBattle
+
+`PyBattle.get_new_log_entries()` avance un compteur interne `sent_log_pos` dans le module Rust. Si un `PyBattle` est sérialisé/désérialisé, ce compteur est perdu et `get_new_log_entries()` retournerait tous les logs depuis le début, ce qui ferait traiter les révélations en double par `RevealedTracker`.
+
+**Pas un problème actuellement** : les environnements sont recréés à chaque reset (fin d'épisode ou crash) et les checkpoints sauvegardent l'agent, pas les états de combat. Si un jour on sérialise des `PyBattle` en cours de partie, il faudra exposer `sent_log_pos` côté Python et le restaurer.
+
+### N2 — Cas edge Zoroark / Illusion / Transform
+
+Le `RevealedTracker` marque `species_revealed` dès qu'un Pokémon entre sur le terrain (`|switch|`). Mais Zoroark (talent Illusion) se présente sous l'apparence d'un autre Pokémon. Quand Illusion tombe (dégât direct), l'espèce réelle est révélée — le tracker ne gère pas ce désaveu. De même, Transform change types, stats et capacités sans que le tracker le détecte.
+
+**Pas une priorité** : ces cas sont très rares en random battle. Solution simple quand le moment viendra : détecter le changement d'espèce via les logs (`|-illusion|`, `|-transform|`) et réinitialiser les attributs du slot concerné.
+
+### N3 — Masque POMDP uniforme sur K=4 tours
+
+Actuellement, `apply_reveal_mask()` applique le **même** masque de révélation aux K=4 tours du sliding window. Si l'item adverse est révélé au tour 5, les tours 2-3-4 dans l'historique du window montrent aussi l'item — comme si le modèle avait toujours su.
+
+En pratique, avec K=4 et le curriculum P1 (mask_ratio qui monte jusqu'à 0.5), l'impact est limité : le modèle apprend à ne pas trop compter sur les attributs non-révélés. Mais l'approximation idéale serait de stocker un reveal state par turn dans le `BattleWindow` et de les appliquer individuellement.
+
+**Solution si nécessaire un jour** : stocker `reveal_state` à chaque push dans `BattleWindow`, et modifier `_build_sequence()` pour que `apply_reveal_mask()` reçoive un masque par turn au lieu d'un masque global. Pas prioritaire tant que les performances n'indiquent pas un plafond lié à ce comportement.

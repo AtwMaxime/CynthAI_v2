@@ -21,7 +21,7 @@ from env.state_encoder import (
     PokemonFeatures,
     N_SPECIES, N_MOVES, N_ITEMS, N_ABILITIES,
     TYPE_EMBEDDING_PRIOR, MOVE_EMBEDDING_PRIOR,
-    D_TYPE, N_VOLATILES,
+    D_TYPE, N_VOLATILES, UNK,
     _species_data,
     FieldFeatures, SideFeatures,
     FIELD_DIM, SIDE_DIM, N_SIDE_CONDITIONS,
@@ -133,6 +133,108 @@ def collate_features(batch: list) -> PokemonBatch:
         ability_idx = torch.from_numpy(ability_np),
         move_idx    = torch.from_numpy(move_np),
         scalars     = torch.from_numpy(scalars_np),
+    )
+
+
+# ── Reveal mask (POMDP training augmentation) ────────────────────────────────
+
+def apply_reveal_mask(
+    batch:          PokemonBatch,
+    reveal_species: torch.Tensor,   # [B, 6] bool — True = revealed
+    reveal_item:    torch.Tensor,
+    reveal_ability: torch.Tensor,
+    reveal_tera:    torch.Tensor,
+    reveal_moves:   torch.Tensor,   # [B, 6, 4] bool — per move slot
+    mask_ratio:     float = 1.0,    # 0.0 = no masking, 1.0 = always mask unrevealed
+) -> PokemonBatch:
+    """
+    Zero-mask opponent attributes that haven't been revealed through gameplay.
+
+    Masking logic per opponent slot (per-Pokémon Bernoulli with mask_ratio):
+      - mask_ratio=0.0 → no masking (full info), ratio=1.0 → always mask unrevealed
+      - Species unknown → mask ALL categoricals + all scalars
+      - Species known:
+          Types & base_stats kept (deterministic from species)
+          Item/ability/tera hidden if not yet revealed
+          Moves hidden per-slot if not yet revealed
+          Scalars: stats (idx 8:13) always hidden; move_pp (idx 21-24) hidden
+            per-slot when move unrevealed
+          hp_ratio, boosts, status, volatiles, move_disabled remain visible
+    """
+    B, N = batch.species_idx.shape
+    device = batch.species_idx.device
+    K_turns = N // 12
+    N_SCAL = batch.scalars.shape[-1]
+
+    # ── Per-Pokémon Bernoulli: which opponent slots get masked —───────────────
+    should_mask = torch.rand(B, 6, device=device) < mask_ratio  # [B, 6] bool
+
+    # ── Build opponent position index per K-block ─────────────────────────────
+    def _to_N(per_slot: torch.Tensor) -> torch.Tensor:
+        """Scatter [B, 6] into [B, N] at opponent positions across all K turns."""
+        full = torch.ones(B, N, dtype=torch.bool, device=device)
+        for t in range(K_turns):
+            start = t * 12 + 6
+            full[:, start:start + 6] = per_slot
+        return full
+
+    # ── Effective reveal per categorical attribute ────────────────────────────
+    # True = keep data, False = mask to UNK
+    # If should_mask=False → always keep (True)
+    # If should_mask=True → keep only if revealed (and species known for derived fields)
+    eff_species = (~should_mask) | reveal_species
+    eff_types   = eff_species  # types deterministic from species
+    eff_item    = (~should_mask) | (reveal_species & reveal_item)
+    eff_ability = (~should_mask) | (reveal_species & reveal_ability)
+    eff_tera    = (~should_mask) | (reveal_species & reveal_tera)
+    eff_moves   = (~should_mask).unsqueeze(-1) | (reveal_species.unsqueeze(-1) & reveal_moves)
+
+    # ── Scatter to [B, N] / [B, N, 4] ────────────────────────────────────────
+    sp_N = _to_N(eff_species)
+    it_N = _to_N(eff_item)
+    ab_N = _to_N(eff_ability)
+    te_N = _to_N(eff_tera)
+    tp_N = _to_N(eff_types)
+
+    mv_N = torch.ones(B, N, 4, dtype=torch.bool, device=device)
+    for t in range(K_turns):
+        start = t * 12 + 6
+        mv_N[:, start:start + 6, :] = eff_moves
+
+    # ── Scalar masking ────────────────────────────────────────────────────────
+    scalar_mask = torch.ones(B, N, N_SCAL, dtype=torch.bool, device=device)
+
+    for t in range(K_turns):
+        opp_start = t * 12 + 6         # start of opponent block in N dim
+
+        # Per-slot in this block
+        for s in range(6):
+            slot = opp_start + s
+            bm = should_mask[:, s]                     # [B] — which envs mask this slot
+
+            # 1. Species hidden: mask ALL scalars
+            no_sp = bm & ~reveal_species[:, s]
+            scalar_mask[no_sp, slot, :] = False
+
+            # 2. Species known: mask stats (indices 8-13 inclusive)
+            known = bm & reveal_species[:, s]
+            scalar_mask[known, slot, 8:14] = False
+
+            # 3. Per-move-slot PP masking (indices 21-24)
+            for j in range(4):
+                mv_hidden = known & ~reveal_moves[:, s, j]
+                scalar_mask[mv_hidden, slot, 21 + j] = False
+
+    # ── Apply masks ───────────────────────────────────────────────────────────
+    return PokemonBatch(
+        species_idx = torch.where(sp_N, batch.species_idx, torch.zeros_like(batch.species_idx)),
+        type1_idx   = torch.where(tp_N, batch.type1_idx,   torch.zeros_like(batch.type1_idx)),
+        type2_idx   = torch.where(tp_N, batch.type2_idx,   torch.zeros_like(batch.type2_idx)),
+        tera_idx    = torch.where(te_N, batch.tera_idx,    torch.zeros_like(batch.tera_idx)),
+        item_idx    = torch.where(it_N, batch.item_idx,    torch.zeros_like(batch.item_idx)),
+        ability_idx = torch.where(ab_N, batch.ability_idx, torch.zeros_like(batch.ability_idx)),
+        move_idx    = torch.where(mv_N, batch.move_idx,   torch.zeros_like(batch.move_idx)),
+        scalars     = torch.where(scalar_mask, batch.scalars, torch.zeros_like(batch.scalars)),
     )
 
 

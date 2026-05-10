@@ -1,0 +1,895 @@
+Battle seed=1 (41 turns, winner=p2)
+============================================================
+
+Turn 1:
+  P1: move 1  |  P2: move 1
+  [ITEM] |-enditem|p2a|Vile Vial|[from] move: Knock Off|[of] p1a
+
+Turn 2:
+  P1: move 1  |  P2: move 1
+
+Turn 3:
+  P1: move 1  |  P2: move 1
+
+Turn 4:
+  P1: move 1  |  P2: move 1
+
+Turn 5:
+  P1: move 1  |  P2: move 1
+
+Turn 6:
+  P1: move 1  |  P2: move 1
+
+Turn 7:
+  P1: move 1  |  P2: move 1
+
+Turn 8:
+  P1: move 1  |  P2: move 1
+
+Turn 9:
+  P1: move 1  |  P2: switch 2
+  [SWITCH] |switch|p2: Latias|latiasmega, L53, F|168/168
+
+Turn 10:
+  P1: move 1  |  P2: move 1
+  [ITEM] |-enditem|p2a|TR61|[from] move: Knock Off|[of] p1a
+
+Turn 11:
+  P1: move 1  |  P2: move 1
+
+Turn 12:
+  P1: move 1  |  P2: switch 3
+  [SWITCH] |switch|p2: Mantine|mantine, L56, F|185/185
+
+Turn 13:
+  P1: move 1  |  P2: move 1
+  [ITEM] |-enditem|p2a|Dark Memory|[from] move: Knock Off|[of] p1a
+
+Turn 14:
+  P1: move 1  |  P2: move 1
+
+Turn 15:
+  P1: move 1  |  P2: move 1
+
+Turn 16:
+  P1: move 1  |  P2: switch 4
+  [SWITCH] |switch|p2: Cinderace|cinderacegmax, L63, M|206/206
+
+Turn 17:
+  P1: move 1  |  P2: move 1
+  [ITEM] |-enditem|p2a|Apicot Berry|[from] move: Knock Off|[of] p1a
+
+Turn 18:
+  P1: move 1  |  P2: move 1
+
+Turn 19:
+  P1: move 1  |  P2: move 1
+
+Turn 20:
+  P1: switch 2  |  P2: move 1
+  [SWITCH] |switch|p1: Genesect|genesectshock, L88|263/263
+
+Turn 21:
+  P1: move 1  |  P2: move 1
+
+Turn 22:
+  P1: move 1  |  P2: switch 5
+  [ABILITY] |-ability|p2: Zacian|intrepidsword|boost
+  [SWITCH] |switch|p2: Zacian|zacian, L95|331/331
+
+Turn 23:
+  P1: move 1  |  P2: move 1
+
+Turn 24:
+  P1: move 1  |  P2: move 1
+
+Turn 25:
+  P1: move 1  |  P2: move 1
+
+Turn 26:
+  P1: move 1  |  P2: move 1
+
+Turn 27:
+  P1: move 1  |  P2: move 1
+
+Turn 28:
+  P1: switch 3  |  P2: move 1
+  [SWITCH] |switch|p1: Glimmora|glimmora, F|322/322
+
+Turn 29:
+  P1: move 1  |  P2: move 1
+
+Turn 30:
+  P1: move 1  |  P2: move 1
+
+Turn 31:
+  P1: switch 4  |  P2: move 1
+  [SWITCH] |switch|p1: Golem|golemalola, L98, F|288/288
+
+Turn 32:
+  P1: move 1  |  P2: move 1
+
+Turn 33:
+  P1: move 1  |  P2: move 1
+
+Turn 34:
+  P1: move 1  |  P2: move 1
+
+Turn 35:
+  P1: move 1  |  P2: move 1
+
+Turn 36:
+  P1: switch 5  |  P2: move 1
+  [SWITCH] |switch|p1: Vivillon|vivillonsavanna, L99, F|290/290
+
+Turn 37:
+  P1: move 1  |  P2: move 1
+
+Turn 38:
+  P1: move 1  |  P2: move 1
+
+Turn 39:
+  P1: move 1  |  P2: move 1
+
+Turn 40:
+  P1: switch 6  |  P2: move 1
+  [SWITCH] |switch|p1: Grovyle|grovyle, L85, M|208/208
+
+Turn 41:
+  P1: move 1  |  P2: move 1
+
+
+Battle seed=42 (53 turns, winner=p2)
+============================================================
+
+Turn 1:
+  P1: move 1  |  P2: move 1
+
+Turn 2:
+  P1: move 1  |  P2: move 1
+
+Turn 3:
+  P1: switch 2  |  P2: move 1
+  [SWITCH] |switch|p1: Eelektrik|eelektrik, L71, M|200/200
+
+Turn 4:
+  P1: move 1  |  P2: move 1
+
+Turn 5:
+  P1: move 1  |  P2: move 1
+
+Turn 6:
+  P1: switch 3  |  P2: move 1
+  [SWITCH] |switch|p1: Scattervein|scattervein, L75, F|214/214
+
+Turn 7:
+  P1: move 1  |  P2: move 1
+
+Turn 8:
+  P1: move 1  |  P2: move 1
+
+Turn 9:
+  P1: move 1  |  P2: move 1
+
+Turn 10:
+  P1: move 1  |  P2: move 1
+
+Turn 11:
+  P1: move 1  |  P2: move 2
+
+Turn 12:
+  P1: move 1  |  P2: move 2
+
+Turn 13:
+  P1: move 1  |  P2: move 2
+
+Turn 14:
+  P1: move 1  |  P2: move 2
+
+Turn 15:
+  P1: move 1  |  P2: move 2
+
+Turn 16:
+  P1: move 1  |  P2: move 2
+
+Turn 17:
+  P1: move 1  |  P2: move 2
+
+Turn 18:
+  P1: move 1  |  P2: move 2
+
+Turn 19:
+  P1: move 1  |  P2: move 3
+
+Turn 20:
+  P1: switch 4  |  P2: move 3
+  [SWITCH] |switch|p1: Celebi|celebi, L56|204/204
+
+Turn 21:
+  P1: move 1  |  P2: move 3
+
+Turn 22:
+  P1: move 1  |  P2: move 3
+
+Turn 23:
+  P1: switch 5  |  P2: move 3
+  [SWITCH] |switch|p1: Litwick|litwick, L91, M|242/242
+
+Turn 24:
+  P1: move 1  |  P2: move 3
+
+Turn 25:
+  P1: move 1  |  P2: move 3
+
+Turn 26:
+  P1: move 1  |  P2: move 3
+
+Turn 27:
+  P1: move 1  |  P2: move 3
+
+Turn 28:
+  P1: move 1  |  P2: move 3
+
+Turn 29:
+  P1: move 1  |  P2: switch 2
+  [SWITCH] |switch|p2: Braviary|braviaryhisui, L72, M|259/259
+
+Turn 30:
+  P1: move 1  |  P2: move 1
+
+Turn 31:
+  P1: move 1  |  P2: move 1
+
+Turn 32:
+  P1: move 1  |  P2: move 1
+
+Turn 33:
+  P1: move 1  |  P2: switch 3
+  [SWITCH] |switch|p2: Leavanny|leavanny, L77, F|238/238
+
+Turn 34:
+  P1: move 1  |  P2: move 1
+
+Turn 35:
+  P1: move 1  |  P2: move 1
+
+Turn 36:
+  P1: move 1  |  P2: move 1
+
+Turn 37:
+  P1: move 1  |  P2: move 1
+
+Turn 38:
+  P1: move 1  |  P2: move 1
+
+Turn 39:
+  P1: move 1  |  P2: move 1
+
+Turn 40:
+  P1: move 1  |  P2: switch 4
+  [SWITCH] |switch|p2: Corphish|corphish, L55, M|138/138
+
+Turn 41:
+  P1: move 1  |  P2: move 1
+
+Turn 42:
+  P1: move 1  |  P2: move 1
+
+Turn 43:
+  P1: move 1  |  P2: move 1
+
+Turn 44:
+  P1: move 1  |  P2: move 1
+
+Turn 45:
+  P1: move 1  |  P2: switch 5
+  [SWITCH] |switch|p2: Cubone|cubone, L89, F|219/219
+
+Turn 46:
+  P1: move 1  |  P2: move 1
+
+Turn 47:
+  P1: move 1  |  P2: move 1
+
+Turn 48:
+  P1: move 1  |  P2: move 1
+
+Turn 49:
+  P1: switch 6  |  P2: move 1
+  [SWITCH] |switch|p1: Poltchageist|poltchageist, L91|197/197
+
+Turn 50:
+  P1: move 1  |  P2: move 1
+
+Turn 51:
+  P1: move 1  |  P2: move 1
+  [ITEM] |-enditem|p1a: Poltchageist|goldberry|[eat]
+
+Turn 52:
+  P1: move 1  |  P2: move 1
+
+Turn 53:
+  P1: move 1  |  P2: move 1
+
+
+Battle seed=99 (48 turns, winner=p2)
+============================================================
+
+Turn 1:
+  P1: move 1  |  P2: move 1
+
+Turn 2:
+  P1: move 1  |  P2: move 1
+
+Turn 3:
+  P1: move 1  |  P2: switch 2
+  [SWITCH] |switch|p2: Rotom|rotomfrost, L68|160/160
+
+Turn 4:
+  P1: move 1  |  P2: move 1
+
+Turn 5:
+  P1: move 1  |  P2: move 1
+
+Turn 6:
+  P1: move 1  |  P2: move 1
+
+Turn 7:
+  P1: move 1  |  P2: move 1
+
+Turn 8:
+  P1: switch 2  |  P2: move 1
+  [SWITCH] |switch|p1: Eldegoss|eldegoss, L77, M|217/217
+
+Turn 9:
+  P1: move 1  |  P2: move 1
+
+Turn 10:
+  P1: move 2  |  P2: switch 3
+  [ABILITY] |-ability|p2: Zacian|intrepidsword|boost
+  [SWITCH] |switch|p2: Zacian|zacian, L78|251/251
+
+Turn 11:
+  P1: move 2  |  P2: move 1
+
+Turn 12:
+  P1: move 2  |  P2: move 1
+
+Turn 13:
+  P1: move 2  |  P2: move 1
+
+Turn 14:
+  P1: move 2  |  P2: move 1
+
+Turn 15:
+  P1: move 2  |  P2: move 1
+
+Turn 16:
+  P1: move 2  |  P2: move 1
+
+Turn 17:
+  P1: move 2  |  P2: move 1
+
+Turn 18:
+  P1: move 2  |  P2: move 1
+
+Turn 19:
+  P1: move 3  |  P2: move 1
+
+Turn 20:
+  P1: move 3  |  P2: move 1
+
+Turn 21:
+  P1: move 3  |  P2: move 1
+
+Turn 22:
+  P1: move 3  |  P2: move 1
+
+Turn 23:
+  P1: move 3  |  P2: move 1
+
+Turn 24:
+  P1: move 3  |  P2: move 1
+
+Turn 25:
+  P1: move 3  |  P2: move 1
+
+Turn 26:
+  P1: move 3  |  P2: move 1
+
+Turn 27:
+  P1: move 3  |  P2: move 2
+
+Turn 28:
+  P1: move 3  |  P2: move 2
+
+Turn 29:
+  P1: move 3  |  P2: move 2
+
+Turn 30:
+  P1: move 3  |  P2: move 2
+
+Turn 31:
+  P1: move 3  |  P2: move 2
+
+Turn 32:
+  P1: move 3  |  P2: move 2
+
+Turn 33:
+  P1: move 3  |  P2: move 2
+
+Turn 34:
+  P1: move 3  |  P2: move 2
+
+Turn 35:
+  P1: switch 3  |  P2: move 3
+  [SWITCH] |switch|p1: Absol|absolmega, L73, M|201/201
+
+Turn 36:
+  P1: move 1  |  P2: move 3
+
+Turn 37:
+  P1: switch 4  |  P2: move 3
+  [SWITCH] |switch|p1: Ribombee|ribombee, L93, M|262/262
+
+Turn 38:
+  P1: move 1  |  P2: move 3
+
+Turn 39:
+  P1: move 1  |  P2: move 3
+
+Turn 40:
+  P1: switch 5  |  P2: move 3
+  [SWITCH] |switch|p1: Mismagius|mismagius, L53, M|148/148
+
+Turn 41:
+  P1: move 1  |  P2: move 3
+
+Turn 42:
+  P1: switch 6  |  P2: move 3
+  [SWITCH] |switch|p1: Thwackey|thwackey, L95, F|284/284
+
+Turn 43:
+  P1: move 1  |  P2: move 3
+
+Turn 44:
+  P1: move 1  |  P2: move 3
+
+Turn 45:
+  P1: move 1  |  P2: move 3
+
+Turn 46:
+  P1: move 1  |  P2: move 3
+
+Turn 47:
+  P1: move 1  |  P2: move 3
+
+Turn 48:
+  P1: move 1  |  P2: move 3
+
+
+Battle seed=123 (56 turns, winner=p2)
+============================================================
+
+Turn 1:
+  P1: move 1  |  P2: move 1
+
+Turn 2:
+  P1: move 1  |  P2: move 1
+
+Turn 3:
+  P1: move 1  |  P2: move 1
+
+Turn 4:
+  P1: switch 2  |  P2: move 1
+  [ABILITY] |-ability|p1a|Mold Breaker
+  [SWITCH] |switch|p1: Tinkaton|tinkaton, L98, F|316/316
+
+Turn 5:
+  P1: move 1  |  P2: move 1
+
+Turn 6:
+  P1: move 1  |  P2: move 1
+
+Turn 7:
+  P1: move 1  |  P2: move 1
+
+Turn 8:
+  P1: move 1  |  P2: move 1
+
+Turn 9:
+  P1: move 1  |  P2: move 1
+
+Turn 10:
+  P1: move 1  |  P2: move 1
+
+Turn 11:
+  P1: move 1  |  P2: move 1
+
+Turn 12:
+  P1: move 1  |  P2: move 1
+
+Turn 13:
+  P1: move 1  |  P2: move 1
+
+Turn 14:
+  P1: move 1  |  P2: move 1
+
+Turn 15:
+  P1: move 1  |  P2: move 1
+
+Turn 16:
+  P1: move 1  |  P2: move 1
+
+Turn 17:
+  P1: move 1  |  P2: move 1
+
+Turn 18:
+  P1: move 1  |  P2: move 2
+
+Turn 19:
+  P1: move 1  |  P2: move 2
+
+Turn 20:
+  P1: move 1  |  P2: move 2
+
+Turn 21:
+  P1: move 2  |  P2: move 2
+
+Turn 22:
+  P1: move 2  |  P2: move 2
+
+Turn 23:
+  P1: move 2  |  P2: move 2
+
+Turn 24:
+  P1: switch 3  |  P2: move 2
+  [SWITCH] |switch|p1: Wobbuffet|wobbuffet, L89, F|478/478
+
+Turn 25:
+  P1: move 1  |  P2: move 2
+
+Turn 26:
+  P1: move 1  |  P2: move 2
+
+Turn 27:
+  P1: move 1  |  P2: move 3
+
+Turn 28:
+  P1: move 1  |  P2: move 3
+
+Turn 29:
+  P1: move 1  |  P2: move 3
+
+Turn 30:
+  P1: move 1  |  P2: move 3
+
+Turn 31:
+  P1: move 1  |  P2: move 3
+
+Turn 32:
+  P1: move 1  |  P2: move 3
+
+Turn 33:
+  P1: move 1  |  P2: move 3
+
+Turn 34:
+  P1: move 1  |  P2: move 3
+
+Turn 35:
+  P1: move 1  |  P2: move 3
+
+Turn 36:
+  P1: move 1  |  P2: move 3
+
+Turn 37:
+  P1: move 1  |  P2: move 3
+
+Turn 38:
+  P1: move 1  |  P2: move 3
+
+Turn 39:
+  P1: move 1  |  P2: move 3
+
+Turn 40:
+  P1: move 1  |  P2: move 3
+
+Turn 41:
+  P1: move 2  |  P2: move 3
+
+Turn 42:
+  P1: move 3  |  P2: move 3
+
+Turn 43:
+  P1: move 3  |  P2: move 4
+
+Turn 44:
+  P1: move 3  |  P2: move 4
+
+Turn 45:
+  P1: move 3  |  P2: move 4
+
+Turn 46:
+  P1: move 3  |  P2: move 4
+
+Turn 47:
+  P1: move 3  |  P2: move 4
+
+Turn 48:
+  P1: switch 4  |  P2: move 4
+  [SWITCH] |switch|p1: Vivillon|vivillonsandstorm, L90, M|262/262
+
+Turn 49:
+  P1: move 1  |  P2: move 4
+
+Turn 50:
+  P1: move 1  |  P2: move 4
+
+Turn 51:
+  P1: move 1  |  P2: move 4
+
+Turn 52:
+  P1: switch 5  |  P2: move 4
+  [SWITCH] |switch|p1: Sandaconda|sandaconda, L51, F|149/149
+
+Turn 53:
+  P1: move 1  |  P2: move 4
+
+Turn 54:
+  P1: switch 6  |  P2: move 4
+  [SWITCH] |switch|p1: Pokestar Black Door|pokestarblackdoor, L74, F|257/257
+
+Turn 55:
+  P1: move 1  |  P2: move 4
+
+Turn 56:
+  P1: move 2  |  P2: move 4
+
+
+Battle seed=256 (77 turns, winner=p1)
+============================================================
+
+Turn 1:
+  P1: move 1  |  P2: move 1
+
+Turn 2:
+  P1: switch 2  |  P2: move 1
+  [SWITCH] |switch|p1: Minior|miniorindigo, L71, M|193/193|[from] uturn
+
+Turn 3:
+  P1: move 1  |  P2: move 1
+
+Turn 4:
+  P1: move 1  |  P2: move 1
+
+Turn 5:
+  P1: move 1  |  P2: move 1
+
+Turn 6:
+  P1: move 1  |  P2: move 1
+
+Turn 7:
+  P1: move 1  |  P2: move 1
+
+Turn 8:
+  P1: move 1  |  P2: move 1
+
+Turn 9:
+  P1: move 1  |  P2: move 1
+
+Turn 10:
+  P1: move 1  |  P2: move 1
+
+Turn 11:
+  P1: move 1  |  P2: move 1
+
+Turn 12:
+  P1: move 1  |  P2: move 1
+
+Turn 13:
+  P1: move 1  |  P2: move 1
+
+Turn 14:
+  P1: move 1  |  P2: move 1
+
+Turn 15:
+  P1: move 1  |  P2: move 1
+
+Turn 16:
+  P1: move 1  |  P2: move 1
+
+Turn 17:
+  P1: move 1  |  P2: move 1
+
+Turn 18:
+  P1: move 1  |  P2: move 2
+
+Turn 19:
+  P1: move 2  |  P2: move 2
+
+Turn 20:
+  P1: move 2  |  P2: move 2
+
+Turn 21:
+  P1: move 2  |  P2: move 2
+
+Turn 22:
+  P1: move 2  |  P2: move 2
+
+Turn 23:
+  P1: move 2  |  P2: move 2
+
+Turn 24:
+  P1: move 2  |  P2: switch 2
+  [SWITCH] |switch|p2: Milotic|milotic, L93, F|328/328
+
+Turn 25:
+  P1: move 2  |  P2: move 1
+
+Turn 26:
+  P1: move 2  |  P2: move 1
+
+Turn 27:
+  P1: move 2  |  P2: move 1
+
+Turn 28:
+  P1: move 2  |  P2: move 1
+
+Turn 29:
+  P1: move 2  |  P2: move 1
+
+Turn 30:
+  P1: move 2  |  P2: move 1
+
+Turn 31:
+  P1: move 2  |  P2: move 1
+
+Turn 32:
+  P1: move 2  |  P2: move 1
+
+Turn 33:
+  P1: move 2  |  P2: move 1
+
+Turn 34:
+  P1: move 2  |  P2: move 1
+
+Turn 35:
+  P1: move 2  |  P2: move 1
+
+Turn 36:
+  P1: move 3  |  P2: move 1
+
+Turn 37:
+  P1: switch 1  |  P2: move 1
+  [SWITCH] |switch|p1: Gouging Fire|gougingfire, L81|288/288
+
+Turn 38:
+  P1: move 1  |  P2: move 1
+
+Turn 39:
+  P1: switch 3  |  P2: move 1
+  [ABILITY] |-ability|p1a: Squawkabilly|Intimidate|boost
+  [SWITCH] |switch|p1: Squawkabilly|squawkabillyblue, L51, F|164/164|[from] uturn
+
+Turn 40:
+  P1: move 1  |  P2: move 1
+
+Turn 41:
+  P1: move 1  |  P2: move 1
+
+Turn 42:
+  P1: move 1  |  P2: move 1
+
+Turn 43:
+  P1: move 1  |  P2: move 1
+
+Turn 44:
+  P1: move 1  |  P2: move 1
+
+Turn 45:
+  P1: move 1  |  P2: move 1
+
+Turn 46:
+  P1: move 1  |  P2: move 1
+
+Turn 47:
+  P1: move 1  |  P2: move 1
+
+Turn 48:
+  P1: move 2  |  P2: move 1
+
+Turn 49:
+  P1: move 2  |  P2: move 1
+
+Turn 50:
+  P1: move 2  |  P2: move 1
+
+Turn 51:
+  P1: move 2  |  P2: move 1
+
+Turn 52:
+  P1: move 2  |  P2: move 1
+
+Turn 53:
+  P1: move 2  |  P2: move 1
+
+Turn 54:
+  P1: switch 1  |  P2: move 1
+  [SWITCH] |switch|p1: Gouging Fire|gougingfire, L81|288/288
+
+Turn 55:
+  P1: move 1  |  P2: move 1
+
+Turn 56:
+  P1: switch 4  |  P2: move 1
+  [SWITCH] |switch|p1: Koraidon|koraidon, L88|304/304|[from] uturn
+
+Turn 57:
+  P1: move 1  |  P2: move 1
+
+Turn 58:
+  P1: move 1  |  P2: move 1
+
+Turn 59:
+  P1: move 1  |  P2: switch 3
+  [SWITCH] |switch|p2: Cottonee|cottonee, L88, M|202/202
+
+Turn 60:
+  P1: move 1  |  P2: move 1
+
+Turn 61:
+  P1: move 1  |  P2: move 1
+
+Turn 62:
+  P1: move 1  |  P2: move 1
+
+Turn 63:
+  P1: move 1  |  P2: switch 4
+  [SWITCH] |switch|p2: Vivillon|vivillonmarine, L84, F|244/244
+
+Turn 64:
+  P1: move 1  |  P2: move 1
+
+Turn 65:
+  P1: move 1  |  P2: move 1
+
+Turn 66:
+  P1: move 1  |  P2: move 1
+
+Turn 67:
+  P1: move 2  |  P2: move 1
+
+Turn 68:
+  P1: move 2  |  P2: switch 5
+  [ABILITY] |-ability|p2a|Supersweet Syrup
+  [SWITCH] |switch|p2: Dipplin|dipplin, L95, M|290/290
+
+Turn 69:
+  P1: move 2  |  P2: move 1
+
+Turn 70:
+  P1: move 2  |  P2: move 2
+
+Turn 71:
+  P1: move 2  |  P2: move 2
+
+Turn 72:
+  P1: move 2  |  P2: move 2
+
+Turn 73:
+  P1: move 2  |  P2: move 2
+
+Turn 74:
+  P1: move 2  |  P2: move 2
+
+Turn 75:
+  P1: move 2  |  P2: switch 6
+  [SWITCH] |switch|p2: Chinchou|chinchou, L73, M|209/209
+
+Turn 76:
+  P1: move 2  |  P2: move 1
+
+Turn 77:
+  P1: move 2  |  P2: move 1
+
+

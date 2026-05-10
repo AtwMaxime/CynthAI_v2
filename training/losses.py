@@ -80,7 +80,7 @@ def compute_losses(
     value_loss = F.mse_loss(values, returns)
 
     # ── Explained variance (monitoring) ──────────────────────────────────────
-    ev = 1.0 - ((returns - values)**2).sum() / ((returns - returns.mean())**2 + 1e-8)
+    ev = 1.0 - ((returns - values)**2).sum() / ((returns - returns.mean())**2).sum().clamp(min=1e-8)
 
     # ── Entropy bonus (legal actions only) ───────────────────────────────────
     # backbone already applied -1e9 to illegal slots → probs ≈ 0 for those.

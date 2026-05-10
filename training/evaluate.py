@@ -37,6 +37,7 @@ def run_eval(
     format_id:         str   = "gen9randombattle",
     device:            torch.device = torch.device("cpu"),
     opponent_sampler:  callable | None = None,
+    mask_ratio:        float = 0.0,   # P1: match training masking
 ) -> dict:
     """
     Evaluate an agent against an opponent policy.
@@ -74,6 +75,7 @@ def run_eval(
             gamma      = 0.99,
             lam        = 0.95,
             device     = device,
+            mask_ratio = mask_ratio,
         )
 
         for t in buffer._transitions:

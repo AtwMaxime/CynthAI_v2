@@ -36,18 +36,21 @@ The entire battle simulation runs in Rust (`pokemon-showdown-rs`) via PyO3 bindi
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                     Rust Simulator (pokemon-showdown-rs)                     │
 │  PyBattle(format, seed) ──► get_state() ──► {turn, field, sides, pokemon…}  │
+│  PyBattle.get_new_log_entries() ──► [PS protocol log lines]                  │
 └───────────────────────────────────┬─────────────────────────────────────────┘
                                     ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│                          state_encoder.py                                    │
+│                         state_encoder.py + revealed_tracker.py                │
 │  encode_pokemon(poke_dict) ──► PokemonFeatures (indices + 222 scalars)       │
 │  encode_field(state_dict)   ──► FieldFeatures (72 floats)                   │
+│  RevealedTracker.update(log_entries, state, side) ──► {species/item/...}     │
 │  12 Pokémon + 1 field token per turn                                        │
 └───────────────────────────────────┬──────────────────────────────────────────┘
                                     ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │                      embeddings.py (PokemonEmbeddings)                        │
 │  [B, K*12] indices + scalars ──► [B, K*12, TOKEN_DIM=438]                   │
+│  apply_reveal_mask(batch, reveal, ratio) ──► masked PokemonBatch             │
 │  Embeddings: species(32) + types(3×8) + item(16) + ability(16) + moves(4×32)│
 │  + scalars(222) = 438                                                        │
 │  SVD priors: type chart (19×8), move attributes (686×32)                    │
@@ -92,7 +95,7 @@ The entire battle simulation runs in Rust (`pokemon-showdown-rs`) via PyO3 bindi
 | **Sliding window (K=4)** | Battles have ~20–100 turns. Encoding all past turns is wasteful and exceeds context. K=4 captures recent game state while keeping sequence length fixed at 52 tokens. |
 | **Bidirectional attention** | Unlike language modelling, battle state has no causal direction — all past K turns are fully observable. No mask needed. |
 | **Pre-LN Transformer** | More stable training than Post-LN, especially at small d_model. |
-| **Auxiliary prediction heads** | Predict opponent item/ability/tera/moves from their token representation. Provides a structured training signal that forces the model to encode hidden information. |
+| **Auxiliary prediction heads** | Forces the model to encode hidden opponent information via masked cross-entropy — only gameplay-revealed attributes contribute to the loss. |
 | **SVD embedding priors** | Species embeddings initialised from base stats; type embeddings from the type-effectiveness matrix SVD; move embeddings from 46 known attributes. Gives the model a warm-start rather than learning type matchups from scratch. |
 
 ---
@@ -134,15 +137,16 @@ CynthAI_v2/
 ├── env/                          # Environment encoding
 │   ├── state_encoder.py          # Rust dict → PokemonFeatures / FieldFeatures
 │   └── action_space.py           # ActionEncoder: 13 action embeddings
+    │   └── revealed_tracker.py       # Tracks revealed opponent info from battle log
 │
 ├── model/                        # Neural network modules
-│   ├── embeddings.py             # PokemonEmbeddings: categorical + scalar → TOKEN_DIM
+│   ├── embeddings.py             # PokemonEmbeddings + apply_reveal_mask()
 │   ├── backbone.py               # BattleBackbone: Transformer + value + actor
 │   ├── prediction_heads.py       # Auxiliary opponent predictors
 │   └── agent.py                  # CynthAIAgent: full forward wrapper
 │
 ├── training/                     # RL training pipeline
-│   ├── rollout.py                # Parallel episode collection + GAE + random policy
+│   ├── rollout.py                # Parallel episode collection + GAE + RevealedTracker + POMDP mask
 │   ├── losses.py                 # PPO-clip + value + entropy + pred losses
 │   ├── self_play.py              # Main PPO self-play loop (entry point)
 │   ├── evaluate.py               # Checkpoint evaluation vs random/checkpoint
@@ -161,7 +165,7 @@ CynthAI_v2/
 │
 ├── simulator/                    # Rust battle simulator (PyO3)
 │   ├── Cargo.toml                # Rust package manifest
-│   ├── src/lib.rs                # PyBattle: PyO3 bindings, get_state(), make_choices()
+│   ├── src/lib.rs                # PyBattle: PyO3 bindings, get_state(), make_choices(), get_new_log_entries()
 │   └── python/__init__.py        # Python import wrapper
 │
 ├── checkpoints/                  # Saved model weights + metrics
@@ -321,30 +325,53 @@ The reward is **zero-sum by design** in self-play: both sides experience symmetr
 
 ### Algorithm
 
-1. **Sample opponent** from `OpponentPool` (deque of frozen past checkpoints). When the pool is empty (early training), the agent plays against itself (true self-play).
-2. **Collect rollout**: Run N parallel battles (`n_envs=16` by default) under `torch.no_grad()`. Store transitions (state, action, log_prob, value, reward, done) in a `RolloutBuffer`.
+1. **Sample opponent** from `OpponentPool` (deque of frozen past checkpoints). With 20% probability, override with a random policy (10% `RandomPolicy`, 10% `FullOffensePolicy`) for regularisation (P3). When the pool is empty (early training), the agent plays against itself (true self-play).
+2. **Collect rollout**: Run N parallel battles (`n_envs=16` by default) under `torch.no_grad()`. After each `make_choices()`, the battle log is fetched via `get_new_log_entries()` and passed to `RevealedTracker.update()` to track which opponent attributes have been revealed through gameplay. The `apply_reveal_mask()` function then masks unrevealed opponent attributes in the model input — the agent makes decisions with partial information. The unmasked ground-truth data is stored separately for prediction targets. Store transitions (state, action, log_prob, value, reward, done, reveal_state) in a `RolloutBuffer`.
 3. **Compute GAE**: γ=0.99, λ=0.95 over complete episodes. Episode boundaries detected via `Transition.done`.
 4. **PPO update** (4 epochs, minibatch size 128):
-   - Re-run forward pass for each transition (embeddings + backbone have gradients enabled)
+   - Re-run forward pass for each transition — `apply_reveal_mask()` masks inputs again with the same reveal state and schedule ratio
    - Policy loss: clipped surrogate (ε=0.2)
-   - Value loss: MSE between predicted V(s) and GAE returns
+   - Value loss: MSE between predicted V(s) and normalised GAE returns (P5: return normalisation, c_value=1.0)
    - Entropy bonus: negative entropy over legal actions only (coefficient 0.01)
-   - Auxiliary prediction loss: cross-entropy on opponent item/ability/tera/moves (coefficient 0.5)
-5. **Log metrics**: win rate, policy/value/entropy/pred/total loss, learning rate, pool size
-6. **Checkpoint**: Save model every 50 updates; keep best based on win rate
-7. **Snapshot**: Copy frozen agent to opponent pool every 10 updates (pool capped at 5)
+   - Auxiliary prediction loss: masked cross-entropy on opponent item/ability/tera/moves — only revealed attributes contribute to the gradient (coefficient 0.5)
+5. **Optimisation**: AdamW with `weight_decay=1e-4`; `clip_grad_norm_(max_norm=0.5)` before optim step. LR via warmup (20 steps) + cosine decay from 2.5e-4 (P4, P6).
+6. **Log metrics**: win rate, policy/value/entropy/pred/total loss, learning rate, pool size, grad_norm, explained_variance, clip_frac (P4).
+7. **Periodic evaluation**: Every `eval_freq` updates, run 500 games vs Random/FullOffense/pool opponents with the same masking ratio as training.
+8. **Checkpoint**: Save model every 50 updates; keep best based on win rate.
+9. **Snapshot**: Copy frozen agent to opponent pool when `win_rate > 0.55` over last 100 games, with 5-update cooldown (P3).
 
 ### Key Design Details
 
 - **Complete episodes**: No truncated rollouts. The buffer collects entire battles, making GAE bootstrap straightforward (next_value=0 at terminal states).
 - **Single Transform per step**: The encoder runs once; the actor is a separate cross-attention. During PPO training, only the encoder → value/policy path needs gradients.
 - **Advantage normalisation**: Per-batch z-score normalisation before PPO clipping.
-- **Gradient clipping**: Global norm clipped to 0.5.
-- **Learning rate schedule**: Linear decay from 3e-4 to 1e-5 over `total_updates`.
+- **Gradient clipping**: Global norm clipped to 0.5 (P4).
+- **Weight decay**: AdamW with `weight_decay=1e-4` for L2 regularisation (P4).
+- **Learning rate schedule (P6)**: Warmup + cosine decay from 2.5e-4 to 1e-5:
+  1. **Warmup** (first 20 updates): `lr = base_lr * update / warmup_steps` — ramps up linearly to avoid early instability.
+  2. **Cosine decay** (remaining updates): `lr = base_lr * 0.5 * (1 + cos(π * (update - warmup) / (total - warmup)))` — smooth annealing.
+- **Return normalisation (P5)**: `returns = (returns - mean) / (std + 1e-8)` before value loss computation for stable critic training.
+- **POMDP masking curriculum (P1)**: Controls what fraction of opponent Pokémon have their unrevealed attributes masked. Four schedule modes:
+  - `linear` (default): ratio ramps from 0 → `max_ratio` linearly after `warmup` updates
+  - `exp`: exponential ramp, faster initial rise (`ratio = max_ratio * (1 - exp(-k * progress))`)
+  - `step`: jumps from 0 to `max_ratio` at `step_update`
+  - `phase`: manual breakpoints — e.g., `(600, 2500)` with values `(0.0, 0.5, 1.0)` gives 3 distinct phases
+  Default: P1 starts after 200 warmup updates, ramps linearly to 1.0. Masking is applied consistently during rollout, training, and evaluation.
+- **Reward curriculum (P2)**: Gradually transitions the agent from dense rewards (HP advantage, KOs) to near-sparse (only win/loss ±1). Same 4 schedule modes as P1. `dense_scale` multiplies non-terminal rewards (KO, HP advantage) and decays from 1.0 to a configurable minimum (default 0.25). Terminal rewards (±1.0 for win/loss) are never scaled. Default: linear decay starting at update 0, reaching 0.25 at the end of training.
+- **Monitoring (P4)**: In addition to standard losses, `metrics.csv` tracks `grad_norm`, `explained_variance` (quality of V(s) fit), and `clip_frac` (fraction of PPO-clipped samples) for early detection of training instability.
+- **CSV logging**: Every update appends to `metrics.csv` (losses, win rate, LR, grad_norm, clip_frac, explained_variance, mask_ratio, dense_scale). Evaluation results go to `eval.csv` (win rate per opponent type). Both files are written to the run's checkpoint directory.
 
-### Opponent Pool
+### Opponent Pool & Mixing (P3)
 
-The `OpponentPool` stores frozen copies of past checkpoints sampled every `pool_update_freq=10` updates. The pool is a `deque(maxlen=pool_size=5)` — old checkpoints are evicted when the pool fills. This prevents the agent from overfitting to a single opponent and provides a curriculum of increasing difficulty.
+The `OpponentPool` stores frozen copies of past checkpoints. Pool management has been enhanced:
+- **Adaptive snapshots**: The agent is snapshotted to the pool only when `win_rate > 0.55` over the last 100 games, with a cooldown of 5 updates between snapshots — prevents flooding the pool with near-identical copies.
+- **Increased pool size**: `pool_size=20` (up from 5) for greater opponent diversity.
+- **Opponent mixing**: During rollout, the opponent is sampled as follows:
+  - 80% from the opponent pool (past checkpoints)
+  - 10% `RandomPolicy` (uniformly random legal actions)
+  - 10% `FullOffensePolicy` (random legal move, no switches)
+  
+  This regularisation prevents overfitting to the pool and forces robustness against unpredictable or simplistic opponents.
 
 ---
 
@@ -361,6 +388,22 @@ Converts raw `PyBattle.get_state()` dictionaries into structured feature objects
 - SVD embedding priors loaded from JSON
 - 181 volatile condition flags indexed by name
 
+### `env/revealed_tracker.py`
+
+`RevealedTracker` tracks what information about opponent Pokémon has been revealed through natural gameplay events in the battle log. One tracker per parallel environment, reset on episode end.
+
+**Log event detection:**
+- `|switch|` / `|drag|` → species revealed (Pokémon switches in)
+- `|-ability|` / `|-activate|...ability:` / `|-endability|` → ability revealed
+- `|-enditem|` → item consumed/knocked off
+- `|-heal|` / `|-damage|` with `[from] <item_name>` → item revealed (checked against `ITEM_INDEX`)
+- `terastallized` flag in state → tera type revealed
+- PP < maxPP in state → move revealed
+
+**Per-slot tracking:** Maintains boolean arrays per env: `species[6]`, `item[6]`, `ability[6]`, `tera[6]`, `moves[6][4]`.
+
+**Integration:** Called in `collect_rollout()` after each `make_choices()`. The reveal state is stored in each `Transition` and used during training to mask prediction loss targets and to mask model inputs via `apply_reveal_mask()`.
+
 ### `env/action_space.py`
 
 `ActionEncoder` builds 13 action embeddings from the current turn's active token, move indices, bench tokens, and mechanic descriptor. Shares embedding tables with `PokemonEmbeddings` (same weight objects for moves and types).
@@ -373,6 +416,7 @@ Converts raw `PyBattle.get_state()` dictionaries into structured feature objects
 - **Type embeddings (8-d):** Initialised from the 19×19 type-effectiveness matrix → SVD → 8 principal components.
 - **Move embeddings (32-d):** Initialised from 46 move attributes (type, category, power, accuracy, PP, priority, etc.) → SVD → 32 components.
 - **Item/Ability embeddings (16-d each):** Learned from scratch.
+- **POMDP masking:** `apply_reveal_mask()` zero-masks unrevealed opponent categorical attributes during both rollout and training. Per-Pokémon Bernoulli sampling controlled by `mask_ratio`. When species is unknown, all attributes + scalars are masked. When species is known, types and base_stats remain visible (deterministic) while item/ability/tera/moves/stats/move_pp are masked per reveal state.
 
 ### `model/backbone.py`
 
@@ -396,7 +440,7 @@ Four independent Linear heads applied to the 6 opponent tokens (`current_tokens[
 | tera | 19 | Linear(256, 19) |
 | moves | 686 | Linear(256, 2744) → reshape [B, 6, 4, 686] |
 
-The `moves` head uses a single Linear layer to predict all 4 move slots jointly. Loss is masked cross-entropy — only revealed Pokémon (non-zero indices) contribute to the gradient. No belief injection in v1 (see `BELIEF_STATE.md` for v2).
+The `moves` head uses a single Linear layer to predict all 4 move slots jointly. Loss is masked cross-entropy — only revealed Pokémon (non-zero indices) contribute to the gradient. With P1 POMDP masking, the loss masks come from the `RevealedTracker` (actual gameplay reveals) rather than from UNK indices. No belief injection in v1 (see `BELIEF_STATE.md` for v2).
 
 ### `model/agent.py`
 
@@ -415,10 +459,17 @@ pred_logits = predictor(current_tokens[:, 6:12])             # 4 prediction head
 
 ### `training/rollout.py`
 
-- `collect_rollout()`: Core collection function. Runs N parallel `PyBattle` instances, builds batched inputs for both agents, samples actions, calls `make_choices()`, computes rewards, and stores transitions. Runs under `torch.no_grad()`.
+- `collect_rollout()`: Core collection function. Runs N parallel `PyBattle` instances, builds batched inputs for both agents, samples actions, calls `make_choices()`, computes rewards, and stores transitions. Runs under `torch.no_grad()`. After each `make_choices()`, fetches log entries via `get_new_log_entries()` and updates a `RevealedTracker` per env.
+- **Switch sub-turn handling:** Pokémon Showdown enters a sub-turn after a KO or forced switch (U-turn, Roar, etc.). One side receives `request_state="Switch"` while the other receives `"None"`. These are detected per-env during the main collection loop and deferred to a dedicated forward pass:
+  1. **Detection:** After re-reading the fresh state, envs with `req_self="None"` or `req_opp="None"` are collected into `subt_envs`. If both sides are `"None"` (battle doesn't expect input), the step is skipped. If one side has `"Switch"`, the env is queued.
+  2. **Sub-turn forward pass:** After the main per-env loop, queued sub-turn envs are grouped by which side needs to switch. For `side_self` sub-turns, `_build_agent_inputs()` builds a mini-batch from the envs' `BattleWindow` histories, `agent_self()` produces log_probs and value estimates, and `_sample_action()` samples a switch action (slots 8–12).
+  3. **Execution:** The sampled switch choice is sent via `make_choices()`. A full `Transition` is recorded (species_idx, type1_idx, ..., action, log_prob_old, action_mask, reward, done, value_old) — same fields as a normal turn.
+  4. **No fallbacks:** If the model's chosen switch is rejected by the Rust sim (e.g., position validation bug in `choose_switch.rs`), the environment is reset. No random default or placeholder is used — the model must learn valid switches through masking.
+  5. **Opponent sub-turns:** For `side_opp` sub-turns, `agent_opp` (neural or bot) handles the switch. Bot policies use `.act()` directly; neural opponents get the same forward pass treatment.
+- After sub-turn processing, `skip_buffer` marks all sub-turn envs so the main transition recording loop skips them (their transitions were already recorded by the sub-turn handler).
 - `BattleWindow`: Per-environment sliding window (K=4). Zero-padded for early turns.
-- `RolloutBuffer`: Stores transitions on CPU. `compute_gae()` computes GAE (γ=0.99, λ=0.95) backwards over complete episodes. `minibatches()` yields shuffled batches.
-- `build_action_mask()`: Derives legal action mask from state dict. Handles force-switch, trapped, fainted, disabled moves, Tera availability.
+- `RolloutBuffer`: Stores transitions on CPU. `compute_gae()` computes GAE (γ=0.99, λ=0.95) backwards over complete episodes. `minibatches()` yields shuffled batches. `_gather()` includes reveal state tensors (`reveal_species`, `reveal_item`, `reveal_ability`, `reveal_tera`, `reveal_moves` — all bool).
+- `build_action_mask()`: Derives legal action mask from state dict. Returns `all-True` (all illegal) when `request_state == "None"`, preventing the model from acting in inconsistent sim states. Switch-only mask when `request_state == "Switch"`.
 - `action_to_choice()`: Converts action index (0–12) to PS choice string (`"move 1"`, `"switch 3"`, `"move 1 terastallize"`).
 - `RandomPolicy`: Lightweight policy for evaluation against random opponents. Samples uniformly from legal actions.
 - `compute_step_reward()`: Computes dense reward from prev/curr state delta.
@@ -435,11 +486,65 @@ pred_logits = predictor(current_tokens[:, 6:12])             # 4 prediction head
 
 ### `training/self_play.py`
 
-Main entry point. `train(TrainingConfig)` implements the full self-play loop with checkpointing, opponent pool management, CSV logging, and optional resume from checkpoint.
+Main entry point. `train(TrainingConfig)` implements the full self-play loop with checkpointing, opponent pool management, CSV logging, POMDP masking curriculum (P1), reward curriculum (P2), and optional resume from checkpoint. Every update appends to `metrics.csv`; evaluation results go to `eval.csv`.
+
+Both P1 and P2 support 4 schedule modes via `compute_mask_ratio()` and `compute_dense_scale()`:
+
+| Mode | Description | When to use |
+|------|-------------|-------------|
+| `linear` | Ramp/decay linearly over `[warmup, total]` | Simple, predictable curriculum |
+| `exp` | Exponential curve — fast initial change | When you want a quick transition |
+| `step` | Abrupt switch at `step_update` | When you want distinct regimes |
+| `phase` | Manual breakpoints with custom values | Full control (e.g. Fondations → Transition → Maîtrise) |
+
+The `phase` mode takes `(breakpoints, values)` tuples. Example:
+```
+mask_phase_breakpoints=(600, 2500), mask_phase_values=(0.0, 0.5, 1.0)
+```
+→ updates [0, 600] mask=0.0, (600, 2500] mask=0.5, (2500, ∞) mask=1.0
 
 ### `training/evaluate.py`
 
-Evaluates a checkpoint against a random or checkpoint opponent. Reports win rate with Wilson 95% confidence interval. Uses `collect_rollout` with sufficient min_steps to collect complete battles.
+Evaluates a checkpoint against a random or checkpoint opponent. Reports win rate with Wilson 95% confidence interval. Uses `collect_rollout` with sufficient min_steps to collect complete battles. The evaluation masking ratio matches the training masking ratio at the time of evaluation.
+
+### `training/visualize.py`
+
+Reads `metrics.csv` and generates 2×3 grid plots (win rate, policy/value/entropy/pred loss, learning rate) or a single overlay figure with twin y-axes.
+
+---
+
+## Battle Log & Revealed Information
+
+The Rust simulator maintains a battle log in Pokémon Showdown protocol format (`self.log: Vec<String>`), recording all game events (switches, ability activations, item consumption, weather changes, etc.). Each log entry follows PS format: `|switch|p2a: Zacian|...`, `|-ability|p2a|intrepidsword|...`, `|-enditem|p2a|Leftovers|[from] move: Knock Off`, etc.
+
+### Python Access
+
+The `PyBattle` binding exposes `get_new_log_entries()` which returns all log entries since the last call and advances the read position (`sent_log_pos`). This is called in `collect_rollout()` after each `make_choices()`.
+
+### Revealed State Tracking
+
+`RevealedTracker` (`env/revealed_tracker.py`) parses the battle log to detect reveals:
+
+| Event | Log Pattern | Attribute Revealed |
+|-------|-------------|-------------------|
+| Switch-in | `\|switch\|` / `\|drag\|` | Species |
+| Ability activation | `\|-ability\|` / `\|-activate\|...ability:` | Ability |
+| Ability suppression | `\|-endability\|` | Ability (was active, now known) |
+| Item consumed/removed | `\|-enditem\|` | Item |
+| Item-based healing | `\|-heal\|...\|[from] leftovers\|` | Item (checked vs ITEM_INDEX) |
+| Item-based damage | `\|-damage\|...\|[from] lifeorb\|` | Item (checked vs ITEM_INDEX) |
+| Terastallization | `terastallized` flag in state | Tera type |
+| Move used | PP < maxPP in state | Move |
+
+### Masking Logic
+
+`apply_reveal_mask()` in `model/embeddings.py` applies the reveal state to model inputs:
+
+- **Species unknown** → all categoricals + all scalars zeroed (Pokémon is completely unknown)
+- **Species known** → types and base_stats kept (deterministic from species); item/ability/tera/moves masked if not yet revealed; scalars `stats[8:13]` always masked (actual stats are non-observable); `move_pp[21:24]` masked per-slot when the move is unrevealed (PP leaks move identity via maxPP)
+- **Per-Pokémon Bernoulli** with `mask_ratio` controls whether masking is applied at all (curriculum schedule)
+
+The unmasked ground-truth is stored separately in the Transition for prediction head targets. The prediction loss masks are overridden with the actual reveal state so only gameplay-revealed attributes contribute to the gradient.
 
 ### `training/visualize.py`
 
@@ -451,8 +556,9 @@ Reads `metrics.csv` and generates 2×3 grid plots (win rate, policy/value/entrop
 
 | Parameter | Default | Notes |
 |-----------|---------|-------|
-| `lr` | 3e-4 | Adam, eps=1e-5 |
-| `lr_min` | 1e-5 | Linear decay endpoint |
+| `lr` | 2.5e-4 | AdamW, weight_decay=1e-4, eps=1e-5 (P4: AdamW, P6: lowered from 3e-4) |
+| `lr_min` | 1e-5 | Cosine decay endpoint |
+| `warmup_steps` | 20 | Linear warmup before cosine decay (P6) |
 | `total_updates` | 2000 | Total PPO updates |
 | `n_envs` | 16 | Parallel battles |
 | `min_steps` | 512 | Min transitions per rollout |
@@ -461,15 +567,32 @@ Reads `metrics.csv` and generates 2×3 grid plots (win rate, policy/value/entrop
 | `gamma` | 0.99 | GAE discount |
 | `lam` | 0.95 | GAE lambda |
 | `clip_eps` | 0.2 | PPO clipping ε |
-| `c_value` | 0.5 | Value loss coefficient |
+| `c_value` | 1.0 | Value loss coefficient (P5: increased from 0.5) |
 | `c_entropy` | 0.01 | Entropy bonus coefficient |
 | `c_pred` | 0.5 | Predictor auxiliary coefficient |
-| `max_grad_norm` | 0.5 | Gradient clipping |
-| `pool_size` | 5 | Max opponent snapshots |
-| `pool_update_freq` | 10 | Snapshot every N updates |
+| `max_grad_norm` | 0.5 | Gradient clipping (P4) |
+| `weight_decay` | 1e-4 | AdamW L2 regularisation (P4) |
+| `pool_size` | 20 | Max opponent snapshots (P3: increased from 5) |
+| `pool_snapshot_threshold` | 0.55 | Win-rate threshold for snapshot (P3) |
+| `pool_cooldown` | 5 | Min updates between snapshots (P3) |
+| `eval_freq` | 20 | Run evaluation every N updates (P3) |
+| `eval_n_games` | 500 | Games per opponent in evaluation (P3) |
 | `checkpoint_freq` | 50 | Save .pt every N updates |
-| `keep_last` | 5 | Max regular checkpoints |
 | `log_every` | 1 | Log every update |
+| `mask_schedule` | `"linear"` | P1 schedule mode: linear, exp, step, phase |
+| `mask_warmup` | `200` | Updates before POMDP masking begins |
+| `mask_max_ratio` | `1.0` | Final POMDP masking probability |
+| `mask_exp_k` | `3.0` | Exponential ramp rate (exp mode) |
+| `mask_step_update` | `500` | Plateau length (step mode) |
+| `mask_phase_breakpoints` | `()` | Update breakpoints for phase mode |
+| `mask_phase_values` | `()` | Mask ratios at each phase |
+| `dense_schedule` | `"linear"` | P2 schedule mode: linear, exp, step, phase |
+| `dense_warmup` | `0` | Updates before reward decay begins |
+| `dense_min_scale` | `0.25` | Floor for dense_scale (min non-terminal reward multiplier) |
+| `dense_exp_k` | `3.0` | Exponential decay rate (exp mode) |
+| `dense_step_update` | `500` | Plateau length (step mode) |
+| `dense_phase_breakpoints` | `()` | Update breakpoints for phase mode |
+| `dense_phase_values` | `()` | Dense_scale at each phase |
 
 ---
 
@@ -648,7 +771,12 @@ The peak-then-decline pattern suggests:
 | PPO rollout + GAE | ✅ Done | Complete-episode collection |
 | PPO losses | ✅ Done | Clip + value + entropy + pred |
 | Self-play training loop | ✅ Done | Opponent pool, checkpointing, logging |
-| **POMDP masking (opponent info)** | 🔜 v2 | Mask unrevealed opponent data |
+| **P3 — Pool size + opponent mixing** | ✅ Done | Pool=20, adaptive snapshots, 80/10/10 mixing |
+| **P4 — Regularisation & monitoring** | ✅ Done | AdamW, grad clipping, grad_norm/explained_variance/clip_frac logging |
+| **P5 — Critic optimisation** | ✅ Done | c_value=1.0, return normalisation |
+| **P6 — Warmup + cosine LR** | ✅ Done | 20-step warmup, cosine decay from 2.5e-4 |
+| **P1 — POMDP masking (opponent info)** | ✅ Done | RevealedTracker + apply_reveal_mask + 4-mode curriculum |
+| **P2 — Reward curriculum** | ✅ Done | 4-mode dense_scale scheduler (linear/exp/step/phase) |
 | **Belief state injection** | 🔜 v2 | Argmax + softmax confidence → state encoder |
 | **Pre-training on team sets** | 🔜 v2 | 162k team compositions |
 | **Elo-based opponent selection** | 🔜 v2 | Adaptive opponent difficulty |
@@ -657,9 +785,13 @@ The peak-then-decline pattern suggests:
 
 ## Known Issues
 
-- **Simulator stability:** The Rust simulator (`pokemon-showdown-rs`) can panic with `"Not all choices done"` when the choice string doesn't match the game state. This is now caught with try/except in `collect_rollout` and is rare (< 0.1% of steps) with the trained agent.
+- **Simulator stability:** The Rust simulator (`pokemon-showdown-rs`) can panic with `"Not all choices done"` when the choice string doesn't match the game state. Four fixes were applied to the Rust engine (request_state guards, terastallize suffix parsing, forced_switches_left handling) and the action mask now uses `request_state` from the state dict as source of truth. Residual panics are caught with try/except in `collect_rollout` and are rare (< 0.03% of steps).
+- **Rust simulator fixes (local):** Three bugs in the unmaintained `pokemon-showdown-rs-master` were fixed locally:
+  1. `get_choice_index`: auto-pass conditionnel en mode Switch (évite "You sent more switches than needed")
+  2. `choose_switch`: validation de Pokémon actif corrigée (utilise `active.contains()` au lieu de `position < active.len()`)
+  3. Exposition de `slot_conditions` à Python pour détecter Revival Blessing
+  Détails : voir [`memo_rust.md`](memo_rust.md)
 - **Fastpath incompatibility:** PyTorch 2.11+ MHA fastpath bypasses Python-level hooks. The `get_attention_maps()` method disables it temporarily during attention extraction.
-- **metrics.csv concatenation:** The metrics CSV contains two training runs concatenated. The second run starts at update 501 (duplicate numbers). Workaround: use `--resume` with a fresh CSV path for new runs.
 
 ---
 
