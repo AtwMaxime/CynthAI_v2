@@ -20,13 +20,11 @@ simulator/target/
 .vscode/
 .idea/
 
-# Checkpoints (large files + generated metrics)
-checkpoints/*.pt
-checkpoints/*.pth
-checkpoints/*.csv
-checkpoints/_test_*/
-checkpoints/debug_*/
-checkpoints/exp_*/
+# Checkpoints (large files + generated metrics — ignore everything)
+checkpoints/
+
+# Claude Code internal
+.claude/
 
 # Generated plots
 plots/

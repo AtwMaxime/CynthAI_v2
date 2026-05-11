@@ -1,242 +1,344 @@
-# Architecture — CynthAI v2
+# CynthAI_v2 — Architecture Document
 
-Forward pass complet, shapes réelles.
-
----
-
-## Vue d'ensemble
+## High-Level Architecture
 
 ```
-PyBattle.get_state()
-        │
-        ▼
-[ state_encoder.py ]
-  encode_pokemon() × 12  →  PokemonFeatures  (indices + 222 scalaires)
-  encode_field()         →  FieldFeatures    (72 floats)
-        │
-        ▼
-[ model/embeddings.py ]
-  PokemonEmbeddings(PokemonBatch [B, K*12])
-    species_embed   [K*12, 32]    ← initialisé depuis les base stats (hp/atk/def/spa/spd/spe)
-    type1/2/tera    [K*12,  8] × 3  ← prior SVD de la matrice d'efficacité des types
-    item_embed      [K*12, 16]
-    ability_embed   [K*12, 16]
-    move_embed×4    [K*12, 32] × 4  ← prior SVD de 46 attributs (type, power, catégorie, …)
-    scalaires       [K*12, 222]
-    ─────────────────────────────
-    token           [K*12, TOKEN_DIM=438]    (K=4 → [B, 48, 438])
-
-  field_proj(FieldBatch [B, K, 72])          (non embedé, projecté par backbone)
-        │
-        ▼
-[ model/backbone.py — BattleBackbone ]
-
-  ① _build_sequence()
-       pokemon_proj  [B, 48, 438] → [B, 48, 256]
-       field_proj    [B, 4,  72]  → [B, 4,  256]
-
-       Reshape + concat par tour → [B, 4, 13, 256]
-
-       + temporal_emb(4)   Embedding(4, 256)   [4, 256]  (0=oldest, 3=current)
-       + slot_emb(13)      Embedding(13, 256)  [13, 256] (0-5=own, 6-11=opp, 12=field)
-
-       flatten → [B, 52, 256]   (K*N_SLOTS = 4*13 = 52 tokens)
-
-  ② TransformerEncoder  (3 layers, 4 heads, FFN=512, Pre-LN)
-       [B, 52, 256] → [B, 52, 256]
-
-  ③ current_tokens = output[:, -13:, :]   [B, 13, 256]
-
-  ④ value_head  MLP(mean-pooled 256 → 256 → 1)  [B, 1]       ← critique V(s)
-
-        │
-        ▼
-[ env/action_space.py — ActionEncoder ]
-  Inputs: active_token [B, 256], move_idx [B, 4], pp_ratio [B, 4],
-          move_disabled [B, 4], bench_tokens [B, 5, 256],
-          mechanic_id [B], mechanic_type_idx [B]
-
-  base_moves  = move_proj(cat[move_emb, active_exp, scalaires])   [B, 4, 256]
-  mech_mod    = mechanic_proj(cat[type_emb, mech_onehot])         [B, 1, 256]
-  mech_moves  = base_moves + mech_mod                             [B, 4, 256]
-  switch_acts = switch_proj(bench_tokens)                         [B, 5, 256]
-
-  action_embeds = cat[base_moves, mech_moves, switch_acts, dim=1] [B, 13, 256]
-
-        │
-        ▼
-[ model/backbone.py — backbone.act() ]
-  Cross-attention :
-    query = action_embeds    [B, 13, 256]
-    key   = current_tokens   [B, 13, 256]
-    value = current_tokens   [B, 13, 256]
-  → attn_out                 [B, 13, 256]
-  → action_score(Linear 256→1).squeeze(-1)   [B, 13]
-  → masked_fill(action_mask, -1e9)           [B, 13]   ← True = ILLEGAL
-
-        │
-        ▼
-[ model/prediction_heads.py — PredictionHeads ]
-  Input : current_tokens[:, 6:12, :]   [B, 6, 256]   (tokens adverses)
-
-  item_head    Linear(256, 250)   → [B, 6, 250]
-  ability_head Linear(256, 311)   → [B, 6, 311]
-  tera_head    Linear(256, 19)    → [B, 6, 19]
-  move_head    Linear(256, 686*4) → [B, 6, 4, 686]
-
-  Loss : cross-entropy masquée sur les slots révélés (mask = idx != UNK)
-         Aucune injection en v1. Voir BELIEF_STATE.md pour v2.
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         CynthAIAgent (agent.py)                         │
+│                                                                         │
+│   State Dict ──▶ PokemonEmbeddings ──▶ BattleBackbone ──┬──▶ Value      │
+│   (PyBattle)      (embeddings.py)     (backbone.py)     │               │
+│                                                         ├──▶ Logits     │
+│                    ActionEncoder ◀── current_tokens ────┤               │
+│                    (action_space.py)                    │               │
+│                                                         └──▶ Preds      │
+│                    PredictionHeads ◀── opp_tokens ──────┘               │
+│                    (prediction_heads.py)                                │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
----
-
-## Séquence complète dans `CynthAIAgent.forward()`
-
-```python
-# 1. Embeddings Pokémon
-pokemon_tokens = poke_emb(poke_batch)              # [B, K*12, 438]
-
-# 2. Transformer unique — encode état + valeur
-current_tokens, value = backbone.encode(           # [B, 13, 256], [B, 1]
-    pokemon_tokens, field_tensor
-)
-
-# 3. Embeddings d'actions
-action_embeds = action_enc(                        # [B, 13, 256]
-    active_token      = current_tokens[:, 0, :],
-    move_idx          = move_idx,
-    pp_ratio          = pp_ratio,
-    move_disabled     = move_disabled,
-    bench_tokens      = current_tokens[:, 1:6, :],
-    mechanic_id       = mechanic_id,
-    mechanic_type_idx = mechanic_type_idx,
-)
-
-# 4. Actor — cross-attention uniquement (pas de 2e Transformer)
-action_logits = backbone.act(                      # [B, 13]
-    action_embeds, current_tokens, action_mask
-)
-log_probs = F.log_softmax(action_logits, dim=-1)   # [B, 13]
-
-# 5. Têtes auxiliaires sur tokens adverses
-pred_logits = predictor(current_tokens[:, 6:12, :])
-```
-
----
-
-## Token slots (par tour)
+## Data Flow: State → Token → Transformer → Action
 
 ```
-Slot  0     : propre actif
-Slots 1–5   : propre banc  (ordre équipe, positions actives exclues)
-Slots 6–11  : adversaire   (même convention)
-Slot  12    : field token
-
-Séquence complète K=4 : [tour_0 | tour_1 | tour_2 | tour_3]  → 52 tokens
-                          ^^^^^^ oldest              ^^^^^^ current
+Step 1: Encode            Step 2: Embed              Step 3: Transformer
+┌──────────────┐         ┌──────────────┐           ┌──────────────────────┐
+│ PyBattle     │         │ PokemonEmb   │           │ BattleBackbone       │
+│ .get_state() │────────▶│ .forward()   │──────────▶│ .encode()            │
+│              │         │              │           │                      │
+│ dict with:   │         │ species(32)  │           │ _build_sequence()    │
+│  sides[0,1]  │         │ type1(8)     │           │  ├─ project poke,    │
+│  pokemon[6]  │         │ type2(8)     │           │  │  field tokens     │
+│  field state │         │ tera_type(8) │           │  ├─ reshape to       │
+│  weather     │         │ item(16)     │           │  │  [B,K,13,D_MODEL] │
+│  terrain     │         │ ability(16)  │           │  ├─ add temporal_emb │
+│  ...         │         │ moves[4](32) │           │  └─ add slot_emb     │
+└──────────────┘         │ scalars(222) │           │                      │
+                         │ = 438 dims   │           │ TransformerEncoder   │
+                         └──────────────┘           │  3 layers × 4 heads  │
+                                                    │  Pre-LN, d_model=256 │
+                                                    │  FFN=512, dropout=0.1│
+                                                    │                      │
+                                                    │ Output:              │
+                                                    │  current_tokens      │
+                                                    │  [B, 13, 256]        │
+                                                    └──────┬───────────────┘
+                                                           │
+       ┌──────────────────────┌────────────────────────────┤
+       ▼                      ▼                            ▼
+Step 4a: Value Head          Step 4b: Actor Head           Step 4c: Prediction Heads
+┌──────────────────┐   ┌──────────────────────────┐   ┌──────────────────────┐
+│ value_head       │   │ action_cross_attn +      │   │ PredictionHeads      │
+│                  │   │ action_score             │   │                      │
+│ mean_pool(13)    │   │                          │   │ opp_tokens[:,6:12,:] │
+│   ↓              │   │ Query: action_embeds     │   │        ↓             │
+│ [B, 256]         │   │   [B, 13, 256]           │   │ item_head    (Linear)│
+│   ↓              │   │ Key/Value: current_tokens│   │ ability_head (Linear)│
+│ Linear→ReLU→     │   │   [B, 13, 256]           │   │ tera_head    (Linear)│
+│ Linear→1         │   │        ↓                 │   │ move_head    (Linear)│
+│   ↓              │   │ MultiheadAttention(4)    │   │        ↓             │
+│ V(s) [B, 1]      │   │        ↓                 │   │ item [B,6,250]       │
+└──────────────────┘   │ Linear → scalar          │   │ abil [B,6,311]       │
+                       │        ↓                 │   │ tera [B,6,19]        │
+                       │ logits [B, 13]           │   │ moves [B,6,4,686]    │
+                       │ masked_fill(illegal,-1e9)│   └──────────────────────┘
+                       └──────────────────────────┘
 ```
 
----
-
-## Convention masque d'actions
-
-`action_mask [B, 13] bool` — **True = ILLÉGAL** dans tout le code.
+## Token Sequence Layout
 
 ```
-Slots 0–3  : moves de base
-Slots 4–7  : moves avec mécanique (Tera/Mega/Z/Dynamax)
-Slots 8–12 : switchs (banc, dans l'ordre team_pos croissant)
+K=4 turns, 13 tokens per turn, 52 tokens total
+
+Turn 0 (oldest)              Turn K-1 (current)
+├──────────┼──────────┤     ├──────────┼──────────┤
+│ OWN 0-5  │ OPP 6-11 │ ... │ OWN 0-5  │ OPP 6-11 │
+│          │          │     │          │          │
+│ [active, │ [active, │     │ [active, │ [active, │
+│  bench×5]│  bench×5]│     │  bench×5]│  bench×5]│
+└──────────┴──────────┘     └──────────┴──────────┘
+    12 pokemon tokens     +      1 field token     = 13 per turn
+
+Positional Embeddings (additive):
+  temporal_emb: Embedding(K=4, d_model=256)  — which turn
+  slot_emb:     Embedding(13, d_model=256)   — which position
 ```
 
-Dérivé depuis `get_state()` dans `build_action_mask()` — le simulateur Rust n'expose pas de `get_legal_actions()`.
+## DETR-Style Query-Key Cross-Attention (Actor Head)
 
----
-
-## Boucle PPO
+The actor head follows the same pattern as DETR (DEtection TRansformer):
 
 ```
-collect_rollout()
-  │  n_envs=32 combats parallèles
-  │  épisodes complets (pas de troncature à longueur fixe)
-  │  both agents sous torch.no_grad()
-  │  transitions : champs int du PokemonBatch stockés (pas les float embeddings)
-  │    → re-run de poke_emb() avec gradients à l'entraînement
-  │  GAE en fin de buffer  γ=0.99, λ=0.95
+DETR Analogy:
+  Object Queries ──▶ Cross-Attention ◀── Encoder Output
+       │                    │                   │
+  "what object?"      matching          image features
+       
+CynthAI Actor Head:
+  Action Queries ──▶ Cross-Attention ◀── Current Tokens
+       │                    │                   │
+  "what action?"       matching          battle state tokens
+  [B, 13, 256]                           [B, 13, 256]
+```
+
+### How Action Queries Are Built
+
+Each of the 13 action slots gets its own query embedding, constructed from live battle context:
+
+```
+ActionEncoder.forward():
+
+  Move slots (0-3):                    Mechanic slots (4-7):
+  ┌────────────────────┐              ┌────────────────────────┐
+  │ move_emb(move_idx) │   [B,4,32]   │ base_moves             │ [B,4,256]
+  │ active_token       │   [B,4,256]  │   +                    │
+  │ [pp_ratio, disab]  │   [B,4,2]    │ mechanic_proj(         │
+  │        ↓           │              │   type_emb(tera_type)  │ [B,8]
+  │ move_proj(Linear)  │              │   +                    │
+  │        ↓           │              │   one_hot(mechanic_id) │ [B,5]
+  │ base_moves [B,4,256]│             │ )                      │ [B,256]
+  └────────────────────┘              │        ↓               │
+                                      │ mech_moves [B,4,256]   │
+  Switch slots (8-12):                └────────────────────────┘
+  ┌────────────────────┐
+  │ bench_tokens[i]    │   [B,5,256]
+  │        ↓           │
+  │ switch_proj(Linear)│
+  │        ↓           │
+  │ switch_acts[B,5,256]│
+  └────────────────────┘
+
+  Concatenate: [moves(4) | mechanic(4) | switch(5)] → [B, 13, D_MODEL]
+```
+
+### Cross-Attention: Action Embeddings (Query) over Current Tokens (Key/Value)
+
+```
+     Action Embeddings (Q)         Current Tokens (K,V)
+     ┌─────────────────┐          ┌─────────────────┐
+     │ Move 1 ─────────┼─────────▶│ OWN_active      │
+     │ Move 2 ─────────┼─────────▶│ OWN_bench_1     │
+     │ Move 3 ─────────┼─────────▶│ OWN_bench_2     │
+     │ Move 4 ─────────┼─────────▶│ OWN_bench_3     │
+     │ Tera 1 ─────────┼─────────▶│ OWN_bench_4     │
+     │ Tera 2 ─────────┼─────────▶│ OWN_bench_5     │
+     │ Tera 3 ─────────┼─────────▶│ OPP_active      │
+     │ Tera 4 ─────────┼─────────▶│ OPP_bench_1     │
+     │ Switch 1 ───────┼─────────▶│ OPP_bench_2     │
+     │ Switch 2 ───────┼─────────▶│ OPP_bench_3     │
+     │ Switch 3 ───────┼─────────▶│ OPP_bench_4     │
+     │ Switch 4 ───────┼─────────▶│ OPP_bench_5     │
+     │ Switch 5 ───────┼─────────▶│ FIELD           │
+     └─────────────────┘          └─────────────────┘
+          [B, 13, 256]                 [B, 13, 256]
+
+     │                                              │
+     └────────── MultiheadAttention(4) ─────────────┘
+                         │
+                         ▼
+              Linear → scalar per slot
+                         │
+                         ▼
+              action_logits [B, 13]
+         (masked_fill with -1e9 for illegal)
+```
+
+### Why DETR-style?
+
+- **Single Transformer pass**: The backbone runs once to produce rich token representations. The actor head does NOT re-encode anything — it just cross-attends action queries over the already-computed tokens. This is the same efficiency pattern as DETR.
+- **Contextualized actions**: Each action embedding can attend to any token (own Pokémon, opponent Pokémon, field), learning which parts of the state matter for each action type.
+- **Shared representation**: Value head and prediction heads also consume the same token representations, encouraging the Transformer to learn generally useful features.
+
+## Prediction Heads
+
+```
+Opponent tokens [B, 6, D_MODEL]
+       │
+       ├──▶ item_head    Linear(256 → 250)   → item_logits    [B, 6, 250]
+       ├──▶ ability_head Linear(256 → 311)   → ability_logits [B, 6, 311]
+       ├──▶ tera_head    Linear(256 → 19)    → tera_logits    [B, 6, 19]
+       └──▶ move_head    Linear(256 → 686×4) → move_logits    [B, 6, 4, 686]
+```
+
+Linear heads only (no MLPs) — the Transformer tokens already encode rich contextual information. The auxiliary loss provides a supervised signal that helps the backbone learn useful opponent representations, but gradients from these heads do NOT flow into the policy directly (only through shared backbone representations).
+
+## POMDP Masking System
+
+```
+RevealedTracker (per env)
+  │
+  │  Parses PS protocol battle log:
+  │    |switch|p2a: Garchomp     → species revealed
+  │    |-ability|p2a|Intimidate   → ability revealed
+  │    |-enditem|p2a|Leftovers   → item revealed
+  │    terastallized flag         → tera revealed
+  │    PP < maxPP                 → move revealed
+  │
   ▼
-training loop (n_epochs=2)
-  │  minibatches de taille 128 (shufflés)
-  │  forward agent (avec grad)
-  │  pred_loss  = PredictionHeads.compute_loss(pred_logits, *targets)
-  │  losses     = compute_losses(logits_new, log_prob_old, actions, …)
-  │  total.backward()
-  │  clip_grad_norm_(agent, 0.5)
-  │  Adam.step()
+Reveal state [6 slots]:
+  species: [True, False, False, False, False, True]
+  item:    [True, False, False, False, False, False]
+  ability: [True, False, False, False, False, False]
+  tera:    [False, ...]
+  moves:   [[True, True, False, False], [False, ...], ...]
+
+apply_reveal_mask(PokemonBatch, reveal_state, mask_ratio):
+  │
+  │  For each opponent slot:
+  │    Bernoulli(mask_ratio) → should_mask
+  │    if should_mask AND NOT revealed → zero the attribute
+  │
   ▼
-scheduler.step()   # Warmup (20) + Cosine : 2.5e-4 → 1e-5
+Masked PokemonBatch (zeros for unrevealed indices + stats)
 ```
 
----
-
-## Récompenses
-
-| Événement          | Valeur            |
-|--------------------|-------------------|
-| Victoire           | +1.0              |
-| Défaite            | −1.0              |
-| KO adverse         | +0.05             |
-| KO propre          | −0.05             |
-| Δ avantage HP      | +0.01 × Δadv      |
-
----
-
-## SVD Embedding Priors
-
-Deux tables d'embedding sont initialisées avec des priorit SVD au lieu d'un tirage aléatoire, pour donner un sens sémantique dès le début de l'entraînement.
-
-### Types (`D_TYPE=8`)
-
-1. Matrice d'efficacité `M[18×18]` : `M[i][j]` = multiplicateur de dégâts quand le type `i` attaque le type `j` (2×, 1×, ½×, 0×).
-2. Concaténation profil offensif + défensif → `features[18×36]`.
-3. SVD → 8 dimensions → `type_prior[19×8]` (row 0 = __unk__ zeros).
-
-Stocké dans `data/dicts/type_embeddings.json`, chargé via `TYPE_EMBEDDING_PRIOR`.
-
-### Moves (`D_MOVE=32`)
-
-1. Vecteur de 46 attributs par move :
-   - `basePower/250`, `accuracy/100`, `pp/40`, `priority`, `critRatio`
-   - Type one-hot (19), catégorie one-hot (3)
-   - 20 flags binaires : recoil, drain, multihit, status, boosts, selfSwitch, forceSwitch, breaksProtect, heal, contact, protect, mirror, snatch, bypasssub, isZ, isMax, …
-2. SVD pondéré par valeurs singulières → 32 dimensions.
-3. Stocké dans `data/dicts/move_embeddings.json`, chargé via `MOVE_EMBEDDING_PRIOR`.
-
-### Species
-
-Initialisées depuis les base stats (`hp/atk/def/spa/spd/spe` normalisés par 255) dans `PokemonEmbeddings._init_species_from_base_stats()`. Les espèces avec des stats proches commencent proches dans l'espace d'embedding.
-
----
-
-## Attention Maps (Interprétabilité)
-
-`BattleBackbone.get_attention_maps()` permet de capturer les poids d'auto-attention de chaque couche du Transformer pour un état donné.
-
-```python
-result = agent.backbone.get_attention_maps(pokemon_tokens, field_tokens)
-# result["attention_maps"]  →  list of N_LAYERS × [B, 4, 52, 52]
-# result["value"]           →  [B, 1]
-# result["current_tokens"]  →  [B, 13, 256]
-# result["token_labels"]    →  list of 52 str labels
-```
-
-### Labels des tokens (format `_token_labels()`)
+## PPO Training Loop
 
 ```
-T0_own0  …  T0_own5  T0_opp0  …  T0_opp5  T0_field   (tour 0, le plus vieux)
-T1_own0  …  T1_own5  T1_opp0  …  T1_opp5  T1_field   (tour 1)
-T2_own0  …  T2_own5  T2_opp0  …  T2_opp5  T2_field   (tour 2)
-T3_own0  …  T3_own5  T3_opp0  …  T3_opp5  T3_field   (tour 3, actuel)
+train() in self_play.py
+
+for update in 1..total_updates:
+
+  ┌─ 1a. Opponent Selection ─────────────────────────┐
+  │   80% pool.sample(agent)                          │
+  │   10% RandomPolicy                                │
+  │   10% FullOffensePolicy                           │
+  └───────────────────────────────────────────────────┘
+       │
+  ┌─ 1b. Rollout Collection (rollout.py) ─────────────┐
+  │   collect_rollout(agent_self, agent_opp, n_envs)  │
+  │                                                    │
+  │   For each env in parallel:                        │
+  │     encode_state() → push to BattleWindow (K=4)   │
+  │     _build_agent_inputs() → model inputs           │
+  │     POMDP masking (apply_reveal_mask)              │
+  │     agent.forward() → action sample                │
+  │     action_to_choice() → PS protocol               │
+  │     PyBattle.make_choices()                        │
+  │     compute_step_reward()                          │
+  │     tracker.update() from new log entries          │
+  │     → Transition stored in RolloutBuffer           │
+  │                                                    │
+  │   RolloutBuffer.compute_gae(γ=0.99, λ=0.95)       │
+  └───────────────────────────────────────────────────┘
+       │
+  ┌─ 2. PPO Updates (n_epochs × minibatches) ────────┐
+  │   For each minibatch:                             │
+  │     Re-apply POMDP mask (training augmentation)    │
+  │     agent.forward(masked_poke, ...)                │
+  │     PredictionHeads.compute_loss()                 │
+  │     compute_losses() → PPO + value + entropy + pred│
+  │     loss.backward()                                │
+  │     clip_grad_norm_(0.5)                           │
+  │     optimizer.step()                               │
+  └───────────────────────────────────────────────────┘
+       │
+  ┌─ 3. LR Schedule ──────────────────────────────────┐
+  │   Warmup (linear 0→lr, 20 steps)                  │
+  │   Cosine decay (lr → lr_min)                       │
+  └───────────────────────────────────────────────────┘
+       │
+  ┌─ 4. Logging (stdout + metrics.csv) ───────────────┐
+  └───────────────────────────────────────────────────┘
+       │
+  ┌─ 5. Evaluation (every eval_freq) ─────────────────┐
+  │   500 games vs Random, FullOffense, Pool           │
+  │   Snapshot agent if pool_wr > 0.55                 │
+  │   Save diagnostic plots + eval.csv                 │
+  └───────────────────────────────────────────────────┘
+       │
+  ┌─ 6. Checkpoint (every checkpoint_freq) ───────────┐
+  │   agent_NNNNNN.pt + attention maps                 │
+  └───────────────────────────────────────────────────┘
 ```
 
-### Implémentation
+## Token Embedding Detail (438-dim)
 
-La méthode itère manuellement sur chaque couche du Transformer en appelant `self_attn()` avec `need_weights=True` pour capturer les matrices `[B, H, 52, 52]`, en contournant le `_sa_block` par défaut (qui utilise la fastpath PyTorch et ne retourne pas les poids d'attention).
+```
+┌──────────┬──────┬──────────────────────────────────────┐
+│ Field    │ Dims │ Source                                │
+├──────────┼──────┼──────────────────────────────────────┤
+│ Species  │ 32   │ Embedding(1381, 32), seeded from BST  │
+│ Type 1   │ 8    │ Embedding(19, 8), seeded from log2    │
+│ Type 2   │ 8    │ (shared weight)                       │
+│ Tera     │ 8    │ (shared weight)                       │
+│ Item     │ 16   │ Embedding(250, 16)                    │
+│ Ability  │ 16   │ Embedding(311, 16)                    │
+│ Move 1   │ 32   │ Embedding(686, 32), type+cat prior    │
+│ Move 2   │ 32   │ (shared weight)                       │
+│ Move 3   │ 32   │ (shared weight)                       │
+│ Move 4   │ 32   │ (shared weight)                       │
+│ Scalars  │ 222  │ Raw float32 values (no embedding)     │
+├──────────┼──────┼──────────────────────────────────────┤
+│ TOTAL    │ 438  │                                       │
+└──────────┴──────┴──────────────────────────────────────┘
+
+Scalars breakdown (222 values):
+  level(1) + hp_ratio(1) + terastallized(1) + base_stats(5) + stats(5)
+  + is_predicted(1) + boosts(7) + move_pp(4) + move_disabled(4)
+  + status(7) + volatiles(181) + is_active(1) + fainted(1) + trapped(1)
+  + force_switch(1) + revealed(1)
+```
+
+## Field Token (72-dim)
+
+```
+┌───────────────┬──────┬──────────────────────────┐
+│ Field         │ Dims │ Description              │
+├───────────────┼──────┼──────────────────────────┤
+│ Weather       │ 9    │ One-hot (sun, rain, etc) │
+│ Terrain       │ 5    │ One-hot (grassy, etc)    │
+│ Pseudo-weather │ 8    │ Multi-hot (trick room)  │
+│ Side 0 conds  │ 23   │ Side conditions one-hot  │
+│ Side 0 misc   │ 2    │ pokemon_left, fainted    │
+│ Side 1 conds  │ 23   │ Side conditions one-hot  │
+│ Side 1 misc   │ 2    │ pokemon_left, fainted    │
+├───────────────┼──────┼──────────────────────────┤
+│ TOTAL         │ 72   │                          │
+└───────────────┴──────┴──────────────────────────┘
+```
+
+## Model Size Breakdown
+
+| Module | Parameters |
+|--------|-----------|
+| PokemonEmbeddings (7 tables) | ~184K |
+| BattleBackbone (Transformer + projections) | ~3.1M |
+| Value Head (Linear-ReLU-Linear) | ~65K |
+| Action Cross-Attention + score | ~330K |
+| ActionEncoder (move/mech/switch proj) | ~200K |
+| PredictionHeads (4 Linear heads) | ~2.8M |
+| **Total** | **~6.7M** |
+
+## Key Design Decisions
+
+1. **Single Transformer pass**: `encode()` runs the Transformer once; `act()` only does lightweight cross-attention. This keeps inference fast (important for 32 parallel envs).
+
+2. **Mean-pool for value**: Simple averaging over 13 current-turn tokens instead of flattening (3328→256 would add parameters). Pooling is order-invariant and costs zero parameters.
+
+3. **Shared embedding weights**: `ActionEncoder` shares `move_embed` and `type_embed` with `PokemonEmbeddings`, ensuring consistent representations and fewer parameters.
+
+4. **Pre-LN Transformer**: Layer norm before attention/FFN sublayers (not after), which is more stable for training and is standard in modern architectures.
+
+5. **Linear prediction heads**: No MLPs on prediction heads — the Transformer tokens are already rich enough. MLPs would overfit on the sparse reveal signal.
+
+6. **PP on state, not PP remaining**: Encoded as ratio (pp/maxpp) for meaningful comparison across different moves (a move at 1/5 is very different from a move at 1/40).
