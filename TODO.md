@@ -5,6 +5,14 @@
 Tout ce qui est listé dans `ARCHITECTURE.md` et `README.md` est implémenté et fonctionnel :
 POMDP masking, Reward Curriculum, Pool/opponent mixing, Régularisation, Critic, LR Schedule, Attention maps.
 
+**P10a** — Symétrisation du POMDP masking (ins_opp) ✅
+**P10b** — EMA Opponent (remplace snapshot pool) ✅
+**P10c** — Pool résiduel avec snapshots périodiques ✅
+**P11a** — Normalisation per-batch des avantages/returns (z-score dans compute_losses) ✅
+**P11b** — c_value 1.0 → 2.0 ✅
+**P11c** — min_steps 1024 → 2048 ✅
+**P13b** — Masque de padding pour les tours 1 à 3 (padding mask dans backbone) ✅
+
 ---
 
 ## P10 — Correction de l'Opponent Mixing (priorité #1)
@@ -126,20 +134,22 @@ Mélange : 70% EMA / 20% pool / 5% Random / 5% FullOffense.
 **Objectif** : Corriger l'overestimation de la value et améliorer le signal d'apprentissage,
 une fois le bug P10a corrigé (sinon les métriques n'auront pas de sens).
 
-### P11a — Normalisation des rewards / returns
+### P11a — Normalisation des avantages / returns
 
-Pourquoi : les valeurs de reward sont arbitraires (terminal ±1, KO ±0.05, HP ±0.01).
-Sans normalisation, la valeur V(s) peut dériver et prendre des échelles ininterprétables
-(comme les 7.0 observés). La loss value (MSE) n'est pas à une échelle stable.
+**Statut : ✅ Fait** — normalisation per-batch (z-score) dans `compute_losses()`.
 
-Solution : **Reward normalization** (running estimate de la mean/std des rewards, qu'on
-utilise pour normaliser les rewards avant GAE, puis dé-normaliser les avantages).
+Les avantages et returns sont normalisés par batch (mean=0, std=1) avant la policy loss
+et la value loss. Voir `training/losses.py` lignes 61-62 et 76-80.
 
-Ou **PopArt** (normalisation adaptative des targets de la value head).
-
-Alternative plus simple : normaliser les returns dans `compute_losses()` avec un running mean/std.
-
-**Fichier** : `training/losses.py` ou `training/rollout.py`.
+**Si V(s) dérive encore** : implémenter un running std sur les rewards denses (EMA)
+avant GAE. L'idée est de diviser les rewards par `running_std` (sans soustraire la
+moyenne, pour préserver le signe victoire/défaite). Le terminal (±1) reste brut :
+```
+# Dans collect_rollout, avant GAE :
+reward_norm = reward / max(running_std, 1e-8)  # std seulement, pas de centrage
+```
+Ce running std s'adapte aux phases du curriculum via EMA (momentum ~0.01).
+**Fichier** : `training/rollout.py` (+ nouvelle classe `RunningNormalizer`).
 
 ### P11b — c_value augmenté
 
@@ -225,55 +235,50 @@ plus propre, plus efficace, et plus propice à l'apprentissage.
 
 ---
 
-### P13a — Value Head : Pooling own+field uniquement
+### P13a — Asymmetric Actor-Critic (privileged information pour le critique)
 
-**Pourquoi** : Actuellement, la value head fait `current_tokens.mean(dim=1)` sur les
-13 tokens (6 own + 6 opponent + 1 field). Après POMDP masking, les tokens adverses
-sont partiellement zéros (espèce/item/ability cachés, stats masquées). Le mean-pool
-mélange des représentations riches (own) avec des représentations dégradées (opp
-masqué), ce qui injecte du bruit directement dans V(s). Le critique apprend sur
-des features corrompues.
+**Pourquoi** : Actuellement, le critique et l'acteur reçoivent le même état masqué
+(POMDP). Le critique doit estimer V(s) sur des tokens partiellement zéros, ce qui
+dilue le signal de valeur et contribue à l'overestimation.
 
-De plus, la value fonction V(s) estime le retour espéré depuis la perspective de
-l'agent. Elle dépend de l'état de ses propres Pokémon et du field, pas directement
-des tokens adverses (qui sont une source d'incertitude). Les tokens adverses dans
-le pool forcent le critique à modéliser l'incertitude plutôt que la valeur.
-
-**Solution** : Dans `BattleBackbone.encode()` (`model/backbone.py`), remplacer :
+**Solution** : Donner au critique l'état complet (unmasked) pendant que l'acteur
+reçoit l'état masqué. C'est une technique éprouvée en RL (Pinto et al. 2017,
+"Asymmetric Actor Critic for Image-Based Robot Learning") :
 
 ```python
-pooled = current_tokens.mean(dim=1)                         # [B, D_MODEL]
+# Forward acteur avec masking (comme aujourd'hui)
+masked_poke = apply_reveal_mask(unmasked_poke, ...)
+out = agent(masked_poke, ...)   # acteur + critique sur état masqué
+
+# Forward critique séparé avec état complet
+with torch.no_grad():  # ou en passant le masking dans le détachage
+    out_full = agent.backbone.encode(unmasked_poke, field_tensor)
+    value_full = out_full.value  # [B, 1] — V(s) sur info complète
+
+# PPO : utiliser value_full pour les avantages, out.action_logits pour la policy
 ```
 
-Par :
+**Variantes** :
+1. **Deux forward passes** : acteur sur masqué, critique sur complet → plus lent
+   mais propre
+2. **Forward unique avec détachage** : un seul passage Transformer, critic head
+   séparée qui skip le masking → Plus efficace, mais demande de dupliquer le
+   backbone ou d'ajouter une tête value non masquée
+3. **Shared backbone, 2 value heads** : le backbone encode l'état masqué,
+   mais on ajoute une `full_value_head` entraînée séparément sur les vrais
+   tokens (non masqués). Le plus simple : garder la value_head actuelle sur le
+   masqué pour l'acteur, et ajouter une petite MLP head sur les tokens bruts.
 
-```python
-# Pool only own (0-5) + field (12) — exclude opponent (6-11)
-own_and_field = torch.cat([current_tokens[:, :6, :],
-                           current_tokens[:, 12:, :]], dim=1)  # [B, 7, D_MODEL]
-pooled = own_and_field.mean(dim=1)                             # [B, D_MODEL]
-```
+**Quand faire** : Après P10a (masking symétrique) et P10b (EMA). Si le win rate
+ne décolle toujours pas, l'asymmetric AC est la prochaine carte à jouer.
 
-**Option avancée — Weighted Pooling** : Remplacer le mean par une attention
-learnable sur les 7 tokens (own + field) pour que le modèle apprenne à pondérer
-le Pokémon actif plus fort que le bench. Mais le mean simple est plus robuste
-et suffit probablement — le Transformer a déjà encodé l'importance relative
-dans les représentations.
+**Note** : Si on implémente l'asymmetric AC, le problème du pooling des tokens
+adverses ne se pose plus (le critique voit l'état complet, tous les tokens sont
+informatifs). P13a rend donc l'ancienne proposition "Value Head own+field only"
+obsolète.
 
-**Variante minimale** : Si on veut garder tous les tokens mais avec pondération
-adaptative, on peut utiliser un weighted pooling appris :
-
-```python
-self.value_pool_weight = nn.Linear(D_MODEL, 1)  # dans __init__
-weights = self.value_pool_weight(current_tokens).softmax(dim=1)  # [B, 13, 1]
-pooled = (current_tokens * weights).sum(dim=1)  # [B, D_MODEL]
-```
-
-Mais cette approche ajoute des paramètres et le modèle pourrait apprendre à
-quand même regarder les tokens adverses bruités. L'approche own+field seule
-est plus propre architecturalement.
-
-**Fichier** : `model/backbone.py`, méthode `encode()`.
+**Fichiers** : `model/backbone.py`, `training/rollout.py` (passage des features
+complètes au critique), `training/self_play.py` (loss computation).
 
 ---
 

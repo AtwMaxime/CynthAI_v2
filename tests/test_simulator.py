@@ -19,6 +19,11 @@ import torch
 import numpy as np
 from pathlib import Path
 
+# Add project root to path so env/, model/, training/ are importable
+_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
 PASS = "[PASS]"
 FAIL = "[FAIL]"
 _any_failed = False
@@ -111,7 +116,7 @@ check("field dims match FIELD_DIM",        FIELD_DIM == 72)
 # Specific check: species_id string matches index
 species_id = p0["species_id"]
 expected_idx = SPECIES_INDEX.get(species_id, 0)
-check(f"species '{species_id}' → idx={expected_idx}",  pf.species_idx == expected_idx,
+check(f"species '{species_id}' -> idx={expected_idx}",  pf.species_idx == expected_idx,
       f"got {pf.species_idx}")
 
 
@@ -222,7 +227,7 @@ from env.action_space import MECH_NONE, MECH_TERA
 agent = CynthAIAgent()
 agent.eval()
 n_params = sum(p.numel() for p in agent.parameters())
-check("agent params ~6.7M",  abs(n_params - 6_727_686) < 100, f"{n_params:,}")
+check("agent params ~3.1M",  abs(n_params - 3_119_622) < 100, f"{n_params:,}")
 
 battle3 = PyBattle("gen9randombattle", seed=7)
 state3 = battle3.get_state()
@@ -304,11 +309,10 @@ while not episode.ended:
     m1 = build_action_mask(s, 1)
     legal0 = (~m0).nonzero().squeeze(-1)
     legal1 = (~m1).nonzero().squeeze(-1)
-    a0 = legal0[0].item() if len(legal0) > 0 else 0
-    a1 = legal1[0].item() if len(legal1) > 0 else 0
-    c0 = action_to_choice(a0, s, 0)
-    c1 = action_to_choice(a1, s, 1)
-    episode.make_choices(c0, c1)
+    c0 = action_to_choice(legal0[0].item(), s, 0) if len(legal0) else ""
+    c1 = action_to_choice(legal1[0].item(), s, 1) if len(legal1) else ""
+    if not episode.make_choices(c0, c1):
+        break
     turn_count += 1
 
 check("episode ended",                 episode.ended)

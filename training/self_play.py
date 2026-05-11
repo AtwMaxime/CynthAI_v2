@@ -193,16 +193,23 @@ class TrainingConfig:
     gamma:         float = 0.99
     lam:           float = 0.95
     clip_eps:      float = 0.2
-    c_value:       float = 1.0      # P5: increased from 0.5
+    c_value:       float = 2.0      # P11b: increased from 1.0 for critic stability
     c_entropy:     float = 0.01
     c_pred:        float = 0.5
     max_grad_norm: float = 0.5
     weight_decay:  float = 1e-4     # P4: L2 regularisation
 
     # Opponent pool
-    pool_size:        int   = 20        # P3: increased from 5 for more diversity
+    pool_size:        int   = 10        # P10c: reduced from 20; periodic snapshots now
     pool_snapshot_threshold: float = 0.55  # P3: snapshot agent when win_rate exceeds this
     pool_cooldown:    int   = 5         # P3: min updates between snapshots
+
+    # P10b: EMA opponent
+    ema_decay:        float = 0.995  # smoothing factor for EMA weights
+    ema_warmup:       int   = 5      # updates before EMA is used as opponent (pure self-play before)
+
+    # P10c: periodic pool snapshots (more reliable than WR-based)
+    pool_snapshot_freq: int = 100    # snapshot agent into pool every N updates
 
     # P1: POMDP mask curriculum
     mask_schedule:      str   = "linear"  # "linear", "exp", "step", "phase"
@@ -268,6 +275,38 @@ class OpponentPool:
 
     def __len__(self) -> int:
         return len(self._pool)
+
+
+# -- P10b: EMA Opponent -------------------------------------------------------------
+
+class EMAOpponent:
+    """
+    Exponential Moving Average of agent weights.
+
+    Provides a stable, lagging self-play opponent that smoothly tracks the
+    online agent. Unlike OpponentPool (discrete snapshots), the EMA updates
+    every training step via polyak averaging::
+
+        ema_params = decay * ema_params + (1 - decay) * online_params
+
+    Always available — no empty pool problem, no WR threshold to meet.
+    """
+
+    def __init__(self, agent: CynthAIAgent, decay: float = 0.995):
+        self.ema = copy.deepcopy(agent)
+        self.ema.eval()
+        for p in self.ema.parameters():
+            p.requires_grad_(False)
+        self.decay = decay
+
+    def update(self, agent: CynthAIAgent) -> None:
+        """Polyak-average the online weights into the EMA copy."""
+        with torch.no_grad():
+            for ema_p, online_p in zip(self.ema.parameters(), agent.parameters()):
+                ema_p.data.mul_(self.decay).add_(online_p.data, alpha=1 - self.decay)
+
+    def sample(self, current_agent: CynthAIAgent) -> CynthAIAgent:
+        return self.ema
 
 
 # -- Opponent token slice helper --------------------------------------------------
@@ -433,6 +472,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
         print(f"  run_name={cfg.run_name}  total_updates={cfg.total_updates}")
 
     pool        = OpponentPool(pool_size=cfg.pool_size)
+    ema_opponent = EMAOpponent(agent, decay=cfg.ema_decay)  # P10b
     win_history : deque[int] = deque(maxlen=cfg.win_rate_window)
     total_eps   = 0
     last_snapshot_update = 0  # P3: cooldown counter for WR-based snapshots
@@ -451,18 +491,32 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
     for update in range(start_update, cfg.total_updates + 1):
         t0 = time.perf_counter()
 
-        # -- 1a. Opponent selection (mixing) -----------------------------------------
-        # P3: 80% pool / 10% RandomPolicy / 10% FullOffense
+        # -- 1a. Opponent selection (P10b-P10c: EMA + pool + fixed policies) -----------
+        # Mixing: 5% Random / 5% FullOffense / 70% EMA (or self-play before warmup)
+        #         / 20% pool (or EMA if pool empty)
         roll = random.random()
-        if roll < 0.10:
+        if roll < 0.05:
             opponent = RandomPolicy()
             opp_label = "rand"
-        elif roll < 0.20:
+        elif roll < 0.10:
             opponent = FullOffensePolicy()
             opp_label = "fo"
+        elif roll < 0.80:
+            # 70% — EMA opponent (stable lagging self-play)
+            if update > cfg.ema_warmup:
+                opponent = ema_opponent.sample(agent)
+                opp_label = "ema"
+            else:
+                opponent = agent
+                opp_label = "self"
         else:
-            opponent = pool.sample(agent)
-            opp_label = f"pool({len(pool)})"
+            # 20% — pool (diversity) or EMA fallback
+            if len(pool) > 0:
+                opponent = pool.sample(agent)
+                opp_label = f"pool({len(pool)})"
+            else:
+                opponent = ema_opponent.sample(agent) if update > cfg.ema_warmup else agent
+                opp_label = "ema" if update > cfg.ema_warmup else "self"
 
         # -- 1b. Rollout collection ----------------------------------------------------
         agent.eval()
@@ -582,6 +636,9 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 loss_acc["grad_norm"] += grad_norm.item()
                 n_steps += 1
 
+        # -- 2b. P10b: EMA weight update -----------------------------------------------
+        ema_opponent.update(agent)
+
         # -- 3. LR schedule (warmup + cosine) -----------------------------------------
         # P6: manual LR scheduling for clean warmup -> cosine decay
         if update <= cfg.warmup_steps:
@@ -660,6 +717,21 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                       f"W={res['wins']} L={res['losses']}  "
                       f"({res['total']} games)")
 
+            # EMA eval (P10b): measure progress against the lagging target
+            eval_results["ema"] = run_eval(
+                agent             = agent,
+                n_games           = cfg.eval_n_games,
+                n_envs            = cfg.n_envs,
+                format_id         = cfg.format_id,
+                device            = device,
+                mask_ratio        = mask_ratio,
+                opponent_sampler  = lambda: ema_opponent.sample(agent),
+            )
+            ema_wr = eval_results["ema"]["win_rate"]
+            print(f"  eval ema: WR={ema_wr*100:.1f}%  "
+                  f"W={eval_results['ema']['wins']} L={eval_results['ema']['losses']}  "
+                  f"({eval_results['ema']['total']} games)")
+
             # Pool eval: sample a fresh opponent each batch for representative WR
             eval_results["pool"] = run_eval(
                 agent             = agent,
@@ -679,7 +751,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
             with open(eval_path, "a", newline="") as f:
                 import csv
                 row = {"update": update}
-                for label in ("random", "fulloff", "pool"):
+                for label in ("random", "fulloff", "ema", "pool"):
                     r = eval_results[label]
                     row[f"{label}_wr"] = r["win_rate"]
                     row[f"{label}_w"]  = r["wins"]
@@ -698,12 +770,13 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
             except Exception as e:
                 print(f"  WARNING: eval plots failed: {e}")
 
-            # Snapshot agent when pool eval WR exceeds threshold
-            if (pool_wr > cfg.pool_snapshot_threshold
+            # P10c: periodic pool snapshot (replaces WR-based snapping)
+            if (update % cfg.pool_snapshot_freq == 0
+                and update > 0
                 and update - last_snapshot_update >= cfg.pool_cooldown):
                 pool.add(agent)
                 last_snapshot_update = update
-                print(f"  -> snapshot added (pool eval WR={pool_wr*100:.1f}%)")
+                print(f"  -> pool snapshot added (size={len(pool)})")
 
             eval_elapsed = time.perf_counter() - eval_t0
             print(f"  eval finished [{eval_elapsed:.1f}s]")

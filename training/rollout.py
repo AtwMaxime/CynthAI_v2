@@ -64,7 +64,8 @@ WIN_REWARD     =  1.0
 LOSS_REWARD    = -1.0
 KO_REWARD      =  0.05
 OWN_KO_PENALTY = -0.05
-HP_ADV_SCALE   =  0.01
+HP_ADV_SCALE   =  0.05   # P13c: ×5 (was 0.01) — signal dense trop faible
+COUNT_ADV_SCALE = 0.03   # P13c: reward par unité de Δ compteur (KO = signal fiable)
 
 
 # â”€â”€ Random policy (for evaluation) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -173,6 +174,13 @@ def _hp_ratio(pokemon_list: list[dict]) -> float:
     return total_hp / total_maxhp if total_maxhp > 0 else 0.0
 
 
+def _count_advantage(state: dict, side_idx: int) -> float:
+    """Normalised Pokémon count advantage in [-1, 1]."""
+    own_alive = sum(1 for p in state["sides"][side_idx]["pokemon"] if not p.get("fainted", False))
+    opp_alive = sum(1 for p in state["sides"][1 - side_idx]["pokemon"] if not p.get("fainted", False))
+    return (own_alive - opp_alive) / 6.0
+
+
 def compute_step_reward(
     prev_state: dict,
     curr_state: dict,
@@ -182,10 +190,10 @@ def compute_step_reward(
     dense_scale: float = 1.0,   # P2: scale non-terminal rewards (0 = sparse only)
 ) -> tuple[float, dict]:
     """Returns (total_reward, components_dict) where components has keys:
-    ko_own, ko_opp, hp_adv, terminal."""
+    ko_own, ko_opp, hp_adv, count_adv, terminal."""
     reward  = 0.0
     opp_idx = 1 - side_idx
-    components: dict[str, float] = {"ko_own": 0.0, "ko_opp": 0.0, "hp_adv": 0.0, "terminal": 0.0}
+    components: dict[str, float] = {"ko_own": 0.0, "ko_opp": 0.0, "hp_adv": 0.0, "count_adv": 0.0, "terminal": 0.0}
 
     own_prev = prev_state["sides"][side_idx]
     opp_prev = prev_state["sides"][opp_idx]
@@ -205,6 +213,13 @@ def compute_step_reward(
     hp_rew = HP_ADV_SCALE * (hp_adv_curr - hp_adv_prev) * dense_scale
     reward += hp_rew
     components["hp_adv"] = hp_rew
+
+    # P13c: count advantage — reliable signal on KOs
+    count_prev = _count_advantage(prev_state, side_idx)
+    count_curr = _count_advantage(curr_state, side_idx)
+    count_rew = COUNT_ADV_SCALE * (count_curr - count_prev) * dense_scale
+    reward += count_rew
+    components["count_adv"] = count_rew
 
     if done:
         terminal = WIN_REWARD if won else LOSS_REWARD   # terminal rewards never scaled
@@ -306,7 +321,9 @@ def build_action_mask(state: dict, side_idx: int) -> torch.Tensor:
         # Move slots 0-3
         if not force_sw:
             for i, mv in enumerate(active.get("moves", [])[:4]):
-                if not mv.get("disabled", False):
+                disabled = mv.get("disabled", False)
+                no_pp = mv.get("pp", 0) <= 0
+                if not disabled and not no_pp:
                     mask[i] = False   # normal move legal
 
             # Mechanic slots 4-7: legal when Tera not yet used and base move is legal
@@ -587,7 +604,8 @@ def collect_rollout(
     wins_self   = [BattleWindow() for _ in range(n_envs)]
     wins_opp    = [BattleWindow() for _ in range(n_envs)]
     prev_states = [e.get_state() for e in envs]
-    tracker     = RevealedTracker(n_envs)
+    tracker_self = RevealedTracker(n_envs)  # what self sees of opponent
+    tracker_opp  = RevealedTracker(n_envs)  # what opponent sees of self
 
     for i, s in enumerate(prev_states):
         pf, ff = encode_state(s, side_self); wins_self[i].push(pf, ff)
@@ -606,20 +624,34 @@ def collect_rollout(
             masks_opp  = torch.stack([build_action_mask(s, side_opp)  for s in prev_states]).to(device)
 
             # P1: POMDP masking â€” apply reveal mask during rollout decision
-            unmasked_pb = ins_self[0]
+            unmasked_pb_self = ins_self[0]
+            unmasked_pb_opp  = ins_opp[0]
             if mask_ratio > 0.0:
-                rs = [tracker.get_state(i) for i in range(n_envs)]
+                rs_self = [tracker_self.get_state(i) for i in range(n_envs)]
                 ins_self = (
                     apply_reveal_mask(
-                        unmasked_pb,
-                        reveal_species = torch.tensor([r["species"] for r in rs], device=device),
-                        reveal_item    = torch.tensor([r["item"]    for r in rs], device=device),
-                        reveal_ability = torch.tensor([r["ability"] for r in rs], device=device),
-                        reveal_tera    = torch.tensor([r["tera"]    for r in rs], device=device),
-                        reveal_moves   = torch.tensor([r["moves"]   for r in rs], device=device),
+                        unmasked_pb_self,
+                        reveal_species = torch.tensor([r["species"] for r in rs_self], device=device),
+                        reveal_item    = torch.tensor([r["item"]    for r in rs_self], device=device),
+                        reveal_ability = torch.tensor([r["ability"] for r in rs_self], device=device),
+                        reveal_tera    = torch.tensor([r["tera"]    for r in rs_self], device=device),
+                        reveal_moves   = torch.tensor([r["moves"]   for r in rs_self], device=device),
                         mask_ratio     = mask_ratio,
                     ),
                 ) + ins_self[1:]
+
+                rs_opp = [tracker_opp.get_state(i) for i in range(n_envs)]
+                ins_opp = (
+                    apply_reveal_mask(
+                        unmasked_pb_opp,
+                        reveal_species = torch.tensor([r["species"] for r in rs_opp], device=device),
+                        reveal_item    = torch.tensor([r["item"]    for r in rs_opp], device=device),
+                        reveal_ability = torch.tensor([r["ability"] for r in rs_opp], device=device),
+                        reveal_tera    = torch.tensor([r["tera"]    for r in rs_opp], device=device),
+                        reveal_moves   = torch.tensor([r["moves"]   for r in rs_opp], device=device),
+                        mask_ratio     = mask_ratio,
+                    ),
+                ) + ins_opp[1:]
 
             out_self = agent_self(*ins_self, masks_self)
 
@@ -688,7 +720,8 @@ def collect_rollout(
                 if ok:
                     log_entries = envs[i].get_new_log_entries()
                     curr_states.append(envs[i].get_state())
-                    tracker.update(i, log_entries, curr_states[-1], side_opp)
+                    tracker_self.update(i, log_entries, curr_states[-1], side_opp)
+                    tracker_opp.update(i, log_entries, curr_states[-1], side_self)
                 else:
                     # Choice invalide â†’ reset env, skip transition.
                     print(f"INVALID choice env={i} p1={p1!r} p2={p2!r}", file=sys.stderr)
@@ -696,7 +729,8 @@ def collect_rollout(
                     next_seed += 1
                     wins_self[i].reset()
                     wins_opp[i].reset()
-                    tracker.reset(i)
+                    tracker_self.reset(i)
+                    tracker_opp.reset(i)
                     curr_states.append(envs[i].get_state())
                     crashed.add(i)
 
@@ -731,7 +765,8 @@ def collect_rollout(
                             log_entries = envs[i].get_new_log_entries()
                             new_state = envs[i].get_state()
                             curr_states[i] = new_state
-                            tracker.update(i, log_entries, new_state, side_opp)
+                            tracker_self.update(i, log_entries, new_state, side_opp)
+                            tracker_opp.update(i, log_entries, new_state, side_self)
 
                             # Enregistrer la transition
                             done = envs[i].ended
@@ -760,14 +795,15 @@ def collect_rollout(
                                 action            = a,
                                 log_prob_old      = sub_out.log_probs[j, a].item(),
                                 action_mask       = sub_masks[j].cpu(),
-                                reveal_state      = tracker.get_state(i),
+                                reveal_state      = tracker_self.get_state(i),
                                 reward            = reward,
                                 reward_components = components,
                                 done              = done,
                                 value_old         = sub_out.value[j, 0].item(),
                             ))
                             if done:
-                                tracker.reset(i)
+                                tracker_self.reset(i)
+                                tracker_opp.reset(i)
                                 envs[i] = PyBattle(format_id, seed=next_seed)
                                 next_seed += 1
                                 wins_self[i].reset()
@@ -779,7 +815,8 @@ def collect_rollout(
                             next_seed += 1
                             wins_self[i].reset()
                             wins_opp[i].reset()
-                            tracker.reset(i)
+                            tracker_self.reset(i)
+                            tracker_opp.reset(i)
                             curr_states[i] = envs[i].get_state()
                             crashed.add(i)
 
@@ -811,14 +848,16 @@ def collect_rollout(
                             log_entries = envs[i].get_new_log_entries()
                             new_state = envs[i].get_state()
                             curr_states[i] = new_state
-                            tracker.update(i, log_entries, new_state, side_self)
+                            tracker_self.update(i, log_entries, new_state, side_opp)
+                            tracker_opp.update(i, log_entries, new_state, side_self)
                         else:
                             print(f"SUB-TURN SWITCH FAIL (opp) env={i} p1={p1!r} p2={p2!r}", file=sys.stderr)
                             envs[i] = PyBattle(format_id, seed=next_seed)
                             next_seed += 1
                             wins_self[i].reset()
                             wins_opp[i].reset()
-                            tracker.reset(i)
+                            tracker_self.reset(i)
+                            tracker_opp.reset(i)
                             curr_states[i] = envs[i].get_state()
                             crashed.add(i)
 
@@ -840,7 +879,7 @@ def collect_rollout(
                 won    = (winner == "p1") if side_self == 0 else (winner == "p2")
                 reward, components = compute_step_reward(prev_states[i], curr_states[i], done, won if done else None, side_self, dense_scale)
 
-                pb    = unmasked_pb
+                pb    = unmasked_pb_self
                 ft    = ins_self[1]
                 midx  = ins_self[2]
                 ppr   = ins_self[3]
@@ -867,7 +906,7 @@ def collect_rollout(
                     action            = action,
                     log_prob_old      = out_self.log_probs[i, action].item(),
                     action_mask       = masks_self[i].cpu(),
-                    reveal_state      = tracker.get_state(i),
+                    reveal_state      = tracker_self.get_state(i),
                     reward            = reward,
                     reward_components = components,
                     done              = done,
@@ -875,7 +914,8 @@ def collect_rollout(
                 ))
 
                 if done:
-                    tracker.reset(i)
+                    tracker_self.reset(i)
+                    tracker_opp.reset(i)
                     envs[i] = PyBattle(format_id, seed=next_seed)
                     next_seed += 1
                     wins_self[i].reset()

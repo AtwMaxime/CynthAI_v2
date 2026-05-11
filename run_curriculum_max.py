@@ -38,7 +38,7 @@ if __name__ == "__main__":
 
         # Rollout
         n_envs          = 32,
-        min_steps       = 1024,
+        min_steps       = 2048,
 
         # PPO
         n_epochs        = 2,
@@ -46,16 +46,21 @@ if __name__ == "__main__":
         lr              = 2.5e-4,
         lr_min          = 1e-5,
         warmup_steps    = 20,
-        c_value         = 1.0,
+        c_value         = 2.0,
         c_entropy       = 0.02,     # doubled — explore more with POMDP masking
         c_pred          = 0.6,      # moderately push prediction heads
         max_grad_norm   = 0.5,
         weight_decay    = 1e-4,
 
-        # Opponent pool
-        pool_size               = 30,
+        # Opponent pool — periodic snapshots (P10c), reduced size
+        pool_size               = 10,
+        pool_snapshot_freq      = 100,
         pool_snapshot_threshold = 0.55,
         pool_cooldown           = 5,
+
+        # P10b — EMA opponent
+        ema_decay               = 0.995,
+        ema_warmup              = 5,
 
         # P1 — POMDP masking (3-phase curriculum)
         mask_schedule           = "phase",

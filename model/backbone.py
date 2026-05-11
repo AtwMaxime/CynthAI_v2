@@ -169,6 +169,10 @@ class BattleBackbone(nn.Module):
 
         seq = self._build_sequence(pokemon_tokens, field_tokens)   # [B, 52, D_MODEL]
 
+        # P13b: padding mask
+        turn_norm = field_tokens.abs().sum(dim=-1)
+        padding_mask = (turn_norm < 1e-6).repeat_interleave(13, dim=1)  # [B, 52]
+
         # Manual layer-by-layer forward to capture attention weights.
         # This avoids fastpath/bypass issues with monkey-patching _sa_block.
         for layer in self.transformer.layers:
@@ -182,6 +186,7 @@ class BattleBackbone(nn.Module):
                 attn_input, attn_input, attn_input,
                 need_weights=True,
                 average_attn_weights=False,
+                key_padding_mask=padding_mask,
             )
             self._attention_maps.append(attn_out[1].detach().cpu())
 
@@ -267,7 +272,11 @@ class BattleBackbone(nn.Module):
             value          : [B, 1]             — V(s) estimate
         """
         seq = self._build_sequence(pokemon_tokens, field_tokens)   # [B, 52, D_MODEL]
-        seq = self.transformer(seq)                                 # [B, 52, D_MODEL]
+
+        # P13b: padding mask — zero-filled turns have all-zero field features
+        turn_norm = field_tokens.abs().sum(dim=-1)                   # [B, K]
+        padding_mask = (turn_norm < 1e-6).repeat_interleave(13, dim=1)  # [B, 52]
+        seq = self.transformer(seq, src_key_padding_mask=padding_mask)  # [B, 52, D_MODEL]
 
         current_tokens = seq[:, -N_SLOTS:, :]                      # [B, 13, D_MODEL]
 

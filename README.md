@@ -52,7 +52,7 @@ CynthAI_v2/
 
 ## Architecture Overview
 
-**~6.7M parameters** total across all modules.
+**~3.1M parameters** total across all modules.
 
 ### Model Pipeline
 
@@ -67,7 +67,7 @@ State dict (PyBattle) → State Encoder → Token Embedding → Transformer Back
 
 2. **Token Embedding** (`model/embeddings.py`): `PokemonEmbeddings` looks up 7 embedding tables and concatenates them with scalars → 438-dim vector per Pokémon. Type embeddings are seeded from log2 type chart; move embeddings from type+category priors.
 
-3. **Transformer Backbone** (`model/backbone.py`): 3 layers, 4 heads, d_model=256, FFN=512, Pre-LN. Processes K=4 turns of 13 tokens each (6 own + 6 opponent + 1 field) = 52 tokens. Uses learned temporal + slot positional embeddings.
+3. **Transformer Backbone** (`model/backbone.py`): 3 layers, 4 heads, d_model=256, FFN=512, Pre-LN. Processes K=4 turns of 13 tokens each (6 own + 6 opponent + 1 field) = 52 tokens. Uses learned temporal + slot positional embeddings. Padding mask zeroes out empty/future turns (all-zero field features) in the self-attention computation.
 
 4. **Actor Head (DETR-style)**: Action embeddings (13 queries) cross-attend over the 13 current-turn tokens (keys/values). This is the same pattern as DETR's object queries — learnable queries attend over encoder output. Output: 13 logits (4 moves + 4 mechanic variants + 5 switches).
 
@@ -123,7 +123,8 @@ total = policy_loss + c_value × value_loss + c_entropy × entropy_loss + c_pred
 | Terminal win/loss | ±1.0 | Sparse, never scaled |
 | Opponent KO | +0.05 | Scaled by `dense_scale` |
 | Own KO | -0.05 | Scaled by `dense_scale` |
-| Δ HP advantage | 0.01 × Δadv | Scaled by `dense_scale` |
+| Δ HP advantage | 0.05 × Δadv | Scaled by `dense_scale` (×5 vs v1) |
+| Δ count advantage | 0.03 × Δcount/6 | Alive Pokémon difference, scaled by `dense_scale` |
 
 ### Curriculum (3 phases)
 
@@ -135,30 +136,35 @@ total = policy_loss + c_value × value_loss + c_entropy × entropy_loss + c_pred
 
 ### Opponent Mixing
 
-80% pool (past snapshots) / 10% RandomPolicy / 10% FullOffensePolicy. When pool is empty (no snapshots yet), pool.sample() returns the current agent (pure self-play).
+5% RandomPolicy / 5% FullOffensePolicy / 70% EMA opponent / 20% pool (past snapshots).
+When the pool is empty (early training), EMA is used for the pool share as well.
+
+- **EMA Opponent**: Exponential Moving Average of the online agent weights (decay=0.995, warmup=5 updates). Provides a stable, always-available self-play opponent that smooths over the agent's oscillations during training. Updated after each PPO step.
+- **Pool**: Periodic snapshots (every 100 updates) of the online agent — replaces the old WR-gated snapshot system. Size limited to 10 most recent snapshots.
 
 ### Evaluation
 
-Every `eval_freq` updates: 500 games vs RandomPolicy, FullOffensePolicy, and pool. Agent is snapshotted into the pool when pool eval win rate exceeds 0.55.
+Every `eval_freq` updates: 500 games vs RandomPolicy, FullOffensePolicy, EMA opponent, and pool.
+The agent is snapshotted into the pool every `pool_snapshot_freq=100` updates (regardless of win rate).
 
 ## Key Files Reference
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `model/backbone.py` | 316 | Transformer, value head, actor cross-attention, attention map capture |
-| `model/agent.py` | 106 | Top-level forward pass combining all sub-modules |
-| `model/embeddings.py` | 327 | Token embeddings (438-dim), POMDP masking, collation |
-| `model/prediction_heads.py` | 159 | 4 Linear prediction heads + masked CE loss |
-| `env/state_encoder.py` | ~400 | Battle state → feature vectors, all vocabulary constants |
-| `env/action_space.py` | 82 | 13 action embeddings (moves + mechanic + switch) |
-| `env/revealed_tracker.py` | 372 | Parses PS protocol logs to track revealed opponent info |
-| `training/self_play.py` | 748 | Main training loop, opponent pool, curriculum schedules |
-| `training/rollout.py` | 893 | Episode collection, GAE computation, action masking |
-| `training/losses.py` | 110 | PPO-clip + value + entropy + prediction loss |
-| `training/evaluate.py` | 222 | Evaluation against fixed opponents |
-| `training/monitor.py` | 324 | Diagnostic plots from eval data |
-| `env/bots.py` | 265 | FullOffensePolicy — rule-based damage maximizer |
-| `run_curriculum_max.py` | 81 | Launcher with 3-phase curriculum config |
+| `model/backbone.py` | 268 | Transformer, value head, actor cross-attention, attention map capture, padding mask |
+| `model/agent.py` | 87 | Top-level forward pass combining all sub-modules |
+| `model/embeddings.py` | 272 | Token embeddings (438-dim), POMDP masking, collation |
+| `model/prediction_heads.py` | 132 | 4 Linear prediction heads + masked CE loss |
+| `env/state_encoder.py` | 252 | Battle state → feature vectors, all vocabulary constants |
+| `env/action_space.py` | 66 | 13 action embeddings (moves + mechanic + switch) |
+| `env/revealed_tracker.py` | 313 | Parses PS protocol logs to track revealed opponent info |
+| `training/self_play.py` | 706 | Main training loop, EMA opponent, opponent pool, curriculum schedules |
+| `training/rollout.py` | 783 | Episode collection, GAE computation, action masking, reward components |
+| `training/losses.py` | 91 | PPO-clip + value + entropy + prediction loss |
+| `training/evaluate.py` | 184 | Evaluation against fixed opponents with diagnostics |
+| `training/monitor.py` | 268 | Diagnostic plots from eval data |
+| `env/bots.py` | 211 | FullOffensePolicy — rule-based damage maximizer |
+| `run_curriculum_max.py` | 69 | Launcher with 3-phase curriculum config |
 | `simulator/src/lib.rs` | — | Rust PyBattle (PyO3 binding over pokemon-showdown-rs) |
 
 ## Usage

@@ -17,6 +17,9 @@ Run from the CynthAI_v2 directory:
 """
 
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import torch
 import tempfile
 import os
