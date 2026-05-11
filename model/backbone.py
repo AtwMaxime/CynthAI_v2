@@ -263,28 +263,39 @@ class BattleBackbone(nn.Module):
         self,
         pokemon_tokens: torch.Tensor,   # [B, K*12, TOKEN_DIM]
         field_tokens:   torch.Tensor,   # [B, K,    FIELD_DIM]
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
-        Run the Transformer once and return enriched state tokens + value.
+        Run the Transformer once and return pre-transformer + post-transformer tokens + value.
+
+        Pre-tokens (before self-attention) encode only raw projected features —
+        used for action queries to avoid self-match shortcuts (P13e).
+
+        Post-tokens (after self-attention) are enriched with global battle context —
+        used as cross-attention keys/values and prediction heads.
 
         Returns:
-            current_tokens : [B, 13, D_MODEL]  — current turn tokens
-            value          : [B, 1]             — V(s) estimate
+            pre_tokens    : [B, 13, D_MODEL]  — current turn BEFORE Transformer
+            post_tokens   : [B, 13, D_MODEL]  — current turn AFTER Transformer
+            value         : [B, 1]             — V(s) estimate
         """
         seq = self._build_sequence(pokemon_tokens, field_tokens)   # [B, 52, D_MODEL]
+
+        # Current turn tokens BEFORE Transformer (raw projected + pos emb, no self-attn)
+        pre_tokens = seq[:, -N_SLOTS:, :]                          # [B, 13, D_MODEL]
 
         # P13b: padding mask — zero-filled turns have all-zero field features
         turn_norm = field_tokens.abs().sum(dim=-1)                   # [B, K]
         padding_mask = (turn_norm < 1e-6).repeat_interleave(13, dim=1)  # [B, 52]
         seq = self.transformer(seq, src_key_padding_mask=padding_mask)  # [B, 52, D_MODEL]
 
-        current_tokens = seq[:, -N_SLOTS:, :]                      # [B, 13, D_MODEL]
+        # Current turn tokens AFTER Transformer (enriched by self-attention)
+        post_tokens = seq[:, -N_SLOTS:, :]                         # [B, 13, D_MODEL]
 
-        B      = current_tokens.shape[0]
-        pooled = current_tokens.mean(dim=1)                         # [B, D_MODEL]
+        B      = post_tokens.shape[0]
+        pooled = post_tokens.mean(dim=1)                            # [B, D_MODEL]
         value  = self.value_head(pooled)                            # [B, 1]
 
-        return current_tokens, value
+        return pre_tokens, post_tokens, value
 
     def act(
         self,
@@ -319,6 +330,6 @@ class BattleBackbone(nn.Module):
             value          : [B, 1]
             action_logits  : [B, 13]  (illegal actions set to -1e9)
         """
-        current_tokens, value = self.encode(pokemon_tokens, field_tokens)
-        action_logits = self.act(action_embeds, current_tokens, action_mask)
-        return current_tokens, value, action_logits
+        pre_tokens, post_tokens, value = self.encode(pokemon_tokens, field_tokens)
+        action_logits = self.act(action_embeds, post_tokens, action_mask)
+        return post_tokens, value, action_logits

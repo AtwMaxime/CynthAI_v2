@@ -164,7 +164,7 @@ backbone.eval()
 field_t = fb.field.reshape(B, K, FIELD_DIM)
 
 with torch.no_grad():
-    cur_tok, value = backbone.encode(tok, field_t)
+    pre_tok, cur_tok, value = backbone.encode(tok, field_t)
 
 check("current_tokens shape [B, 13, D_MODEL]",  tuple(cur_tok.shape) == (B, 13, D_MODEL),
       str(tuple(cur_tok.shape)))
@@ -196,11 +196,11 @@ pp_ratio       = torch.rand(B, 4)
 move_disabled  = torch.zeros(B, 4)
 mechanic_id    = torch.zeros(B, dtype=torch.long)
 mech_type_idx  = torch.zeros(B, dtype=torch.long)
-bench_tokens   = cur_tok[:, 1:6, :]
+bench_tokens   = pre_tok[:, 1:6, :]                  # pre-transformer (no self-match)
 
 with torch.no_grad():
     action_embeds = ae(
-        active_token      = cur_tok[:, 0, :],
+        active_token      = pre_tok[:, 0, :],          # pre-transformer
         move_idx          = move_idx,
         pp_ratio          = pp_ratio,
         move_disabled     = move_disabled,

@@ -76,28 +76,28 @@ class CynthAIAgent(nn.Module):
         pokemon_tokens = self.poke_emb(poke_batch)          # [B, K*12, TOKEN_DIM]
 
         # ── 2. Single Transformer pass ────────────────────────────────────────
-        current_tokens, value = self.backbone.encode(pokemon_tokens, field_tensor)
+        pre_tokens, post_tokens, value = self.backbone.encode(pokemon_tokens, field_tensor)
 
-        # ── 3. Action embeddings ──────────────────────────────────────────────
+        # ── 3. Action embeddings (from PRE-transformer tokens — no self-match) ─
         action_embeds = self.action_enc(
-            active_token      = current_tokens[:, 0, :],
+            active_token      = pre_tokens[:, 0, :],
             move_idx          = move_idx,
             pp_ratio          = pp_ratio,
             move_disabled     = move_disabled,
-            bench_tokens      = current_tokens[:, 1:6, :],
+            bench_tokens      = pre_tokens[:, 1:6, :],
             mechanic_id       = mechanic_id,
             mechanic_type_idx = mechanic_type_idx,
         )                                                    # [B, 13, D_MODEL]
 
-        # ── 4. Actor head (cross-attention only, no second Transformer) ───────
-        action_logits = self.backbone.act(action_embeds, current_tokens, action_mask)
+        # ── 4. Actor head (keys = POST-transformer, enriched context) ──────────
+        action_logits = self.backbone.act(action_embeds, post_tokens, action_mask)
         log_probs     = F.log_softmax(action_logits, dim=-1)
 
-        # ── 5. Predictor on opponent tokens ───────────────────────────────────
-        pred_logits = self.predictor(current_tokens[:, OPP_SLOTS, :])
+        # ── 5. Predictor on opponent tokens (post-transformer) ─────────────────
+        pred_logits = self.predictor(post_tokens[:, OPP_SLOTS, :])
 
         return AgentOutput(
-            current_tokens = current_tokens,
+            current_tokens = post_tokens,
             value          = value,
             action_logits  = action_logits,
             log_probs      = log_probs,
