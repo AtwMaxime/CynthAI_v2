@@ -18,7 +18,40 @@ POMDP masking, Reward Curriculum, Pool/opponent mixing, Régularisation, Critic,
 
 ---
 
-## P10 — Correction de l'Opponent Mixing (priorité #1)
+## P14 — Attention collapse (cross-attention action → FIELD uniquement)
+
+**Constat** (update 1000) : Les 13 action queries (M1-M4, T1-T4, S1-S5) attendent toutes exclusivement sur le token FIELD (colonne 12). La carte d'attention est une matrice 13×13 avec uniquement la dernière colonne à 1, le reste à 0. Ce comportement a commencé vers update 800 et s'est complètement installé à update 1000.
+
+**Cause probable** : Le token FIELD a une norme ou une distribution différente des tokens Pokémon, ce qui en fait une cible "facile" pour l'attention softmax. Le modèle prend ce raccourci car il suffit à générer une politique approximative, mais il ne peut plus s'améliorer au-delà.
+
+**Impact** : Le win rate plafonne à ~50% car les action queries n'extraient plus aucune information des Pokémon (own ou opp). La politique est aveugle aux matchups, aux menaces, aux opportunités.
+
+**Solutions candidates** :
+1. **Régularisation d'entropie d'attention** — Ajouter une loss `H(α) = -Σ α log(α)` sur les poids d'attention cross-attention pour forcer la dispersion sur plusieurs tokens. Léger (1 scalaire par batch), efficace.
+2. **Attention dropout plus élevé** — Passer dropout de 0.1 à 0.3 dans `nn.MultiheadAttention` pour forcer le modèle à ne pas dépendre d'un seul token.
+3. **Gating / Skip connection** — Ajouter `output = cross_attn(q, kv) + α * q` avec α appris pour court-circuiter l'attention si nécessaire.
+4. **Query diversity loss** — Pénaliser la similarité entre patterns d'attention des différentes queries.
+
+**Fichiers** : `model/backbone.py` (cross-attention), `training/losses.py` (régularisation).
+
+---
+
+## P15 — Têtes de prédiction : accuracy anormale (item=0%, ability/move=100%)
+
+**Constat** (update 1000) : Les métriques d'accuracy des têtes de prédiction sont pathologiques :
+- **Item accuracy : 0.00%** — La tête n'a jamais prédit un objet correct. Soit les objets ne sont jamais révélés dans l'état, soit il y a un bug de ciblage.
+- **Ability accuracy : ~100%** — Trop parfait. Probablement parce que l'ability est toujours révélée dès le départ (espèce connue → ability déduite). La tâche est triviale.
+- **Move accuracy : ~100%** — Idem, les moves sont peut-être toujours connus.
+
+**Impact** : La loss de prédiction (pred_loss) est proche de zéro car les têtes ability/move dominent avec leur accuracy parfaite, tandis que item/tera n'apprennent rien. Le gradient de la loss auxiliaire n'apporte pas d'information utile au backbone.
+
+**À investiguer** :
+- Est-ce que les items sont bien présents dans le state dict PyBattle (`item` field dans chaque Pokémon) ?
+- Est-ce que `build_targets()` dans `prediction_heads.py` reçoit bien des targets non-UNK pour item/tera ?
+- Vérifier si `RevealedTracker` révèle correctement les items via les logs PS (`|item|`).
+- Vérifier le dataflow complet : state dict → PokemonBatch → build_targets → compute_loss.
+
+**Fichiers** : `model/prediction_heads.py`, `training/rollout.py` (passage du full_opp_batch), `env/revealed_tracker.py`.
 
 **Pourquoi le training ne marche pas : un bug de masking asymétrique + un pool vide**
 
@@ -564,3 +597,90 @@ Le `RevealedTracker` marque `species_revealed` dès qu'un Pokémon entre sur le 
 Actuellement, `apply_reveal_mask()` applique le **même** masque de révélation aux K=4 tours du sliding window. Si l'item adverse est révélé au tour 5, les tours 2-3-4 dans l'historique du window montrent aussi l'item — comme si le modèle avait toujours su.
 
 **Solution si nécessaire un jour** : stocker `reveal_state` à chaque push dans `BattleWindow`, et modifier `_build_sequence()` pour que `apply_reveal_mask()` reçoive un masque par turn au lieu d'un masque global. Pas prioritaire tant que les performances n'indiquent pas un plafond lié à ce comportement.
+
+---
+
+## P15b — Bug: le mask RevealedTracker écrase la ground truth pour la perte auxiliaire
+
+**Constat** : `item_acc = 0%` et `tera_acc = 0%` depuis le début de l'entraînement.
+
+**Cause racine** : dans `self_play.py` lignes 604-611, le mask de la loss de prédiction est **systématiquement remplacé** par les données du `RevealedTracker` (POMDP), même quand la vérité terrain du simulateur est disponible :
+
+```python
+# self_play.py L604-611 — BUG: override inconditionnel
+pred_loss = PredictionHeads.compute_loss(
+    out.pred_logits,
+    targets[0], targets[1], targets[2], targets[3],
+    item_mask    = batch["reveal_item"],     # ← RevealedTracker (presque toujours False)
+    ability_mask = batch["reveal_ability"],  # ← pareil
+    tera_mask    = batch["reveal_tera"],     # ← pareil
+    move_mask    = batch["reveal_moves"],    # ← pareil
+)["total"]
+```
+
+Le `RevealedTracker` ne set `item=True` que sur `|-enditem|` ou `[from] Item` dans les logs — des événements rares. En phase II (mask_ratio=0.5), les items adverses sont quasiment jamais "révélés" → `item_mask = False` pour 99% des transitions → **la tête item ne reçoit aucun gradient**.
+
+**Solution** : Utiliser `build_targets()` qui compare `item_idx != UNK` — le simulateur connaît toujours la vérité terrain. Les slots UNK (hors-liste, bench vide) sont naturellement exclus. Les masks RevealedTracker doivent servir pour le POMDP, pas pour la perte auxiliaire.
+
+```python
+# Fix: utiliser le mask de build_targets (ground truth du simulateur)
+targets = PredictionHeads.build_targets(opp_batch)
+item_mask, ability_mask, tera_mask, move_mask = targets[4], targets[5], targets[6], targets[7]
+```
+
+**Note** : `ability_mask` et `move_mask` sont probablement aussi affectés — les abilities sont parfois évidentes de l'espèce mais pas toujours. La ground truth du simulateur est fiable pour toutes ces cibles.
+
+**Fichiers** : `training/self_play.py` (lignes 602-623), `model/prediction_heads.py` (`build_targets`).
+
+---
+
+## P15c — Têtes de prédiction pour les stats brutes adverses (regression)
+
+**Objectif** : Ajouter une tête de régression pour prédire les stats actuelles (atk, def, spa, spd, spe) de chaque Pokémon adverse. Dans le POMDP, l'agent ne voit pas ces stats — elles sont critiques pour évaluer la menace.
+
+**Conception** :
+```python
+# Nouveau head dans PredictionHeads
+self.stats_head = nn.Linear(D_MODEL, 5)  # atk, def, spa, spd, spe
+
+# Perte: MSE masquée (masque = slot non-UNK)
+# Les stats sont présentes dans PokemonFeatures.stats (5 scalaires normalisés)
+```
+
+**Pourquoi c'est utile** : En Random Battle, le nature est aléatoire → les stats brutes varient pour une même espèce. Prédire les stats adverses permet à l'agent d'estimer la menace (ex: Dracaufeu a-t-il du SpA boosté par nature ?) sans avoir à les voir directement.
+
+**Fichiers** : `model/prediction_heads.py`, `training/self_play.py`, `training/losses.py` (c_stats coefficient).
+
+---
+
+## P16 — Ajustements des hyperparamètres PPO
+
+### P16a — Réduire l'entropy bonus
+
+Le `c_entropy=0.01` actuel, combiné à une entropy de ~2.3 nats (sur max 2.56 pour 13 actions), signifie que **l'entropie contribue à ~0.023 de la loss totale** (~0.72). Le policy_loss est ~0.001. **Ratio entropy/policy ≈ 23:1** — l'entropie domine complètement.
+
+**Solution** : Baisser `c_entropy` à 0.001-0.003, ou utiliser un annealing (`c_entropy * (1 - update/max_updates)`).
+
+### P16b — Augmenter les PPO epochs
+
+Actuellement `n_epochs=2` avec `clip_frac=0.03`. Le clipping est quasi inactif → le modèle peut supporter plus d'itérations sans dépasser le ratio 1.2.
+
+**Solution** : Passer à 4-8 epochs. Le coût compute est ~2-4× sur la partie PPO (déjà rapide comparé au rollout).
+
+### P16c — Ajuster le mix d'adversaires
+
+Actuellement : 5% FO / 5% Random / 70% EMA / 20% pool. L'agent ne voit presque jamais FO, donc n'apprend jamais à le contrer.
+
+**Solution** : Passer à 20% FO / 10% Random / 50% EMA / 20% pool. Ou utiliser un curriculum d'adversaires (augmenter FO progressivement).
+
+### P16d — Diagnostiquer les advantages
+
+Ajouter dans les logs de `compute_losses()` :
+```python
+# Dans losses.py, avant de return:
+"adv_mean": advantages.mean().detach().item(),
+"adv_std":  advantages.std().detach().item(),
+"ratio_mean": (ratio - 1.0).abs().mean().detach().item(),
+```
+
+Si `adv_std < 0.5` après normalisation ou `ratio_mean < 0.01`, le signal policy est trop faible.

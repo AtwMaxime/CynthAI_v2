@@ -227,7 +227,7 @@ from env.action_space import MECH_NONE, MECH_TERA
 agent = CynthAIAgent()
 agent.eval()
 n_params = sum(p.numel() for p in agent.parameters())
-check("agent params ~2.8M",  abs(n_params - 2_801_286) < 100, f"{n_params:,}")
+check("agent params ~2.6M",  abs(n_params - 2_592_514) < 100, f"{n_params:,}")
 
 battle3 = PyBattle("gen9randombattle", seed=7)
 state3 = battle3.get_state()
@@ -294,7 +294,7 @@ check("no NaN in value",              not out.value.isnan().any().item())
 check("pred_logits item head",        out.pred_logits.item.shape == (1, 6, 250))
 check("pred_logits ability head",     out.pred_logits.ability.shape == (1, 6, 311))
 check("pred_logits tera head",        out.pred_logits.tera.shape == (1, 6, 19))
-check("pred_logits moves head",       out.pred_logits.moves.shape == (1, 6, 4, 686))
+check("pred_logits moves head",       out.pred_logits.moves.shape == (1, 6, 686))
 
 
 # ── 6. Complete episode ─────────────────────────────────────────────────────────

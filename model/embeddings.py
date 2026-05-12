@@ -2,7 +2,7 @@
 CynthAI_v2 Embeddings — categorical + scalar feature encoding for Pokémon tokens.
 
 TOKEN_DIM = D_SPECIES + D_TYPE + D_TYPE + D_TYPE + D_ITEM + D_ABILITY + 4*D_MOVE + N_SCALARS
-          = 32 + 8 + 8 + 8 + 16 + 16 + 128 + 222  =  438
+          = 32 + 8 + 8 + 8 + 16 + 16 + 128 + 223  =  439
 
 PokemonBatch holds pre-collated integer tensors for embedding lookups + a float
 scalar tensor. collate_features() assembles a list-of-lists of PokemonFeatures
@@ -35,9 +35,9 @@ D_MOVE:    int = 32   # must match MOVE_EMBEDDING_PRIOR.shape[1]
 D_ITEM:    int = 16
 D_ABILITY: int = 16
 
-N_SCALARS: int  = 222
+N_SCALARS: int  = 223
 TOKEN_DIM: int  = D_SPECIES + D_TYPE + D_TYPE + D_TYPE + D_ITEM + D_ABILITY + 4 * D_MOVE + N_SCALARS
-# = 32 + 8 + 8 + 8 + 16 + 16 + 128 + 222 = 438
+# = 32 + 8 + 8 + 8 + 16 + 16 + 128 + 223 = 439
 
 
 # ── PokemonBatch ───────────────────────────────────────────────────────────────
@@ -54,7 +54,7 @@ class PokemonBatch:
       item_idx    : [B, N]       int64
       ability_idx : [B, N]       int64
       move_idx    : [B, N, 4]    int64
-      scalars     : [B, N, 222]  float32
+      scalars     : [B, N, 223]  float32
     """
     species_idx: torch.Tensor
     type1_idx:   torch.Tensor
@@ -123,6 +123,7 @@ def collate_features(batch: list) -> PokemonBatch:
             scalars_np[b, f, 219]    = p.trapped
             scalars_np[b, f, 220]    = p.force_switch_flag
             scalars_np[b, f, 221]    = p.revealed
+            scalars_np[b, f, 222]    = p.hp           # raw current HP
 
     return PokemonBatch(
         species_idx = torch.from_numpy(species_np),
@@ -216,9 +217,10 @@ def apply_reveal_mask(
             no_sp = bm & ~reveal_species[:, s]
             scalar_mask[no_sp, slot, :] = False
 
-            # 2. Species known: mask stats (indices 8-13 inclusive)
+            # 2. Species known: mask stats (indices 8-13) + raw HP (index 222)
             known = bm & reveal_species[:, s]
             scalar_mask[known, slot, 8:14] = False
+            scalar_mask[known, slot, 222]  = False
 
             # 3. Per-move-slot PP masking (indices 21-24)
             for j in range(4):
@@ -244,7 +246,7 @@ class PokemonEmbeddings(nn.Module):
     """
     Embedding tables for all categorical Pokémon fields.
 
-    forward(PokemonBatch) → [B, N, TOKEN_DIM=438]
+    forward(PokemonBatch) → [B, N, TOKEN_DIM=439]
     """
 
     def __init__(self):
@@ -284,7 +286,7 @@ class PokemonEmbeddings(nn.Module):
         mv = mv.reshape(B, N, 4 * D_MOVE)             # [B, N, 4*D_MOVE]
 
         return torch.cat([sp, t1, t2, tr, it, ab, mv, batch.scalars], dim=-1)
-        # → [B, N, 32+8+8+8+16+16+128+222] = [B, N, 438]
+        # → [B, N, 32+8+8+8+16+16+128+223] = [B, N, 439]
 
 
 # ── FieldBatch ────────────────────────────────────────────────────────────────

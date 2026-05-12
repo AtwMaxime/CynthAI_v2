@@ -113,6 +113,7 @@ class PokemonFeatures:
     """
     species_idx:       int   = UNK
     level:             float = 0.0
+    hp:                float = 0.0   # raw current HP (not ratio, not base)
     hp_ratio:          float = 0.0
     type1_idx:         int   = UNK
     type2_idx:         int   = UNK
@@ -149,6 +150,7 @@ def encode_pokemon(poke: dict) -> PokemonFeatures:
 
     maxhp = poke.get("maxhp", 0)
     features.hp_ratio = poke.get("hp", 0.0) / (maxhp or 1)
+    features.hp       = float(poke.get("hp", 0.0))
 
     types = poke.get("types", [])
     t1    = types[0] if types else ""

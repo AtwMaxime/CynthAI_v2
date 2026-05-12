@@ -74,6 +74,9 @@ def save_eval_plots(
     _plot_value_calib(eval_results, subdirs["value_calib"], tag)
     _plot_cross_attention(eval_results, subdirs["cross_attn"], tag)
 
+    # Accuracy-over-time plot from metrics.csv (if available)
+    _plot_prediction_accuracy(str(base / "metrics.csv"), subdirs["data"], tag)
+
     print(f"  -> eval plots saved to {base}/  [{tag}]")
 
 
@@ -386,4 +389,47 @@ def _plot_cross_attention(
 
     fig.tight_layout()
     _save_fig(fig, save_path / tag)
+    plt.close(fig)
+
+
+def _plot_prediction_accuracy(
+    metrics_path: str,
+    save_path: Path,
+    tag: str,
+) -> None:
+    """
+    Plot prediction head accuracy over training updates from metrics.csv.
+    Generated at each eval step alongside other eval plots.
+    """
+    import csv
+    try:
+        with open(metrics_path, newline="") as f:
+            reader = csv.DictReader(f)
+            rows = [r for r in reader if r.get("item_acc")]
+    except (FileNotFoundError, IOError):
+        return
+    if not rows:
+        return
+
+    updates = [int(r["update"]) for r in rows]
+    fig, ax = plt.subplots(1, 1, figsize=(8, 4))
+    fig.suptitle(f"Prediction Head Accuracy — {tag}", fontsize=12, fontweight="bold")
+
+    for key, label, color in [
+        ("item_acc",    "Item",    "#3498db"),
+        ("ability_acc", "Ability", "#e67e22"),
+        ("tera_acc",    "Tera",    "#2ecc71"),
+        ("move_recall", "Move@4",  "#e74c3c"),
+    ]:
+        vals = [float(r[key]) * 100 for r in rows]
+        ax.plot(updates, vals, label=label, color=color, linewidth=1.5, alpha=0.8)
+
+    ax.set_xlabel("Update")
+    ax.set_ylabel("Accuracy (%)")
+    ax.legend(fontsize=9)
+    ax.grid(True, alpha=0.3)
+    ax.set_ylim(0, 100)
+
+    fig.tight_layout()
+    _save_fig(fig, save_path / "prediction_accuracy")
     plt.close(fig)

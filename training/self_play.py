@@ -599,18 +599,18 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 opp_batch = _slice_opp_batch(batch["poke_batch"])  # ground truth
                 targets   = PredictionHeads.build_targets(opp_batch)
 
-                # Override prediction loss masks with actual reveal state
-                if "reveal_species" in batch:
-                    pred_loss = PredictionHeads.compute_loss(
-                        out.pred_logits,
-                        targets[0], targets[1], targets[2], targets[3],
-                        item_mask    = batch["reveal_item"],
-                        ability_mask = batch["reveal_ability"],
-                        tera_mask    = batch["reveal_tera"],
-                        move_mask    = batch["reveal_moves"],
-                    )["total"]
-                else:
-                    pred_loss = PredictionHeads.compute_loss(out.pred_logits, *targets)["total"]
+                # Override prediction masks with RevealedTracker si POMDP actif
+                # (masks ground truth = toujours True, sauf si masking overridé)
+                if mask_ratio > 0 and "reveal_species" in batch:
+                    it_t, ab_t, te_t, mv_t, it_m, ab_m, te_m, mv_m, st_t, st_m = targets
+                    it_m = batch["reveal_item"]                              # [B, 6] bool
+                    ab_m = batch["reveal_ability"]                           # [B, 6] bool
+                    te_m = batch["reveal_tera"]                              # [B, 6] bool
+                    mv_m = batch["reveal_moves"].any(dim=-1)                 # [B, 6, 4] → [B, 6] bool
+                    targets = (it_t, ab_t, te_t, mv_t, it_m, ab_m, te_m, mv_m, st_t, st_m)
+
+                pred_loss = PredictionHeads.compute_loss(out.pred_logits, *targets)["total"]
+                acc = PredictionHeads.compute_accuracy(out.pred_logits, *targets)
 
                 losses = compute_losses(
                     logits_new   = out.action_logits,
@@ -634,6 +634,8 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 for k, v in losses.items():
                     loss_acc[k] += v.item()
                 loss_acc["grad_norm"] += grad_norm.item()
+                for k, v in acc.items():
+                    loss_acc[k] += v
                 n_steps += 1
 
         # -- 2b. P10b: EMA weight update -----------------------------------------------
@@ -666,6 +668,9 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 f"gn={loss_acc['grad_norm']/ns:.3f}  "
                 f"cf={loss_acc['clip_frac']/ns:.3f}  "
                 f"ev={loss_acc['explained_variance']/ns:.3f}  "
+                f"ia={loss_acc.get('item_acc',0)/ns:.2f} "
+                f"aa={loss_acc.get('ability_acc',0)/ns:.2f} "
+                f"ma={loss_acc.get('move_recall',0)/ns:.2f}  "
                 f"opp={opp_label}]"
             )
 
@@ -682,6 +687,10 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     "explained_variance": loss_acc["explained_variance"]/ns,
                     "eps": total_eps, "pool": len(pool),
                     "mask_ratio": mask_ratio, "dense_scale": dense_scale,
+                    "item_acc": loss_acc.get("item_acc", 0) / ns,
+                    "ability_acc": loss_acc.get("ability_acc", 0) / ns,
+                    "tera_acc": loss_acc.get("tera_acc", 0) / ns,
+                    "move_recall": loss_acc.get("move_recall", 0) / ns,
                     "opp": opp_label,
                 }
                 w = csv.DictWriter(f, fieldnames=list(row.keys()))

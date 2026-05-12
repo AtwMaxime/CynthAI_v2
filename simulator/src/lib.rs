@@ -150,6 +150,7 @@ impl PyBattle {
             side_dict.set_item("pokemon_left", side.pokemon_left)?;
             side_dict.set_item("total_fainted", side.total_fainted)?;
             side_dict.set_item("request_state", format!("{:?}", side.request_state))?;
+            side_dict.set_item("choice_error", side.choice.error.as_str())?;
 
             // Side conditions
             let sc = PyDict::new_bound(py);

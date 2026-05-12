@@ -1,14 +1,16 @@
 """
-CynthAI_v2 — Curriculum Max launch script.
+CynthAI_v2 — Cheater (full-info) training.
 
-3 phases:
-  I.   Fondations (0-600)    : mask=0.0, dense=1.0   — full info, full dense rewards
-  II.  Transition (600-2500) : mask=0.5, dense=0.5    — medium masking, medium sparse
-  III. Maîtrise   (2500-5000): mask=1.0, dense=0.1    — full masking, near-sparse
+Trains with NO POMDP masking (mask_ratio=0 always) and full dense rewards.
+Goal: validate the architecture works end-to-end when the agent has complete
+information about the opponent. If this converges, we know the architecture
+is sound and can proceed with:
+  - Distillation to a POMDP agent (teacher-student)
+  - Asymmetric actor-critic
 
 Usage:
-    python run_curriculum_max.py                          # fresh run
-    python run_curriculum_max.py --resume checkpoints/curriculum_max_20260510_1234/agent_002000.pt
+    python run_cheater.py                                # fresh run
+    python run_cheater.py --resume checkpoints/cheater_20260512_1200/agent_001000.pt
 """
 
 import sys
@@ -23,7 +25,7 @@ import torch
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="CynthAI_v2 Curriculum Max")
+    parser = argparse.ArgumentParser(description="CynthAI_v2 Cheater (full-info) Training")
     parser.add_argument("--resume",    default="",    help="checkpoint .pt to resume from")
     parser.add_argument("--run_name",  default="",    help="override auto-generated run name")
     parser.add_argument("--n_envs",    type=int, default=16)
@@ -32,7 +34,7 @@ if __name__ == "__main__":
 
     cfg = TrainingConfig(
         # Run meta
-        run_name        = args.run_name,
+        run_name        = f"cheater_{args.run_name}" if args.run_name else "",
         resume          = args.resume,
         total_updates   = 5000,
 
@@ -40,19 +42,19 @@ if __name__ == "__main__":
         n_envs          = 32,
         min_steps       = 2048,
 
-        # PPO
-        n_epochs        = 2,
+        # PPO — cheater: no masking → lower entropy, more epochs
+        n_epochs        = 4,
         batch_size      = 128,
         lr              = 2.5e-4,
         lr_min          = 1e-5,
         warmup_steps    = 20,
         c_value         = 2.0,
-        c_entropy       = 0.02,     # doubled — explore more with POMDP masking
-        c_pred          = 0.6,      # moderately push prediction heads
+        c_entropy       = 0.005,     # reduced: no POMDP masking, less exploration needed
+        c_pred          = 0.6,      # prediction heads still useful for auxiliary signal
         max_grad_norm   = 0.5,
         weight_decay    = 1e-4,
 
-        # Opponent pool — periodic snapshots (P10c), reduced size
+        # Opponent pool
         pool_size               = 10,
         pool_snapshot_freq      = 100,
         pool_snapshot_threshold = 0.55,
@@ -62,15 +64,15 @@ if __name__ == "__main__":
         ema_decay               = 0.995,
         ema_warmup              = 5,
 
-        # P1 — POMDP masking (3-phase curriculum)
+        # POMDP masking — DISABLED (mask_ratio=0 always)
         mask_schedule           = "phase",
-        mask_phase_breakpoints  = (600, 2500),
-        mask_phase_values       = (0.0, 0.5, 1.0),
+        mask_phase_breakpoints  = (),    # empty → compute_mask_ratio returns 0.0
+        mask_phase_values       = (),
 
-        # P2 — Reward curriculum (3-phase curriculum)
+        # Reward curriculum — DISABLED (full dense rewards always)
         dense_schedule          = "phase",
-        dense_phase_breakpoints = (600, 2500),
-        dense_phase_values      = (1.0, 0.5, 0.1),
+        dense_phase_breakpoints = (),    # empty → compute_dense_scale returns 1.0
+        dense_phase_values      = (),
 
         # Checkpointing / eval
         checkpoint_freq = 100,
