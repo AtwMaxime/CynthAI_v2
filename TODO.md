@@ -12,6 +12,8 @@ POMDP masking, Reward Curriculum, Pool/opponent mixing, Régularisation, Critic,
 **P11b** — c_value 1.0 → 2.0 ✅
 **P11c** — min_steps 1024 → 2048 ✅
 **P13b** — Masque de padding pour les tours 1 à 3 (padding mask dans backbone) ✅
+**P13c** — Reward signal : HP_ADV_SCALE ×5 + COUNT_ADV_SCALE 0.03 ✅
+**P13e** — Queries d'action construites à partir des tokens pre-transformer (pas de self-match) ✅
 
 ---
 

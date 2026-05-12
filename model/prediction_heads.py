@@ -60,7 +60,13 @@ class PredictionHeads(nn.Module):
         self.item_head    = nn.Linear(D_MODEL, N_ITEMS)
         self.ability_head = nn.Linear(D_MODEL, N_ABILITIES)
         self.tera_head    = nn.Linear(D_MODEL, N_TYPES)
-        self.move_head    = nn.Linear(D_MODEL, N_MOVES * N_MOVE_SLOTS)
+        # Move head: factorisé avec bottleneck 128 pour régularisation (P13d).
+        # Si la prédiction des moves échoue (loss plafonnée), augmenter 128 → 256.
+        self.move_head = nn.Sequential(
+            nn.Linear(D_MODEL, 128),
+            nn.ReLU(),
+            nn.Linear(128, N_MOVES * N_MOVE_SLOTS),
+        )
 
     def forward(self, opp_tokens: torch.Tensor) -> PredictionLogits:
         """
