@@ -51,6 +51,7 @@ from training.evaluate import run_eval
 from training.monitor import save_eval_plots
 from env.bots import FullOffensePolicy
 import gc
+from tqdm import tqdm
 
 
 def _save_fig(fig, path_stem: str):
@@ -489,6 +490,8 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
         f"{'pred':>8}  {'total':>8}  {'lr':>8}  info  opp"
     )
 
+    pbar = tqdm(total=cfg.total_updates - start_update + 1,
+                desc="Training", unit="updates", position=0, leave=True)
     for update in range(start_update, cfg.total_updates + 1):
         t0 = time.perf_counter()
 
@@ -662,7 +665,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
         if update % cfg.log_every == 0:
             ns      = max(n_steps, 1)
             elapsed = time.perf_counter() - t0
-            print(
+            pbar.write(
                 f"{update:>7}  {win_rate*100:>5.1f}%  "
                 f"{loss_acc['policy']/ns:>8.4f}  "
                 f"{loss_acc['value']/ns:>8.4f}  "
@@ -683,6 +686,11 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 f"ae={loss_acc.get('attn_entropy',0)/ns:.4f}  "
                 f"opp={opp_label}]"
             )
+            pbar.set_postfix_str(f"WR={win_rate*100:.1f}%  "
+                                 f"loss={loss_acc['total']/ns:.3f}  "
+                                 f"lr={lr:.2e}  "
+                                 f"opp={opp_label}  "
+                                 f"eps={total_eps}")
 
             # CSV log
             with open(metrics_path, "a", newline="") as f:
@@ -823,6 +831,10 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
 
         # Collect garbage to prevent Rust PyBattle objects from accumulating
         gc.collect()
+
+        pbar.update(1)
+
+    pbar.close()
 
 
 # -- Entry point --------------------------------------------------------------------
