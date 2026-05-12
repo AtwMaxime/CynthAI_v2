@@ -38,6 +38,7 @@ def run_eval(
     device:            torch.device = torch.device("cpu"),
     opponent_sampler:  callable | None = None,
     mask_ratio:        float = 0.0,   # P1: match training masking
+    capture_cross_attn: bool = False, # P13e: capture cross-attention weights
 ) -> dict:
     """
     Evaluate an agent against an opponent policy.
@@ -48,6 +49,9 @@ def run_eval(
     If opponent_sampler is provided, it is called each batch to get a fresh
     opponent (e.g. sampling from an OpponentPool for diversity). When using
     opponent_sampler, the `opponent` parameter is ignored.
+
+    When capture_cross_attn=True, stores cross-attention weights from the
+    actor head and returns cross_attn_stats in the result dict.
 
     Returns dict with keys: win_rate, wins, losses, ties, total, ci_low, ci_high.
     """
@@ -63,6 +67,13 @@ def run_eval(
     reward_decomp_n = 0
     value_preds: list[float] = []
     value_returns: list[float] = []
+
+    # Cross-attention aggregation
+    cross_attn_sums: torch.Tensor | None = None
+    cross_attn_n = 0
+
+    if capture_cross_attn:
+        agent.backbone._store_cross_attn = True
 
     t0 = time.perf_counter()
 
@@ -85,6 +96,16 @@ def run_eval(
             device     = device,
             mask_ratio = mask_ratio,
         )
+
+        # --- Collect cross-attention stats ---
+        if capture_cross_attn:
+            stats = agent.backbone.get_cross_attention_stats()
+            if stats is not None:
+                if cross_attn_sums is None:
+                    cross_attn_sums = stats["mean"] * stats["n"]  # [H, 13, 13]
+                else:
+                    cross_attn_sums += stats["mean"] * stats["n"]
+                cross_attn_n += stats["n"]
 
         # --- Collect diagnostics from this batch ---
         ep_len = 0
@@ -117,6 +138,10 @@ def run_eval(
                 else:
                     ties += 1
 
+    # Clean up flag
+    if capture_cross_attn:
+        agent.backbone._store_cross_attn = False
+
     elapsed  = time.perf_counter() - t0
     win_rate = wins / total if total > 0 else 0.0
 
@@ -134,7 +159,7 @@ def run_eval(
     if reward_decomp_n > 0:
         reward_decomp_avg = {k: v / reward_decomp_n for k, v in reward_decomp_sum.items()}
 
-    return {
+    result = {
         "win_rate": win_rate,
         "wins":     wins,
         "losses":   losses,
@@ -150,6 +175,14 @@ def run_eval(
         "value_preds":       value_preds,
         "value_returns":     value_returns,
     }
+
+    if capture_cross_attn and cross_attn_sums is not None and cross_attn_n > 0:
+        result["cross_attn_stats"] = {
+            "mean": cross_attn_sums / cross_attn_n,
+            "n": cross_attn_n,
+        }
+
+    return result
 
 
 def evaluate(

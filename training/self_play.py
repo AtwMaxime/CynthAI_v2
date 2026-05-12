@@ -718,6 +718,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                       f"({res['total']} games)")
 
             # EMA eval (P10b): measure progress against the lagging target
+            # Also captures cross-attention weights for diagnostic visualization
             eval_results["ema"] = run_eval(
                 agent             = agent,
                 n_games           = cfg.eval_n_games,
@@ -726,6 +727,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 device            = device,
                 mask_ratio        = mask_ratio,
                 opponent_sampler  = lambda: ema_opponent.sample(agent),
+                capture_cross_attn = True,
             )
             ema_wr = eval_results["ema"]["win_rate"]
             print(f"  eval ema: WR={ema_wr*100:.1f}%  "

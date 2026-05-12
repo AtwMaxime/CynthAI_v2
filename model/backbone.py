@@ -306,14 +306,44 @@ class BattleBackbone(nn.Module):
         """
         Actor head only — cross-attention of action_embeds over current_tokens.
         Call after encode(); does NOT re-run the Transformer.
+
+        When self._store_cross_attn is True, accumulates attention weights
+        into self._cross_attn_buffer for later retrieval via get_cross_attention_stats().
         """
-        attn_out, _ = self.action_cross_attn(
+        attn_out, attn_w = self.action_cross_attn(
             query = action_embeds,
             key   = current_tokens,
             value = current_tokens,
+            need_weights       = True,
+            average_attn_weights = False,
         )
+        if getattr(self, '_store_cross_attn', False):
+            if not hasattr(self, '_cross_attn_buffer'):
+                self._cross_attn_buffer = []
+            self._cross_attn_buffer.append(attn_w.detach().cpu())  # [B, H, 13, 13]
+
         logits = self.action_score(attn_out).squeeze(-1)   # [B, 13]
         return logits.masked_fill(action_mask, -1e9)
+
+    def get_cross_attention_stats(self) -> dict | None:
+        """
+        Aggregate accumulated cross-attention weights and clear buffer.
+
+        Returns dict with:
+            mean: [H, 13, 13]  — average attention per head
+            std:  [H, 13, 13]  — standard deviation
+            n:    int          — number of samples
+        Returns None if no weights were captured.
+        """
+        if not hasattr(self, '_cross_attn_buffer') or not self._cross_attn_buffer:
+            return None
+        all_w = torch.cat(self._cross_attn_buffer, dim=0)  # [N, H, 13, 13]
+        self._cross_attn_buffer.clear()
+        return {
+            "mean": all_w.mean(dim=0),   # [H, 13, 13]
+            "std":  all_w.std(dim=0),    # [H, 13, 13]
+            "n":    all_w.shape[0],
+        }
 
     # ── Forward (convenience wrapper) ─────────────────────────────────────────
 

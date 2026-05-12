@@ -52,6 +52,7 @@ def save_eval_plots(
         battle_len/  — battle length histograms
         reward/      — reward decomposition
         value_calib/ — value function calibration
+        cross_attn/  — cross-attention heatmaps (if captured)
     """
     base = Path(save_dir)
 
@@ -61,6 +62,7 @@ def save_eval_plots(
         "battle_len":  base / "battle_len",
         "reward":      base / "reward",
         "value_calib": base / "value_calib",
+        "cross_attn":  base / "cross_attn",
     }
     for p in subdirs.values():
         p.mkdir(parents=True, exist_ok=True)
@@ -70,6 +72,7 @@ def save_eval_plots(
     _plot_battle_length(eval_results, subdirs["battle_len"], tag)
     _plot_reward_decomp(eval_results, subdirs["reward"], tag)
     _plot_value_calib(eval_results, subdirs["value_calib"], tag)
+    _plot_cross_attention(eval_results, subdirs["cross_attn"], tag)
 
     print(f"  -> eval plots saved to {base}/  [{tag}]")
 
@@ -318,6 +321,68 @@ def _plot_value_calib(
         ax.grid(True, alpha=0.3)
         ax.axhline(0, color="gray", linewidth=0.5, alpha=0.3)
         ax.axvline(0, color="gray", linewidth=0.5, alpha=0.3)
+
+    fig.tight_layout()
+    _save_fig(fig, save_path / tag)
+    plt.close(fig)
+
+
+# ── Cross-attention heatmap ──────────────────────────────────────────
+
+_STATE_LABELS = [
+    "OWN0", "OWN1", "OWN2", "OWN3", "OWN4", "OWN5",
+    "OPP0", "OPP1", "OPP2", "OPP3", "OPP4", "OPP5",
+    "FIELD",
+]
+
+
+def _plot_cross_attention(
+    eval_results: dict[str, dict],
+    save_path: Path,
+    tag: str,
+) -> None:
+    """
+    Generate cross-attention heatmaps for opponents that have cross_attn_stats.
+
+    Shows average attention (over all 4 heads) from 13 action queries (y-axis)
+    to 13 state tokens (x-axis). Brighter = more attention.
+    """
+    opp_labels = [k for k, v in eval_results.items()
+                  if "cross_attn_stats" in v]
+    if not opp_labels:
+        return
+
+    n_opp = len(opp_labels)
+    fig, axes = plt.subplots(1, n_opp, figsize=(6 * n_opp, 5), squeeze=False)
+    fig.suptitle(f"Cross-attention: Action Queries → State Tokens — {tag}",
+                 fontsize=12, fontweight="bold")
+
+    for idx, opp in enumerate(opp_labels):
+        ax = axes[0, idx]
+        stats = eval_results[opp]["cross_attn_stats"]
+        mean_w = stats["mean"]  # [H, 13, 13]
+        # Average over heads
+        avg_w = mean_w.mean(dim=0).numpy()  # [13, 13]
+
+        im = ax.imshow(avg_w, cmap="YlOrRd", aspect="auto", vmin=0, vmax=avg_w.max())
+
+        ax.set_xticks(range(13))
+        ax.set_xticklabels(_STATE_LABELS, fontsize=7, rotation=45, ha="right")
+        ax.set_yticks(range(13))
+        ax.set_yticklabels(ACTION_SHORT, fontsize=7)
+
+        ax.set_xlabel("State tokens (keys)")
+        ax.set_ylabel("Action queries")
+        ax.set_title(f"vs {opp}  (n={stats['n']})", fontsize=10)
+
+        # Annotate top-3 attended tokens per action group
+        for row in range(13):
+            top3 = avg_w[row].argsort()[-3:][::-1]
+            label = ", ".join(_STATE_LABELS[c] for c in top3)
+            ax.text(12.5, row, f"  {label}", fontsize=5, va="center", ha="left",
+                    color="gray")
+
+        plt.colorbar(im, ax=ax, shrink=0.8)
 
     fig.tight_layout()
     _save_fig(fig, save_path / tag)
