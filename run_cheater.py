@@ -28,7 +28,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="CynthAI_v2 Cheater (full-info) Training")
     parser.add_argument("--resume",    default="",    help="checkpoint .pt to resume from")
     parser.add_argument("--run_name",  default="",    help="override auto-generated run name")
-    parser.add_argument("--n_envs",    type=int, default=16)
+    parser.add_argument("--n_envs",    type=int, default=32)
     parser.add_argument("--device",    default="cuda" if torch.cuda.is_available() else "cpu")
     args = parser.parse_args()
 
@@ -39,7 +39,7 @@ if __name__ == "__main__":
         total_updates   = 5000,
 
         # Rollout
-        n_envs          = 32,
+        n_envs          = args.n_envs,
         min_steps       = 2048,
 
         # PPO — cheater: no masking → lower entropy, more epochs
