@@ -227,7 +227,7 @@ from env.action_space import MECH_NONE, MECH_TERA
 agent = CynthAIAgent()
 agent.eval()
 n_params = sum(p.numel() for p in agent.parameters())
-check("agent params ~3.1M",  abs(n_params - 3_119_622) < 100, f"{n_params:,}")
+check("agent params ~2.8M",  abs(n_params - 2_801_286) < 100, f"{n_params:,}")
 
 battle3 = PyBattle("gen9randombattle", seed=7)
 state3 = battle3.get_state()
