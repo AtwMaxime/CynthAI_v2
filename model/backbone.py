@@ -39,7 +39,7 @@ D_MODEL     = 256
 N_HEADS     = 4
 N_LAYERS    = 3
 FFN_DIM     = 512
-DROPOUT     = 0.1
+DROPOUT     = 0.15     # P14: increased from 0.1 to discourage attention collapse
 K_TURNS     = 4       # sliding window size
 N_SLOTS     = 13      # tokens per turn (12 pokemon + 1 field)
 SEQ_LEN     = K_TURNS * N_SLOTS   # 52
@@ -302,10 +302,14 @@ class BattleBackbone(nn.Module):
         action_embeds:  torch.Tensor,   # [B, 13, D_MODEL]
         current_tokens: torch.Tensor,   # [B, 13, D_MODEL]
         action_mask:    torch.Tensor,   # [B, 13] bool — True = illegal
-    ) -> torch.Tensor:                  # [B, 13]
+    ) -> tuple[torch.Tensor, torch.Tensor]:  # ([B, 13], scalar)
         """
         Actor head only — cross-attention of action_embeds over current_tokens.
         Call after encode(); does NOT re-run the Transformer.
+
+        Returns:
+            action_logits  : [B, 13] masked
+            attn_entropy   : scalar — mean entropy over heads × queries (P14)
 
         When self._store_cross_attn is True, accumulates attention weights
         into self._cross_attn_buffer for later retrieval via get_cross_attention_stats().
@@ -322,8 +326,13 @@ class BattleBackbone(nn.Module):
                 self._cross_attn_buffer = []
             self._cross_attn_buffer.append(attn_w.detach().cpu())  # [B, H, 13, 13]
 
+        # P14: Attention entropy — penalise collapse (all mass on one token)
+        # attn_w: [B, H, 13, 13] already softmaxed
+        attn_entropy = -(attn_w * torch.log(attn_w.clamp(min=1e-8))).sum(dim=-1)  # [B, H, 13]
+        attn_entropy = attn_entropy.mean()  # scalar
+
         logits = self.action_score(attn_out).squeeze(-1)   # [B, 13]
-        return logits.masked_fill(action_mask, -1e9)
+        return logits.masked_fill(action_mask, -1e9), attn_entropy
 
     def get_cross_attention_stats(self) -> dict | None:
         """
@@ -361,5 +370,5 @@ class BattleBackbone(nn.Module):
             action_logits  : [B, 13]  (illegal actions set to -1e9)
         """
         pre_tokens, post_tokens, value = self.encode(pokemon_tokens, field_tokens)
-        action_logits = self.act(action_embeds, post_tokens, action_mask)
+        action_logits, _ = self.act(action_embeds, post_tokens, action_mask)
         return post_tokens, value, action_logits

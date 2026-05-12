@@ -196,6 +196,7 @@ class TrainingConfig:
     c_value:       float = 2.0      # P11b: increased from 1.0 for critic stability
     c_entropy:     float = 0.01
     c_pred:        float = 0.5
+    c_attn_entropy: float = 0.001  # P14: cross-attention entropy regularisation
     max_grad_norm: float = 0.5
     weight_decay:  float = 1e-4     # P4: L2 regularisation
 
@@ -627,6 +628,11 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     c_pred       = cfg.c_pred,
                 )
 
+                # P14: cross-attention entropy regularisation
+                attn_entropy_val = out.attn_entropy
+                losses["attn_entropy"] = attn_entropy_val.detach()
+                losses["total"] = losses["total"] + cfg.c_attn_entropy * attn_entropy_val
+
                 losses["total"].backward()
                 grad_norm = nn.utils.clip_grad_norm_(agent.parameters(), cfg.max_grad_norm)
                 optimizer.step()
@@ -674,6 +680,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 f"ia={loss_acc.get('item_acc',0)/ns:.2f} "
                 f"aa={loss_acc.get('ability_acc',0)/ns:.2f} "
                 f"ma={loss_acc.get('move_recall',0)/ns:.2f}  "
+                f"ae={loss_acc.get('attn_entropy',0)/ns:.4f}  "
                 f"opp={opp_label}]"
             )
 
@@ -697,6 +704,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     "ability_acc": loss_acc.get("ability_acc", 0) / ns,
                     "tera_acc": loss_acc.get("tera_acc", 0) / ns,
                     "move_recall": loss_acc.get("move_recall", 0) / ns,
+                    "attn_entropy": loss_acc.get("attn_entropy", 0) / ns,
                     "opp": opp_label,
                 }
                 w = csv.DictWriter(f, fieldnames=list(row.keys()))

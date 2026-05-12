@@ -8,7 +8,7 @@ Key design: single Transformer pass.
   1. poke_emb(poke_batch)                          → pokemon_tokens [B, K*12, TOKEN_DIM]
   2. backbone.encode(pokemon_tokens, field_tensor) → current_tokens [B, 13, D_MODEL], value [B, 1]
   3. action_enc(current_tokens[:, 0], ...)         → action_embeds  [B, 13, D_MODEL]
-  4. backbone.act(action_embeds, current_tokens)   → action_logits  [B, 13]
+  4. backbone.act(action_embeds, current_tokens)   → (action_logits, attn_entropy)
   5. predictor(current_tokens[:, 6:12])            → pred_logits
 
 Inputs:
@@ -41,6 +41,7 @@ class AgentOutput:
     action_logits:  torch.Tensor     # [B, 13]  masked
     log_probs:      torch.Tensor     # [B, 13]  log_softmax
     pred_logits:    PredictionLogits
+    attn_entropy:   torch.Tensor     # scalar — cross-attention entropy (P14)
 
 
 class CynthAIAgent(nn.Module):
@@ -90,7 +91,7 @@ class CynthAIAgent(nn.Module):
         )                                                    # [B, 13, D_MODEL]
 
         # ── 4. Actor head (keys = POST-transformer, enriched context) ──────────
-        action_logits = self.backbone.act(action_embeds, post_tokens, action_mask)
+        action_logits, attn_entropy = self.backbone.act(action_embeds, post_tokens, action_mask)
         log_probs     = F.log_softmax(action_logits, dim=-1)
 
         # ── 5. Predictor on opponent tokens (post-transformer) ─────────────────
@@ -102,4 +103,5 @@ class CynthAIAgent(nn.Module):
             action_logits  = action_logits,
             log_probs      = log_probs,
             pred_logits    = pred_logits,
+            attn_entropy   = attn_entropy,
         )

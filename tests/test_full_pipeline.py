@@ -129,7 +129,7 @@ poke_feat_list = [[encode_pokemon(dummy_poke) for _ in range(K * 12)] for _ in r
 pb = collate_features(poke_feat_list)
 check("PokemonBatch species_idx shape",   tuple(pb.species_idx.shape) == (B, K * 12))
 check("PokemonBatch move_idx shape",      tuple(pb.move_idx.shape)    == (B, K * 12, 4))
-check("PokemonBatch scalars shape",       tuple(pb.scalars.shape)     == (B, K * 12, 222))
+check("PokemonBatch scalars shape",       tuple(pb.scalars.shape)     == (B, K * 12, 223))
 
 field_feat_list = [encode_field(dummy_field) for _ in range(B * K)]
 fb = collate_field_features(field_feat_list)
@@ -177,7 +177,7 @@ action_mask[:, 4:8] = True   # mask mechanic moves
 # dummy action embeds
 act_emb = torch.randn(B, 13, D_MODEL)
 with torch.no_grad():
-    logits = backbone.act(act_emb, cur_tok, action_mask)
+    logits, _ = backbone.act(act_emb, cur_tok, action_mask)
 check("action logits shape [B, 13]",  tuple(logits.shape) == (B, 13))
 check("masked logits are -1e9",       (logits[:, 4:8] < -1e8).all().item())
 

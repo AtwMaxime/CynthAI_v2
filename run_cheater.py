@@ -51,6 +51,7 @@ if __name__ == "__main__":
         c_value         = 2.0,
         c_entropy       = 0.003,     # P16a: réduit pour que policy_loss domine
         c_pred          = 0.6,      # prediction heads still useful for auxiliary signal
+        c_attn_entropy  = 0.001,    # P14: cross-attention entropy regularisation
         max_grad_norm   = 0.5,
         weight_decay    = 1e-4,
 
