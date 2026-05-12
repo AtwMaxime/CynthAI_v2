@@ -49,7 +49,7 @@ if __name__ == "__main__":
         lr_min          = 1e-5,
         warmup_steps    = 20,
         c_value         = 2.0,
-        c_entropy       = 0.005,     # reduced: no POMDP masking, less exploration needed
+        c_entropy       = 0.003,     # P16a: réduit pour que policy_loss domine
         c_pred          = 0.6,      # prediction heads still useful for auxiliary signal
         max_grad_norm   = 0.5,
         weight_decay    = 1e-4,

@@ -90,6 +90,12 @@ def compute_losses(
     entropy   = -(probs * log_probs).masked_fill(action_mask, 0.0).sum(dim=-1)  # [B]
     entropy_loss = -entropy.mean()   # negative: we minimise loss → maximise entropy
 
+    # ── Diagnostics (P16d) ─────────────────────────────────────────────────
+    with torch.no_grad():
+        adv_mean  = advantages.mean().item()
+        adv_std   = advantages.std().item()
+        ratio_dev = (ratio - 1.0).abs().mean().item()
+
     # ── Total ─────────────────────────────────────────────────────────────────
     total = (
         policy_loss
@@ -105,5 +111,8 @@ def compute_losses(
         "pred":       pred_loss,
         "clip_frac":  clip_frac.detach(),
         "explained_variance": ev.detach(),
+        "adv_mean":   adv_mean,
+        "adv_std":    adv_std,
+        "ratio_dev":  ratio_dev,
         "total":      total,
     }

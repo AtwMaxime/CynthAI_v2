@@ -668,6 +668,9 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 f"gn={loss_acc['grad_norm']/ns:.3f}  "
                 f"cf={loss_acc['clip_frac']/ns:.3f}  "
                 f"ev={loss_acc['explained_variance']/ns:.3f}  "
+                f"am={loss_acc.get('adv_mean',0)/ns:.3f}  "
+                f"as={loss_acc.get('adv_std',0)/ns:.3f}  "
+                f"rd={loss_acc.get('ratio_dev',0)/ns:.4f}  "
                 f"ia={loss_acc.get('item_acc',0)/ns:.2f} "
                 f"aa={loss_acc.get('ability_acc',0)/ns:.2f} "
                 f"ma={loss_acc.get('move_recall',0)/ns:.2f}  "
@@ -685,6 +688,9 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     "grad_norm": loss_acc["grad_norm"]/ns,
                     "clip_frac": loss_acc["clip_frac"]/ns,
                     "explained_variance": loss_acc["explained_variance"]/ns,
+                    "adv_mean": loss_acc.get("adv_mean", 0)/ns,
+                    "adv_std": loss_acc.get("adv_std", 0)/ns,
+                    "ratio_dev": loss_acc.get("ratio_dev", 0)/ns,
                     "eps": total_eps, "pool": len(pool),
                     "mask_ratio": mask_ratio, "dense_scale": dense_scale,
                     "item_acc": loss_acc.get("item_acc", 0) / ns,
