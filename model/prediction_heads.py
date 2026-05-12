@@ -160,6 +160,7 @@ class PredictionHeads(nn.Module):
         move_mask:       torch.Tensor,   # [B, 6]       bool    (per-Pokémon)
         stats_targets:   torch.Tensor,   # [B, 6, 6]    float32
         stats_mask:      torch.Tensor,   # [B, 6]       bool
+        c_stats:         float = 0.001,  # P17b: stats MSE scale (raw values ~1-700)
     ) -> dict[str, torch.Tensor]:
         """
         Masked cross-entropy per head + masked BCE for moves + masked MSE for stats.
@@ -208,7 +209,7 @@ class PredictionHeads(nn.Module):
             "tera":    tera_loss,
             "moves":   move_loss,
             "stats":   stats_loss,
-            "total":   item_loss + ability_loss + tera_loss + move_loss + stats_loss,
+            "total":   item_loss + ability_loss + tera_loss + move_loss + c_stats * stats_loss,
         }
 
     @staticmethod
