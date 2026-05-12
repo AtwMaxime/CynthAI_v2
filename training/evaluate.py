@@ -63,7 +63,7 @@ def run_eval(
     # Diagnostic collection
     battle_lengths: list[int] = []
     action_histogram = [0] * 13
-    reward_decomp_sum: dict[str, float] = {"ko_own": 0.0, "ko_opp": 0.0, "hp_adv": 0.0, "count_adv": 0.0, "terminal": 0.0}
+    reward_decomp_sum: dict[str, float] = {"ko_own": 0.0, "ko_opp": 0.0, "hp_adv": 0.0, "count_adv": 0.0, "status": 0.0, "hazard": 0.0, "terminal": 0.0}
     reward_decomp_n = 0
     value_preds: list[float] = []
     value_returns: list[float] = []

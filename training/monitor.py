@@ -194,9 +194,13 @@ def _plot_battle_length(
 # ── Panel 3: Reward decomposition ─────────────────────────────────────────────
 
 REWARD_COLORS = {"ko_opp": "#2ecc71", "ko_own": "#e74c3c",
-                 "hp_adv": "#3498db", "terminal": "#f39c12"}
+                 "hp_adv": "#3498db", "count_adv": "#9b59b6",
+                 "status": "#e67e22", "hazard": "#1abc9c",
+                 "terminal": "#f39c12"}
 REWARD_LABELS = {"ko_opp": "KO opp", "ko_own": "KO own",
-                 "hp_adv": "HP adv", "terminal": "Terminal"}
+                 "hp_adv": "HP adv", "count_adv": "Count adv",
+                 "status": "Status", "hazard": "Hazard",
+                 "terminal": "Terminal"}
 
 
 def _plot_reward_decomp(
@@ -213,7 +217,7 @@ def _plot_reward_decomp(
     if not has_data:
         return
 
-    components = ["ko_opp", "ko_own", "hp_adv", "terminal"]
+    components = ["ko_opp", "ko_own", "hp_adv", "count_adv", "status", "hazard", "terminal"]
     n_opp = len(opp_labels)
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))

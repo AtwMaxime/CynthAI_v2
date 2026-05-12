@@ -493,13 +493,13 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
         t0 = time.perf_counter()
 
         # -- 1a. Opponent selection (P10b-P10c: EMA + pool + fixed policies) -----------
-        # Mixing: 5% Random / 5% FullOffense / 70% EMA (or self-play before warmup)
+        # Mixing: 10% Random / 10% FullOffense / 60% EMA (or self-play before warmup)
         #         / 20% pool (or EMA if pool empty)
         roll = random.random()
-        if roll < 0.05:
+        if roll < 0.10:
             opponent = RandomPolicy()
             opp_label = "rand"
-        elif roll < 0.10:
+        elif roll < 0.20:
             opponent = FullOffensePolicy()
             opp_label = "fo"
         elif roll < 0.80:

@@ -60,12 +60,14 @@ if TYPE_CHECKING:
 
 # â”€â”€ Reward hyperparameters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-WIN_REWARD     =  1.0
-LOSS_REWARD    = -1.0
-KO_REWARD      =  0.05
-OWN_KO_PENALTY = -0.05
-HP_ADV_SCALE   =  0.05   # P13c: ×5 (was 0.01) — signal dense trop faible
-COUNT_ADV_SCALE = 0.03   # P13c: reward par unité de Δ compteur (KO = signal fiable)
+WIN_REWARD       =  1.0
+LOSS_REWARD      = -1.0
+KO_REWARD        =  0.5      # P17: 10× (was 0.05) — signal dense trop faible
+OWN_KO_PENALTY   = -0.5      # P17: 10× (was -0.05)
+HP_ADV_SCALE     =  0.5      # P17: 10× (was 0.05)
+COUNT_ADV_SCALE  =  0.3      # P17: 10× (was 0.03)
+STATUS_REWARD    =  0.1      # P17: nouveau — statut infligé à l'adversaire
+HAZARD_REWARD    =  0.1      # P17: nouveau — hazard posé côté adverse
 
 
 # â”€â”€ Random policy (for evaluation) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -190,10 +192,10 @@ def compute_step_reward(
     dense_scale: float = 1.0,   # P2: scale non-terminal rewards (0 = sparse only)
 ) -> tuple[float, dict]:
     """Returns (total_reward, components_dict) where components has keys:
-    ko_own, ko_opp, hp_adv, count_adv, terminal."""
+    ko_own, ko_opp, hp_adv, count_adv, status, hazard, terminal."""
     reward  = 0.0
     opp_idx = 1 - side_idx
-    components: dict[str, float] = {"ko_own": 0.0, "ko_opp": 0.0, "hp_adv": 0.0, "count_adv": 0.0, "terminal": 0.0}
+    components: dict[str, float] = {"ko_own": 0.0, "ko_opp": 0.0, "hp_adv": 0.0, "count_adv": 0.0, "status": 0.0, "hazard": 0.0, "terminal": 0.0}
 
     own_prev = prev_state["sides"][side_idx]
     opp_prev = prev_state["sides"][opp_idx]
@@ -220,6 +222,24 @@ def compute_step_reward(
     count_rew = COUNT_ADV_SCALE * (count_curr - count_prev) * dense_scale
     reward += count_rew
     components["count_adv"] = count_rew
+
+    # P17: status inflicted on opponent
+    for poke_prev, poke_curr in zip(opp_prev["pokemon"], opp_curr["pokemon"]):
+        if not poke_prev.get("status") and poke_curr.get("status"):
+            reward += STATUS_REWARD * dense_scale
+            components["status"] += STATUS_REWARD * dense_scale
+
+    # P17: hazards set on opponent's side
+    opp_sc_prev = opp_prev.get("side_conditions", {})
+    opp_sc_curr = opp_curr.get("side_conditions", {})
+    for hazard_id in ("stealthrock", "spikes", "toxicspikes", "stickyweb"):
+        prev_layers = opp_sc_prev.get(hazard_id, 0)
+        curr_layers = opp_sc_curr.get(hazard_id, 0)
+        new_layers = max(0, curr_layers - prev_layers)
+        if new_layers > 0:
+            haz_rew = HAZARD_REWARD * new_layers * dense_scale
+            reward += haz_rew
+            components["hazard"] += haz_rew
 
     if done:
         terminal = WIN_REWARD if won else LOSS_REWARD   # terminal rewards never scaled
