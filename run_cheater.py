@@ -34,7 +34,7 @@ if __name__ == "__main__":
 
     cfg = TrainingConfig(
         # Run meta
-        run_name        = f"cheater_{args.run_name}" if args.run_name else "",
+        run_name        = f"cheater_{args.run_name}" if args.run_name else "cheater",
         resume          = args.resume,
         total_updates   = 5000,
 
