@@ -641,7 +641,10 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 optimizer.step()
 
                 for k, v in losses.items():
-                    loss_acc[k] += v.item()
+                    if isinstance(v, torch.Tensor):
+                        loss_acc[k] += v.item()
+                    else:
+                        loss_acc[k] += v
                 loss_acc["grad_norm"] += grad_norm.item()
                 for k, v in acc.items():
                     loss_acc[k] += v
