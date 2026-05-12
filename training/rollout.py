@@ -66,8 +66,9 @@ KO_REWARD        =  0.5      # P17: 10× (was 0.05) — signal dense trop faible
 OWN_KO_PENALTY   = -0.5      # P17: 10× (was -0.05)
 HP_ADV_SCALE     =  0.5      # P17: 10× (was 0.05)
 COUNT_ADV_SCALE  =  0.3      # P17: 10× (was 0.03)
-STATUS_REWARD    =  0.1      # P17: nouveau — statut infligé à l'adversaire
-HAZARD_REWARD    =  0.1      # P17: nouveau — hazard posé côté adverse
+STATUS_REWARD          =  0.1      # P17: nouveau — statut infligé à l'adversaire
+HAZARD_REWARD          =  0.1      # P17: nouveau — hazard posé côté adverse
+HAZARD_REMOVE_REWARD   =  0.1      # P17: nouveau — hazard retiré de notre côté (Rapid Spin/Defog)
 
 
 # â”€â”€ Random policy (for evaluation) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -192,10 +193,10 @@ def compute_step_reward(
     dense_scale: float = 1.0,   # P2: scale non-terminal rewards (0 = sparse only)
 ) -> tuple[float, dict]:
     """Returns (total_reward, components_dict) where components has keys:
-    ko_own, ko_opp, hp_adv, count_adv, status, hazard, terminal."""
+    ko_own, ko_opp, hp_adv, count_adv, status, hazard, hazard_remove, terminal."""
     reward  = 0.0
     opp_idx = 1 - side_idx
-    components: dict[str, float] = {"ko_own": 0.0, "ko_opp": 0.0, "hp_adv": 0.0, "count_adv": 0.0, "status": 0.0, "hazard": 0.0, "terminal": 0.0}
+    components: dict[str, float] = {"ko_own": 0.0, "ko_opp": 0.0, "hp_adv": 0.0, "count_adv": 0.0, "status": 0.0, "hazard": 0.0, "hazard_remove": 0.0, "terminal": 0.0}
 
     own_prev = prev_state["sides"][side_idx]
     opp_prev = prev_state["sides"][opp_idx]
@@ -240,6 +241,18 @@ def compute_step_reward(
             haz_rew = HAZARD_REWARD * new_layers * dense_scale
             reward += haz_rew
             components["hazard"] += haz_rew
+
+    # P17: hazards removed from our side (Rapid Spin / Defog)
+    own_sc_prev = own_prev.get("side_conditions", {})
+    own_sc_curr = own_curr.get("side_conditions", {})
+    for hazard_id in ("stealthrock", "spikes", "toxicspikes", "stickyweb"):
+        prev_layers = own_sc_prev.get(hazard_id, 0)
+        curr_layers = own_sc_curr.get(hazard_id, 0)
+        removed_layers = max(0, prev_layers - curr_layers)
+        if removed_layers > 0:
+            haz_rem_rew = HAZARD_REMOVE_REWARD * removed_layers * dense_scale
+            reward += haz_rem_rew
+            components["hazard_remove"] += haz_rem_rew
 
     if done:
         terminal = WIN_REWARD if won else LOSS_REWARD   # terminal rewards never scaled
