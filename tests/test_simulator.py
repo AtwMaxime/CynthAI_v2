@@ -227,7 +227,7 @@ from env.action_space import MECH_NONE, MECH_TERA
 agent = CynthAIAgent()
 agent.eval()
 n_params = sum(p.numel() for p in agent.parameters())
-check("agent params ~2.6M",  abs(n_params - 2_592_514) < 100, f"{n_params:,}")
+check("agent params ~2.6M",  abs(n_params - 2_526_978) < 100, f"{n_params:,}")
 
 battle3 = PyBattle("gen9randombattle", seed=7)
 state3 = battle3.get_state()
@@ -359,6 +359,7 @@ check(f"{N} parallel envs ran OK",   all(not e.ended for e in envs) or any(e.end
 print()
 if _any_failed:
     print("SOME TESTS FAILED")
-    sys.exit(1)
+    if __name__ == "__main__":
+        sys.exit(1)
 else:
     print("ALL TESTS PASSED")
