@@ -63,6 +63,7 @@ def save_eval_plots(
         "reward":      base / "reward",
         "value_calib": base / "value_calib",
         "cross_attn":  base / "cross_attn",
+        "cos_sim":     base / "cos_sim",
     }
     for p in subdirs.values():
         p.mkdir(parents=True, exist_ok=True)
@@ -73,6 +74,7 @@ def save_eval_plots(
     _plot_reward_decomp(eval_results, subdirs["reward"], tag)
     _plot_value_calib(eval_results, subdirs["value_calib"], tag)
     _plot_cross_attention(eval_results, subdirs["cross_attn"], tag)
+    _plot_cos_sim(eval_results, subdirs["cos_sim"], tag)
 
     # Accuracy-over-time plot from metrics.csv (if available)
     _plot_prediction_accuracy(str(base / "metrics.csv"), subdirs["data"], tag)
@@ -439,3 +441,88 @@ def _plot_prediction_accuracy(
     fig.tight_layout()
     _save_fig(fig, save_path / "prediction_accuracy")
     plt.close(fig)
+
+
+# ── Cosine similarity heatmaps ────────────────────────────────────────────────
+
+_COS_LABELS = {
+    "A_AT": ("Pre-transformer (A @ A^T)", ["O0","O1","O2","O3","O4","O5",
+                                            "P0","P1","P2","P3","P4","P5","FL"]),
+    "B_BT": ("Post-transformer / keys (B @ B^T)", ["O0","O1","O2","O3","O4","O5",
+                                                     "P0","P1","P2","P3","P4","P5","FL"]),
+    "C_CT": ("Action queries (C @ C^T)",
+             ["M1","M2","M3","M4","T1","T2","T3","T4","S0","S1","S2","S3","S4"]),
+    "B_CT": ("Keys vs Queries (B @ C^T)",
+             ["M1","M2","M3","M4","T1","T2","T3","T4","S0","S1","S2","S3","S4"],
+             ["O0","O1","O2","O3","O4","O5","P0","P1","P2","P3","P4","P5","FL"]),
+    "A_CT": ("Pre-transformer vs Queries (A @ C^T)",
+             ["M1","M2","M3","M4","T1","T2","T3","T4","S0","S1","S2","S3","S4"],
+             ["O0","O1","O2","O3","O4","O5","P0","P1","P2","P3","P4","P5","FL"]),
+}
+
+
+def _plot_cos_sim(
+    eval_results: dict[str, dict],
+    save_path: Path,
+    tag: str,
+) -> None:
+    """
+    Save 5 cosine similarity heatmaps from the first opponent with cos_sim_matrices.
+    """
+    opp = next((k for k, v in eval_results.items() if "cos_sim_matrices" in v), None)
+    if opp is None:
+        return
+
+    matrices = eval_results[opp]["cos_sim_matrices"]
+    scalars  = eval_results[opp].get("cos_sim_scalars", {})
+
+    for key, info in _COS_LABELS.items():
+        mat = matrices.get(key)
+        if mat is None:
+            continue
+
+        title = info[0]
+        row_labels = info[1]
+        col_labels = info[2] if len(info) > 2 else info[1]
+
+        is_square = row_labels == col_labels
+        fig_h = max(4, len(row_labels) * 0.45)
+        fig_w = max(5, len(col_labels) * 0.5)
+
+        fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+        im = ax.imshow(mat.numpy(), vmin=-1, vmax=1, cmap="RdBu_r", aspect="auto")
+
+        ax.set_xticks(range(len(col_labels)))
+        ax.set_yticks(range(len(row_labels)))
+        ax.set_xticklabels(col_labels, fontsize=7, rotation=45, ha="right")
+        ax.set_yticklabels(row_labels, fontsize=7)
+
+        # Annotate cells
+        for i in range(len(row_labels)):
+            for j in range(len(col_labels)):
+                val = mat[i, j].item()
+                if is_square and i == j:
+                    continue  # skip diagonal for self-sim
+                color = "white" if abs(val) > 0.7 else "black"
+                ax.text(j, i, f"{val:.2f}", ha="center", va="center",
+                        fontsize=5, color=color)
+
+        cbar = fig.colorbar(im, ax=ax, shrink=0.8)
+        cbar.set_label("cosine similarity", fontsize=8)
+
+        # Add scalar metrics to title
+        scalar_notes = ""
+        if scalars:
+            if key == "B_BT":
+                scalar_notes = f"  off-diag={scalars.get('cos_post_offdiag', 0):.3f}"
+            elif key == "C_CT":
+                scalar_notes = f"  off-diag={scalars.get('cos_query_offdiag', 0):.3f}"
+            elif key == "B_CT":
+                scalar_notes = (f"  mean={scalars.get('cos_keys_queries_mean', 0):.3f}  "
+                               f"n_keys={scalars.get('cos_n_unique_keys', 0)}")
+
+        ax.set_title(f"{title}{scalar_notes} — {tag}", fontsize=9)
+
+        fig.tight_layout()
+        _save_fig(fig, save_path / f"{tag}_{key}")
+        plt.close(fig)

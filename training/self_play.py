@@ -776,6 +776,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 mask_ratio        = mask_ratio,
                 opponent_sampler  = lambda: ema_opponent.sample(agent),
                 capture_cross_attn = True,
+                compute_cos_sim    = True,
             )
             ema_wr = eval_results["ema"]["win_rate"]
             print(f"  eval ema: WR={ema_wr*100:.1f}%  "

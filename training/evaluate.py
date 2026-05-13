@@ -23,11 +23,157 @@ import time
 from pathlib import Path
 
 import torch
+import torch.nn.functional as F
 
 from model.agent import CynthAIAgent
-from training.rollout import collect_rollout, RandomPolicy
+from training.rollout import collect_rollout, RandomPolicy, encode_state, build_action_mask
 from env.bots import FullOffensePolicy
+from model.embeddings import collate_features, collate_field_features, FieldBatch, FIELD_DIM
 
+
+TOKEN_LABELS  = ["O0","O1","O2","O3","O4","O5",
+                 "P0","P1","P2","P3","P4","P5","FL"]
+ACTION_LABELS = ["M1","M2","M3","M4",
+                 "T1","T2","T3","T4",
+                 "S0","S1","S2","S3","S4"]
+
+
+# ── Cosine similarity diagnostics ─────────────────────────────────────────────
+
+@torch.no_grad()
+def compute_cos_sim_metrics(
+    agent:   torch.nn.Module,
+    device:  torch.device,
+    n_battles: int = 64,
+) -> dict:
+    """
+    Compute the 5 cosine similarity matrices from a batch of eval states.
+
+    Returns dict with:
+      matrices: { "A_AT": [13,13], "B_BT": [13,13], "C_CT": [13,13],
+                  "B_CT": [13,13], "A_CT": [13,13] }
+      scalars:  { "cos_pre", "cos_post", "cos_query",
+                  "cos_keys_queries_mean", "cos_pre_queries_mean",
+                  "cos_n_unique_keys" }
+    """
+    from simulator import PyBattle
+
+    # ── Collect states ─────────────────────────────────────────────────────
+    poke_feats, field_feats = [], []
+    move_idx, pp_ratio, mv_dis = [], [], []
+    mech_id, mech_type = [], []
+
+    n_envs = min(n_battles, 64)
+    seeds = [hash(f"cos_eval_{i}") % (2**31) for i in range(n_envs)]
+    envs = [PyBattle("gen9randombattle", seed=s) for s in seeds]
+    finished = [False] * n_envs
+    collected, steps = 0, 0
+
+    while collected < n_battles and steps < 500:
+        steps += 1
+        for i in range(n_envs):
+            if finished[i]:
+                continue
+            try:
+                state = envs[i].get_state()
+            except Exception:
+                finished[i] = True; continue
+            pf, ff = encode_state(state, 0)
+            poke_feats.append(pf)
+            field_feats.append(ff)
+            act = pf[0]
+            move_idx.append(act.move_indices[:4])
+            pp_ratio.append(act.move_pp[:4])
+            mv_dis.append(act.move_disabled[:4])
+            mech_id.append(0)
+            mech_type.append(0)
+            collected += 1
+            if collected >= n_battles:
+                break
+            try:
+                req = state["sides"][0].get("request_state", "")
+                if req in ("Move", "Switch"):
+                    envs[i].step(torch.randint(0, 13, (1,)).item())
+                else:
+                    finished[i] = True
+            except Exception:
+                finished[i] = True
+
+    # ── Build batch ────────────────────────────────────────────────────────
+    K = 4
+    poke_batches, field_flat = [], []
+    for pf, ff in zip(poke_feats, field_feats):
+        turn = []
+        for _ in range(K):
+            turn.extend(pf)
+            field_flat.append(ff)
+        poke_batches.append(turn)
+
+    poke_batch = collate_features(poke_batches).to(device)
+    fflat      = collate_field_features(field_flat)
+    field_tensor = fflat.field.view(-1, K, FIELD_DIM).to(device)
+
+    move_idx   = torch.tensor(move_idx, dtype=torch.long).to(device)
+    pp_ratio   = torch.tensor(pp_ratio, dtype=torch.float32).to(device)
+    mv_dis     = torch.tensor(mv_dis, dtype=torch.float32).to(device)
+    mech_id    = torch.tensor(mech_id, dtype=torch.long).to(device)
+    mech_type  = torch.tensor(mech_type, dtype=torch.long).to(device)
+
+    # ── Forward ────────────────────────────────────────────────────────────
+    pokemon_tokens = agent.poke_emb(poke_batch)
+    pre_tokens, post_tokens, _ = agent.backbone.encode(pokemon_tokens, field_tensor)
+
+    action_embeds = agent.action_enc(
+        active_token      = pre_tokens[:, 0, :],
+        move_idx          = move_idx,
+        pp_ratio          = pp_ratio,
+        move_disabled     = mv_dis,
+        bench_tokens      = pre_tokens[:, 1:6, :],
+        mechanic_id       = mech_id,
+        mechanic_type_idx = mech_type,
+    )
+
+    # ── Compute 5 matrices ─────────────────────────────────────────────────
+    def _cos_self(x):
+        xn = F.normalize(x, dim=-1)
+        return (xn @ xn.transpose(-1, -2)).mean(dim=0).cpu()
+
+    def _cos_cross(x, y):
+        xn = F.normalize(x, dim=-1)
+        yn = F.normalize(y, dim=-1)
+        return (xn @ yn.transpose(-1, -2)).mean(dim=0).cpu()
+
+    AA = _cos_self(pre_tokens)
+    BB = _cos_self(post_tokens)
+    CC = _cos_self(action_embeds)
+    BC = _cos_cross(post_tokens, action_embeds)   # keys vs queries
+    AC = _cos_cross(pre_tokens, action_embeds)     # pre vs queries
+
+    # ── Scalar summaries ───────────────────────────────────────────────────
+    def _off_diag_mean(m):
+        N = m.shape[0]
+        off = m.clone().fill_diagonal_(float("nan"))
+        return off[~torch.isnan(off)].mean().item()
+
+    bc_argmax = BC.argmax(dim=1)
+    n_unique = bc_argmax.unique().numel()
+
+    scalars = {
+        "cos_pre_offdiag":        _off_diag_mean(AA),
+        "cos_post_offdiag":       _off_diag_mean(BB),
+        "cos_query_offdiag":      _off_diag_mean(CC),
+        "cos_keys_queries_mean":  BC.mean().item(),
+        "cos_pre_queries_mean":   AC.mean().item(),
+        "cos_n_unique_keys":      n_unique,
+    }
+
+    return {
+        "matrices": {"A_AT": AA, "B_BT": BB, "C_CT": CC, "B_CT": BC, "A_CT": AC},
+        "scalars":  scalars,
+    }
+
+
+# ── Evaluation ────────────────────────────────────────────────────────────────
 
 def run_eval(
     agent:             torch.nn.Module,
@@ -39,6 +185,7 @@ def run_eval(
     opponent_sampler:  callable | None = None,
     mask_ratio:        float = 0.0,   # P1: match training masking
     capture_cross_attn: bool = False, # P13e: capture cross-attention weights
+    compute_cos_sim:   bool = False,  # P22: cosine similarity diagnostics
 ) -> dict:
     """
     Evaluate an agent against an opponent policy.
@@ -52,6 +199,10 @@ def run_eval(
 
     When capture_cross_attn=True, stores cross-attention weights from the
     actor head and returns cross_attn_stats in the result dict.
+
+    When compute_cos_sim=True, computes 5 cosine similarity matrices
+    (A@A^T, B@B^T, C@C^T, B@C^T, A@C^T) from a sample of eval states
+    and returns cos_sim_scalars + cos_sim_matrices in the result dict.
 
     Returns dict with keys: win_rate, wins, losses, ties, total, ci_low, ci_high.
     """
@@ -181,6 +332,14 @@ def run_eval(
             "mean": cross_attn_sums / cross_attn_n,
             "n": cross_attn_n,
         }
+
+    if compute_cos_sim:
+        try:
+            cos_data = compute_cos_sim_metrics(agent, device, n_battles=64)
+            result["cos_sim_scalars"] = cos_data["scalars"]
+            result["cos_sim_matrices"] = cos_data["matrices"]
+        except Exception as e:
+            print(f"  WARNING: cos_sim failed: {e}")
 
     return result
 
