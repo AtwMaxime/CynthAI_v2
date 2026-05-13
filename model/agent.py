@@ -42,6 +42,7 @@ class AgentOutput:
     log_probs:      torch.Tensor     # [B, 13]  log_softmax
     pred_logits:    PredictionLogits
     attn_entropy:   torch.Tensor     # scalar — cross-attention entropy (P14)
+    attn_rank:      torch.Tensor     # scalar — cross-attention rank (P18)
 
 
 class CynthAIAgent(nn.Module):
@@ -91,7 +92,7 @@ class CynthAIAgent(nn.Module):
         )                                                    # [B, 13, D_MODEL]
 
         # ── 4. Actor head (keys = POST-transformer, enriched context) ──────────
-        action_logits, attn_entropy = self.backbone.act(action_embeds, post_tokens, action_mask)
+        action_logits, attn_entropy, attn_rank = self.backbone.act(action_embeds, post_tokens, action_mask)
         log_probs     = F.log_softmax(action_logits, dim=-1)
 
         # ── 5. Predictor on opponent tokens (post-transformer) ─────────────────
@@ -104,4 +105,5 @@ class CynthAIAgent(nn.Module):
             log_probs      = log_probs,
             pred_logits    = pred_logits,
             attn_entropy   = attn_entropy,
+            attn_rank      = attn_rank,
         )

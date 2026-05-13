@@ -24,6 +24,7 @@ Output:
   action_logits  : [B, 13]           — policy scores (illegal actions masked)
 """
 
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -302,14 +303,15 @@ class BattleBackbone(nn.Module):
         action_embeds:  torch.Tensor,   # [B, 13, D_MODEL]
         current_tokens: torch.Tensor,   # [B, 13, D_MODEL]
         action_mask:    torch.Tensor,   # [B, 13] bool — True = illegal
-    ) -> tuple[torch.Tensor, torch.Tensor]:  # ([B, 13], scalar)
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:  # ([B, 13], scalar, scalar)
         """
         Actor head only — cross-attention of action_embeds over current_tokens.
         Call after encode(); does NOT re-run the Transformer.
 
         Returns:
             action_logits  : [B, 13] masked
-            attn_entropy   : scalar — mean entropy over heads × queries (P14)
+            attn_entropy   : scalar — mean per-key entropy over heads × queries (P14)
+            attn_rank      : scalar — von Neumann entropy of attention SVs (P18)
 
         When self._store_cross_attn is True, accumulates attention weights
         into self._cross_attn_buffer for later retrieval via get_cross_attention_stats().
@@ -326,13 +328,24 @@ class BattleBackbone(nn.Module):
                 self._cross_attn_buffer = []
             self._cross_attn_buffer.append(attn_w.detach().cpu())  # [B, H, 13, 13]
 
-        # P14: Attention entropy — penalise collapse (all mass on one token)
+        # P14: Attention per-key entropy — spread mass across keys per query
         # attn_w: [B, H, 13, 13] already softmaxed
         attn_entropy = -(attn_w * torch.log(attn_w.clamp(min=1e-8))).sum(dim=-1)  # [B, H, 13]
         attn_entropy = attn_entropy.mean()  # scalar
 
+        # P18: Attention rank — von Neumann entropy of singular values
+        # Measures whether different queries attend to different keys (high rank)
+        # or all collapse to the same pattern (low rank).
+        B, H, N, _ = attn_w.shape
+        attn_flat = attn_w.reshape(-1, N, N)                       # [B*H, 13, 13]
+        S = torch.linalg.svdvals(attn_flat)                        # [B*H, 13]
+        p = S / (S.sum(dim=-1, keepdim=True) + 1e-8)               # [B*H, 13]
+        vn_entropy = -(p * torch.log(p.clamp(min=1e-8))).sum(dim=-1)  # [B*H]
+        attn_rank = vn_entropy.mean()                              # scalar
+        # attn_rank ≈ ln(13) ≈ 2.565 for full rank, ~0 for rank-1
+
         logits = self.action_score(attn_out).squeeze(-1)   # [B, 13]
-        return logits.masked_fill(action_mask, -1e9), attn_entropy
+        return logits.masked_fill(action_mask, -1e9), attn_entropy, attn_rank
 
     def get_cross_attention_stats(self) -> dict | None:
         """
@@ -370,5 +383,5 @@ class BattleBackbone(nn.Module):
             action_logits  : [B, 13]  (illegal actions set to -1e9)
         """
         pre_tokens, post_tokens, value = self.encode(pokemon_tokens, field_tokens)
-        action_logits, _ = self.act(action_embeds, post_tokens, action_mask)
+        action_logits, _, _ = self.act(action_embeds, post_tokens, action_mask)
         return post_tokens, value, action_logits

@@ -45,8 +45,9 @@ class ActionEncoder(nn.Module):
         self.move_embed = move_embed
         self.type_embed = type_embed
 
-        # D_MOVE + D_MODEL + 2  (move emb + active token + [pp_ratio, move_disabled])
-        self.move_proj     = nn.Linear(D_MOVE + D_MODEL + 2, D_MODEL)
+        # D_MOVE + 2  (move emb + [pp_ratio, move_disabled])
+        # active_token removed: it dominated queries and caused move identities to collapse (P22)
+        self.move_proj     = nn.Linear(D_MOVE + 2, D_MODEL)
         self.mechanic_proj = nn.Linear(D_TYPE + N_MECHANICS, D_MODEL)
         self.switch_proj   = nn.Linear(D_MODEL, D_MODEL)
 
@@ -62,17 +63,16 @@ class ActionEncoder(nn.Module):
     ) -> torch.Tensor:                      # [B, 13, D_MODEL]
         # ── Move embeddings ───────────────────────────────────────────────────
         mv_emb     = self.move_embed(move_idx)                        # [B, 4, D_MOVE]
-        active_exp = active_token.unsqueeze(1).expand(-1, 4, -1)      # [B, 4, D_MODEL]
         scalars    = torch.stack([pp_ratio, move_disabled], dim=-1)   # [B, 4, 2]
-        move_input = torch.cat([mv_emb, active_exp, scalars], dim=-1) # [B, 4, D_MOVE+D_MODEL+2]
+        move_input = torch.cat([mv_emb, scalars], dim=-1)             # [B, 4, D_MOVE+2]
         base_moves = self.move_proj(move_input)                       # [B, 4, D_MODEL]
 
         # ── Mechanic modifier ─────────────────────────────────────────────────
         type_emb   = self.type_embed(mechanic_type_idx)               # [B, D_TYPE]
         mech_oh    = F.one_hot(mechanic_id, N_MECHANICS).float()      # [B, N_MECHANICS]
         mech_input = torch.cat([type_emb, mech_oh], dim=-1)           # [B, D_TYPE+N_MECHANICS]
-        mech_mod   = self.mechanic_proj(mech_input)                   # [B, D_MODEL]
-        mech_moves = base_moves + mech_mod.unsqueeze(1)               # [B, 4, D_MODEL]
+        mech_mod   = self.mechanic_proj(mech_input).unsqueeze(1)      # [B, 1, D_MODEL]
+        mech_moves = base_moves + mech_mod                            # [B, 4, D_MODEL]
 
         # ── Switch actions ────────────────────────────────────────────────────
         switch_acts = self.switch_proj(bench_tokens)                  # [B, 5, D_MODEL]

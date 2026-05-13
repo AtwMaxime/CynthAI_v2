@@ -177,7 +177,7 @@ action_mask[:, 4:8] = True   # mask mechanic moves
 # dummy action embeds
 act_emb = torch.randn(B, 13, D_MODEL)
 with torch.no_grad():
-    logits, _ = backbone.act(act_emb, cur_tok, action_mask)
+    logits, _, _ = backbone.act(act_emb, cur_tok, action_mask)
 check("action logits shape [B, 13]",  tuple(logits.shape) == (B, 13))
 check("masked logits are -1e9",       (logits[:, 4:8] < -1e8).all().item())
 

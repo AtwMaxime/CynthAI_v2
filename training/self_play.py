@@ -198,6 +198,7 @@ class TrainingConfig:
     c_entropy:     float = 0.01
     c_pred:        float = 0.5
     c_attn_entropy: float = 0.001  # P14: cross-attention entropy regularisation
+    c_attn_rank:    float = 0.001  # P18: cross-attention rank regularisation (von Neumann entropy)
     max_grad_norm: float = 0.5
     weight_decay:  float = 1e-4     # P4: L2 regularisation
 
@@ -631,10 +632,19 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     c_pred       = cfg.c_pred,
                 )
 
-                # P14: cross-attention entropy regularisation
+                # P14: cross-attention entropy regularisation (maximise = spread per query)
                 attn_entropy_val = out.attn_entropy
                 losses["attn_entropy"] = attn_entropy_val.detach()
-                losses["total"] = losses["total"] + cfg.c_attn_entropy * attn_entropy_val
+                losses["total"] = losses["total"] - cfg.c_attn_entropy * attn_entropy_val
+
+                # P18: cross-attention rank regularisation (maximise von Neumann entropy)
+                attn_rank_val = out.attn_rank
+                losses["attn_rank"] = attn_rank_val.detach()
+                # Scale rank deficiency: ln(13) - vn_entropy, so adding it penalises low rank
+                max_vn = math.log(13.0)
+                rank_loss = cfg.c_attn_rank * (max_vn - attn_rank_val)
+                losses["rank_reg"] = rank_loss.detach()
+                losses["total"] = losses["total"] + rank_loss
 
                 losses["total"].backward()
                 grad_norm = nn.utils.clip_grad_norm_(agent.parameters(), cfg.max_grad_norm)
@@ -687,6 +697,8 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 f"aa={loss_acc.get('ability_acc',0)/ns:.2f} "
                 f"ma={loss_acc.get('move_recall',0)/ns:.2f}  "
                 f"ae={loss_acc.get('attn_entropy',0)/ns:.4f}  "
+                f"ar={loss_acc.get('attn_rank',0)/ns:.4f}  "
+                f"rr={loss_acc.get('rank_reg',0)/ns:.4f}  "
                 f"opp={opp_label}]"
             )
             pbar.set_postfix_str(f"WR={win_rate*100:.1f}%  "
@@ -716,6 +728,8 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     "tera_acc": loss_acc.get("tera_acc", 0) / ns,
                     "move_recall": loss_acc.get("move_recall", 0) / ns,
                     "attn_entropy": loss_acc.get("attn_entropy", 0) / ns,
+                    "attn_rank": loss_acc.get("attn_rank", 0) / ns,
+                    "rank_reg": loss_acc.get("rank_reg", 0) / ns,
                     "opp": opp_label,
                 }
                 w = csv.DictWriter(f, fieldnames=list(row.keys()))
