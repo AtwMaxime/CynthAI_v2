@@ -73,10 +73,10 @@ def compute_losses(
     # ── Clip fraction (monitoring) ───────────────────────────────────────────
     clip_frac = ((ratio < 1.0 - clip_eps) | (ratio > 1.0 + clip_eps)).float().mean()
 
-    # ── Value loss (MSE with normalised returns) ──────────────────────────────
-    # P5: normalise returns to stabilise the critic scale
+    # ── Value loss (MSE) ──────────────────────────────────────────────────────
+    # Returns are pre-normalised globally in RolloutBuffer.compute_gae()
+    # so no per-batch normalisation is needed here.
     values  = values.squeeze(-1)
-    returns = (returns - returns.mean()) / (returns.std() + 1e-8)
     value_loss = F.mse_loss(values, returns)
 
     # ── Explained variance (monitoring) ──────────────────────────────────────

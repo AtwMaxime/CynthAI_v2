@@ -463,8 +463,15 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
     start_update = 1
     if cfg.resume:
         ckpt = torch.load(cfg.resume, map_location=device, weights_only=True)
-        agent.load_state_dict(ckpt["model"])
-        optimizer.load_state_dict(ckpt["optimizer"])
+        missing, unexpected = agent.load_state_dict(ckpt["model"], strict=False)
+        if missing:
+            print(f"  New params (random init): {missing}")
+        if unexpected:
+            print(f"  Dropped params: {unexpected}")
+        try:
+            optimizer.load_state_dict(ckpt["optimizer"])
+        except ValueError:
+            print("  Optimizer state incompatible (architecture change) — starting optimizer fresh.")
         start_update = ckpt["update"] + 1
         # Restore saved config (except resume path — keep the new one)
         if "config" in ckpt:

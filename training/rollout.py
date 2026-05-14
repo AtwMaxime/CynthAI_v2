@@ -471,7 +471,12 @@ class RolloutBuffer:
             ret[t] = gae + tr.value_old
 
         self._advantages = adv
-        self._returns    = ret
+
+        # Normalise returns globally (once per rollout, before minibatch splits)
+        # so the value head has a stable target across all minibatches.
+        ret_t = torch.tensor(ret, dtype=torch.float32)
+        ret_t = (ret_t - ret_t.mean()) / (ret_t.std() + 1e-8)
+        self._returns = ret_t.tolist()
 
     def minibatches(self, batch_size: int, device: torch.device):
         """Yield shuffled minibatches as dicts of batched tensors."""

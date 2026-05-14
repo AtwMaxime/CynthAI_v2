@@ -30,7 +30,9 @@ CynthAI_v2/
 │   ├── rollout.py             # Episode collection, GAE, BattleWindow, action masking
 │   ├── losses.py              # PPO-clip loss + entropy + auxiliary prediction loss
 │   ├── evaluate.py            # Evaluation vs fixed opponents
-│   └── monitor.py             # Diagnostic plots (actions, battle length, value calibration)
+│   ├── monitor.py             # Diagnostic plots (actions, battle length, value calibration)
+│   ├── visualize.py           # Training curve visualization
+│   └── attention_viz.py       # Cross-attention weight visualization
 │
 ├── data/dicts/                # Vocabulary index files (JSON)
 │   ├── species_index.json     # 1381 Pokémon species
@@ -52,7 +54,7 @@ CynthAI_v2/
 
 ## Architecture Overview
 
-**~3.1M parameters** total across all modules.
+**~2.5M parameters** total across all modules.
 
 ### Model Pipeline
 
@@ -60,20 +62,20 @@ CynthAI_v2/
 State dict (PyBattle) → State Encoder → Token Embedding → Transformer Backbone
                                                               ├→ Value Head → V(s)
                                                               ├→ Actor Head (cross-attn) → 13 action logits
-                                                              └→ Prediction Heads → opponent item/ability/tera/moves
+                                                              └→ Prediction Heads → opponent item/ability/tera/moves/stats
 ```
 
-1. **State Encoding** (`env/state_encoder.py`): Converts `PyBattle.get_state()` dicts into `PokemonFeatures` (438-dim per Pokémon) and `FieldFeatures` (72-dim). Each Pokémon token encodes species (32), 3× types (8 each), item (16), ability (16), 4× moves (32 each), and 222 scalar features (HP, stats, boosts, volatiles, status).
+1. **State Encoding** (`env/state_encoder.py`): Converts `PyBattle.get_state()` dicts into `PokemonFeatures` (439-dim per Pokémon) and `FieldFeatures` (72-dim). Each Pokémon token encodes species (32), 3× types (8 each), item (16), ability (16), 4× moves (32 each), and 223 scalar features (HP, stats, boosts, volatiles, status).
 
-2. **Token Embedding** (`model/embeddings.py`): `PokemonEmbeddings` looks up 7 embedding tables and concatenates them with scalars → 438-dim vector per Pokémon. Type embeddings are seeded from log2 type chart; move embeddings from type+category priors.
+2. **Token Embedding** (`model/embeddings.py`): `PokemonEmbeddings` looks up 7 embedding tables and concatenates them with scalars → 439-dim vector per Pokémon. Type embeddings are seeded from log2 type chart; move embeddings from type+category priors.
 
 3. **Transformer Backbone** (`model/backbone.py`): 3 layers, 4 heads, d_model=256, FFN=512, Pre-LN. Processes K=4 turns of 13 tokens each (6 own + 6 opponent + 1 field) = 52 tokens. Uses learned temporal + slot positional embeddings. Padding mask zeroes out empty/future turns (all-zero field features) in the self-attention computation.
 
-4. **Actor Head (DETR-style)**: Action embeddings (13 queries) cross-attend over the 13 current-turn tokens (keys/values). This is the same pattern as DETR's object queries — learnable queries attend over encoder output. Output: 13 logits (4 moves + 4 mechanic variants + 5 switches).
+4. **Actor Head (DETR-style)**: Action embeddings (13 queries) cross-attend over the 13 current-turn tokens (keys/values). This is the same pattern as DETR's object queries — learnable queries attend over encoder output. Output: 13 logits (4 moves + 4 mechanic variants + 5 switches). Action queries are built from **pre-transformer** tokens to avoid self-match shortcuts (P13e).
 
-5. **Value Head**: Mean-pool over 13 current-turn tokens → Linear-ReLU-Linear → scalar V(s).
+5. **Value Head**: Mean-pool over 13 current-turn tokens → Linear(256,256)-ReLU-Linear(256,1) → scalar V(s).
 
-6. **Prediction Heads**: 4 independent Linear heads on opponent tokens predicting item (250), ability (311), tera type (19), and 4× moves (686). Auxiliary supervised loss, masked to revealed slots.
+6. **Prediction Heads**: 5 independent Linear heads on opponent tokens predicting item (250 CE), ability (311 CE), tera type (19 CE), moves (686 BCE multi-label, top-4 recall at inference), and stats (6 MSE: HP + atk/def/spa/spd/spe). Auxiliary supervised loss, masked to revealed slots.
 
 ### Action Space (13 slots)
 
@@ -83,7 +85,7 @@ State dict (PyBattle) → State Encoder → Token Embedding → Transformer Back
 | 4-7   | Mechanic moves (same moves + Tera modifier) |
 | 8-12  | Switch to bench Pokémon 0-4 |
 
-Action embeddings are built dynamically from the active Pokémon's backbone token, move embeddings, PP/disabled scalars, bench tokens, and mechanic type/ID.
+Action embeddings are built dynamically from the active Pokémon's pre-transformer token, move embeddings, PP/disabled scalars, bench tokens, and mechanic type/ID.
 
 ### POMDP Masking
 
@@ -98,7 +100,7 @@ Action embeddings are built dynamically from the active Pokémon's backbone toke
 | γ (discount) | 0.99 |
 | λ (GAE) | 0.95 |
 | Clip ε | 0.2 |
-| Epochs | 2 |
+| Epochs | 4 |
 | Batch size | 128 |
 | Optimizer | AdamW (lr=2.5e-4, wd=1e-4) |
 | LR schedule | Linear warmup (20 steps) + cosine decay to 1e-5 |
@@ -109,22 +111,28 @@ Action embeddings are built dynamically from the active Pokémon's backbone toke
 
 ```
 total = policy_loss + c_value × value_loss + c_entropy × entropy_loss + c_pred × pred_loss
+      - c_attn_entropy × attn_entropy + c_attn_rank × (ln(13) − attn_rank)
 ```
 
-- **Policy**: PPO-clip surrogate with advantage normalization
-- **Value**: MSE with return normalization (per-batch z-score)
+- **Policy**: PPO-clip surrogate with advantage normalisation (per-batch z-score)
+- **Value**: MSE against returns pre-normalised globally per rollout (z-score once in `compute_gae`, before minibatch splits)
 - **Entropy**: Negative entropy over legal actions (encourages exploration)
-- **Prediction**: Masked cross-entropy on opponent hidden state
+- **Prediction**: Masked CE (item/ability/tera) + BCE multi-label (moves) + MSE×0.001 (stats) on opponent hidden state
+- **Attn entropy** (P14): maximise per-query cross-attention entropy to prevent attention collapse
+- **Attn rank** (P18): maximise von Neumann entropy of cross-attention singular values to prevent rank collapse
 
 ### Reward Design
 
 | Component | Scale | Description |
 |-----------|-------|-------------|
 | Terminal win/loss | ±1.0 | Sparse, never scaled |
-| Opponent KO | +0.05 | Scaled by `dense_scale` |
-| Own KO | -0.05 | Scaled by `dense_scale` |
-| Δ HP advantage | 0.05 × Δadv | Scaled by `dense_scale` (×5 vs v1) |
-| Δ count advantage | 0.03 × Δcount/6 | Alive Pokémon difference, scaled by `dense_scale` |
+| Opponent KO | +0.5 | Scaled by `dense_scale` |
+| Own KO | -0.5 | Scaled by `dense_scale` |
+| Δ HP advantage | 0.5 × Δadv | Scaled by `dense_scale` |
+| Δ count advantage | 0.3 × Δcount/6 | Alive Pokémon difference, scaled by `dense_scale` |
+| Status inflicted | +0.1 | Opponent Pokémon gains a status condition, scaled by `dense_scale` |
+| Hazard set | +0.1 × layers | Entry hazard placed on opponent side, scaled by `dense_scale` |
+| Hazard removed | +0.1 × layers | Rapid Spin / Defog clears our side, scaled by `dense_scale` |
 
 ### Curriculum (3 phases)
 
@@ -136,33 +144,33 @@ total = policy_loss + c_value × value_loss + c_entropy × entropy_loss + c_pred
 
 ### Opponent Mixing
 
-5% RandomPolicy / 5% FullOffensePolicy / 70% EMA opponent / 20% pool (past snapshots).
+10% RandomPolicy / 10% FullOffensePolicy / 60% EMA opponent / 20% pool (past snapshots).
 When the pool is empty (early training), EMA is used for the pool share as well.
 
 - **EMA Opponent**: Exponential Moving Average of the online agent weights (decay=0.995, warmup=5 updates). Provides a stable, always-available self-play opponent that smooths over the agent's oscillations during training. Updated after each PPO step.
-- **Pool**: Periodic snapshots (every 100 updates) of the online agent — replaces the old WR-gated snapshot system. Size limited to 10 most recent snapshots.
+- **Pool**: Periodic snapshots (every 100 updates) of the online agent. Size limited to 10 most recent snapshots.
 
 ### Evaluation
 
-Every `eval_freq` updates: 500 games vs RandomPolicy, FullOffensePolicy, EMA opponent, and pool.
+Every `eval_freq` updates: 100 games vs RandomPolicy, FullOffensePolicy, EMA opponent, and pool.
 The agent is snapshotted into the pool every `pool_snapshot_freq=100` updates (regardless of win rate).
 
 ## Key Files Reference
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `model/backbone.py` | 268 | Transformer, value head, actor cross-attention, attention map capture, padding mask |
-| `model/agent.py` | 87 | Top-level forward pass combining all sub-modules |
-| `model/embeddings.py` | 272 | Token embeddings (438-dim), POMDP masking, collation |
-| `model/prediction_heads.py` | 132 | 4 Linear prediction heads + masked CE loss |
-| `env/state_encoder.py` | 252 | Battle state → feature vectors, all vocabulary constants |
+| `model/backbone.py` | 321 | Transformer, value head, actor cross-attention, attention map capture, padding mask |
+| `model/agent.py` | 91 | Top-level forward pass combining all sub-modules |
+| `model/embeddings.py` | 274 | Token embeddings (439-dim), POMDP masking, collation |
+| `model/prediction_heads.py` | 238 | 5 prediction heads (item/ability/tera/moves/stats) + masked losses |
+| `env/state_encoder.py` | 254 | Battle state → feature vectors, all vocabulary constants |
 | `env/action_space.py` | 66 | 13 action embeddings (moves + mechanic + switch) |
 | `env/revealed_tracker.py` | 313 | Parses PS protocol logs to track revealed opponent info |
-| `training/self_play.py` | 706 | Main training loop, EMA opponent, opponent pool, curriculum schedules |
-| `training/rollout.py` | 783 | Episode collection, GAE computation, action masking, reward components |
-| `training/losses.py` | 91 | PPO-clip + value + entropy + prediction loss |
-| `training/evaluate.py` | 184 | Evaluation against fixed opponents with diagnostics |
-| `training/monitor.py` | 268 | Diagnostic plots from eval data |
+| `training/self_play.py` | 756 | Main training loop, EMA opponent, opponent pool, curriculum schedules |
+| `training/rollout.py` | 817 | Episode collection, GAE computation, action masking, reward components |
+| `training/losses.py` | 99 | PPO-clip + value + entropy + prediction + attention reg losses |
+| `training/evaluate.py` | 345 | Evaluation against fixed opponents with diagnostics |
+| `training/monitor.py` | 435 | Diagnostic plots from eval data |
 | `env/bots.py` | 211 | FullOffensePolicy — rule-based damage maximizer |
 | `run_curriculum_max.py` | 69 | Launcher with 3-phase curriculum config |
 | `simulator/src/lib.rs` | — | Rust PyBattle (PyO3 binding over pokemon-showdown-rs) |

@@ -86,8 +86,9 @@ class BattleBackbone(nn.Module):
         )
 
         # ── Value head (Critic) ───────────────────────────────────────────────
-        # Pooled (mean over 13 slots) → Linear → ReLU → Linear
-        # Mean pooling avoids the 3328→256 bottleneck and adds ~65k params
+        # Attention pooling: learned query scores each of the 13 tokens,
+        # softmax weights → weighted sum → MLP. More expressive than mean-pooling.
+        self.value_pool_query = nn.Linear(D_MODEL, 1, bias=False)  # [D_MODEL → 1]
         self.value_head = nn.Sequential(
             nn.Linear(D_MODEL, D_MODEL),
             nn.ReLU(),
@@ -201,9 +202,10 @@ class BattleBackbone(nn.Module):
                 seq = layer.norm2(seq + layer._ff_block(seq))
 
         current_tokens = seq[:, -N_SLOTS:, :]                      # [B, 13, D_MODEL]
-        B    = current_tokens.shape[0]
-        pooled = current_tokens.mean(dim=1)                         # [B, D_MODEL]
-        value = self.value_head(pooled)                             # [B, 1]
+        scores  = self.value_pool_query(current_tokens).squeeze(-1) # [B, 13]
+        weights = F.softmax(scores, dim=-1).unsqueeze(-1)           # [B, 13, 1]
+        pooled  = (weights * current_tokens).sum(dim=1)             # [B, D_MODEL]
+        value   = self.value_head(pooled)                           # [B, 1]
 
         # Build token labels: T0_OWN0..T0_OWN5, T0_OPP0..T0_OPP5, T0_FIELD, ...
         token_labels = []
@@ -292,9 +294,10 @@ class BattleBackbone(nn.Module):
         # Current turn tokens AFTER Transformer (enriched by self-attention)
         post_tokens = seq[:, -N_SLOTS:, :]                         # [B, 13, D_MODEL]
 
-        B      = post_tokens.shape[0]
-        pooled = post_tokens.mean(dim=1)                            # [B, D_MODEL]
-        value  = self.value_head(pooled)                            # [B, 1]
+        scores = self.value_pool_query(post_tokens).squeeze(-1)    # [B, 13]
+        weights = F.softmax(scores, dim=-1).unsqueeze(-1)           # [B, 13, 1]
+        pooled  = (weights * post_tokens).sum(dim=1)                # [B, D_MODEL]
+        value   = self.value_head(pooled)                           # [B, 1]
 
         return pre_tokens, post_tokens, value
 

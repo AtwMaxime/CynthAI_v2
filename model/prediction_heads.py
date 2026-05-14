@@ -129,7 +129,7 @@ class PredictionHeads(nn.Module):
             top4    = logits.topk(4, dim=-1).indices                     # [N_valid, 4]
             hits    = torch.gather(targets > 0.5, 1, top4)               # [N_valid, 4] bool
             n_true  = targets.sum(dim=-1).float().clamp(min=1)           # [N_valid]
-            n_hits  = hits.any(dim=-1).float()                           # [N_valid] — at least 1 hit in top-4
+            n_hits  = hits.sum(dim=-1).float()                           # [N_valid] — how many true moves in top-4
             return (n_hits / n_true).mean().item()
 
         def _masked_mae(logits_nd, targets_nd, mask_nd):
@@ -185,8 +185,10 @@ class PredictionHeads(nn.Module):
             flat_mask    = mask_nd.reshape(-1)
             if not flat_mask.any():
                 return flat_logits.sum() * 0.0
+            # pos_weight balances the 4/686 class imbalance (~171x more negatives than positives)
+            pw = torch.full((N_MOVES,), (N_MOVES - 4) / 4.0, device=logits_nd.device)
             return F.binary_cross_entropy_with_logits(
-                flat_logits[flat_mask], flat_targets[flat_mask]
+                flat_logits[flat_mask], flat_targets[flat_mask], pos_weight=pw
             )
 
         def _masked_mse(logits_nd: torch.Tensor, targets_nd: torch.Tensor, mask_nd: torch.Tensor) -> torch.Tensor:

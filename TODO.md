@@ -684,3 +684,84 @@ Ajouter dans les logs de `compute_losses()` :
 ```
 
 Si `adv_std < 0.5` après normalisation ou `ratio_mean < 0.01`, le signal policy est trop faible.
+
+---
+
+## R1 — Distillation depuis un modèle tricheur (Cheater → Partial Info)
+
+**Objectif** : Utiliser un modèle entraîné en information complète (mask_ratio=0.0 sur toute la durée) comme "professeur" pour guider l'apprentissage d'un modèle entraîné en information partielle. Le modèle tricheur a accès à l'état adverse complet (espèce, moves, stats, item) — il apprend une politique supérieure que l'agent POMDP ne peut pas atteindre directement.
+
+**Principe** : Knowledge Distillation (Hinton et al. 2015). Le modèle tricheur fournit des distributions de policy "douces" (soft targets) au lieu de labels one-hot. L'élève (modèle partiel) est entraîné avec :
+
+```
+loss = α * PPO_loss(élève) + (1-α) * KL(π_élève || π_prof)
+```
+
+Le KL est calculé sur les distributions de policy (logits), pas sur les actions individuelles.
+
+**Pourquoi ça marche ici** :
+- Le modèle tricheur connaît les bonnes actions même sur les états que l'élève voit comme ambigus
+- La distribution du prof encode plus d'information que le signal RL sparse (victoire/défaite)
+- L'élève apprend à imiter le comportement du prof sur les états partiellement observables
+
+**Variantes** :
+1. **Online distillation** : le prof est le modèle tricheur figé, l'élève est mis à jour par PPO + KL
+2. **Privileged critic** (lié à P13a) : le prof fournit aussi une estimation de valeur V(s_complet) que l'élève utilise pour ses avantages — signal de retour plus propre
+3. **DAgger-style** : collecter des rollouts avec la politique du prof et faire du SFT sur ces trajectoires (voir R2)
+
+**Implémentation** :
+```python
+# Dans compute_losses(), ajouter :
+if teacher_logits is not None:
+    kl = F.kl_div(
+        F.log_softmax(logits_new, dim=-1),
+        F.softmax(teacher_logits, dim=-1),
+        reduction="batchmean"
+    )
+    total = total + c_distill * kl
+```
+
+**Prérequis** : entraîner un cheater jusqu'à convergence (~2000 updates, win rate ~65% vs Random), puis l'utiliser comme prof figé pour l'entraînement de l'élève.
+
+**Fichiers** : `training/losses.py`, `training/self_play.py` (passage des teacher_logits depuis le forward du prof), `run_curriculum_max.py` (config c_distill + cheater_checkpoint).
+
+---
+
+## R2 — Pré-entraînement Supervised Fine-Tuning (SFT) sur replays Showdown
+
+**Objectif** : Initialiser l'agent avec une politique humaine/experte via SFT sur des replays Showdown avant le RL. Cela accélère le bootstrap et donne une prior sensée (pas aléatoire) au début du RL.
+
+**Problème** : Les replays Showdown sont en **information partielle des deux côtés** — les logs `.json` ne révèlent que ce qui a été affiché en jeu (moves utilisés, Pokémon envoyés). L'état complet adverse (nature, EVs, moves non-utilisés) n'est jamais dans le replay.
+
+**Options pour contourner** :
+
+1. **SFT sur états partiels** : Encoder l'état du log tel qu'il est (info partielle), label = action jouée par le joueur humain. Le modèle apprend à imiter les humains dans les mêmes conditions POMDP. Limitation : les humains font des erreurs, et les replays ladder ne sont pas filtrés par niveau.
+
+2. **SFT filtré (replays haut-niveau)** : Télécharger uniquement des replays de joueurs top-ladder (ELO > 1800). La qualité des actions augmente significativement, au prix d'une quantité réduite de données.
+
+3. **SFT + distillation** (R1 + R2 combinés) : Faire tourner le modèle tricheur sur les états initiaux des replays (en recontruisant l'état complet côté simulateur), utiliser sa distribution de policy comme label soft pour le SFT. Contourne le POMDP des replays en utilisant le simulateur pour reconstruire la vérité terrain.
+
+4. **SFT sur trajectoires tricheur** (approche DAgger) : Collecter des rollouts avec le modèle tricheur (R1), utiliser ces trajectoires pour un SFT de l'élève — données en information partielle puisque l'élève ne voit que l'état masqué, mais labels venant de la politique optimale du prof.
+
+**Format des replays Showdown** : `.json` avec `inputLog` (choix du joueur) et `log` (protocole PS complet). L'état peut être reconstruit step-by-step via le simulateur Rust en rejouant les inputs, ce qui donne accès à `get_state()` côté simulateur (information complète).
+
+**Fichiers à créer** : `scripts/parse_replays.py` (parsing + reconstruction d'état), `training/sft.py` (boucle SFT avec BCE sur les actions), nouveau script `run_sft.py`.
+
+---
+
+## R3 — Correction du générateur de team (Team Builder)
+
+**Problème** : Le générateur de team actuel ne reproduit pas fidèlement le comportement de Showdown Gen 9 Random Battle. Les équipes générées dévient du format officiel (sets incorrects, distribution d'items/moves erronée, règles de rôle non respectées).
+
+**Impact** : Le simulateur entraîne l'agent sur des équipes irréalistes, ce qui crée un gap train/test : l'agent ne généralise pas bien quand il joue contre de vraies équipes Showdown (lors d'une évaluation en ligne ou en live).
+
+**À investiguer** :
+- Comparer les sets générés par le simulateur avec les sets officiels de `random-teams.js` (source Pokémon Showdown)
+- Vérifier les règles de rôle (attaquant physique/spécial, tank, rapide, lent-mais-robuste) et leur distribution
+- Vérifier la logique d'attribution des items (Choice Band/Specs/Scarf, Life Orb, Leftovers, etc.)
+- Vérifier la sélection des EVs/nature (en Random Battle Gen 9, les EVs sont fixes par rôle, pas aléatoires)
+- Vérifier la compatibilité move/espèce (learnsets)
+
+**Solution probable** : Réécrire le générateur en se basant directement sur `random-teams.js` de Pokémon Showdown (source officielle) plutôt que sur une approximation. Le fichier de données officiel (`randombattlesets.json`) donne pour chaque espèce les sets autorisés — il suffit de le parser.
+
+**Fichiers** : `simulator/src/lib.rs` (générateur de team côté Rust) ou un générateur Python qui appelle le simulateur Showdown JS directement via `child_process`.
