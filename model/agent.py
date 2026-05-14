@@ -90,7 +90,8 @@ class CynthAIAgent(nn.Module):
         pre_tokens, post_tokens, backbone_value = self.backbone.encode(pokemon_tokens, field_tensor)
 
         if self.use_independent_critic:
-            value = self.independent_critic(pokemon_tokens, field_tensor)
+            # Detach to prevent value loss gradient from contaminating poke_emb
+            value = self.independent_critic(pokemon_tokens.detach(), field_tensor.detach())
         else:
             value = backbone_value
 
