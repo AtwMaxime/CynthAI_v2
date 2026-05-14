@@ -238,6 +238,25 @@ normalisées avant d'être concaténées aux autres scalaires ? Si non, diviser 
 constante fixe (ex: `hp_raw / 714`, `stats / 700`) ou appliquer une normalisation
 par running mean/std sur le premier batch.
 
+## Mix d'adversaires : supprimer Random, augmenter Pool
+
+**Constat** (cheater_v5, ~u80) : L'agent bat RandomPolicy à >90% dès les premiers updates. Garder 10% Random n'apporte plus de signal utile.
+
+**Proposition** : Passer de `10% rand / 10% FO / 60% EMA / 20% pool` à `0% rand / 10% FO / 60% EMA / 30% pool`.
+
+```python
+if roll < 0.10:
+    opponent = FullOffensePolicy()   # 10% FO — plancher de difficulté
+elif roll < 0.70:
+    opponent = ema_opponent          # 60% EMA
+else:
+    opponent = pool or ema_opponent  # 30% pool (fallback EMA si vide)
+```
+
+**Fichiers** : `training/self_play.py` (~ligne 563), nouveau launcher v6.
+
+---
+
 ## Pool snapshot : win-rate gate
 
 Le patch P10c a retiré le gate sur les snapshots (periodic unconditional, tous les

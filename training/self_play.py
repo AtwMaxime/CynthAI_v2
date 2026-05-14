@@ -286,6 +286,19 @@ class OpponentPool:
     def __len__(self) -> int:
         return len(self._pool)
 
+    def state_dicts(self) -> list[dict]:
+        return [snap.state_dict() for snap in self._pool]
+
+    def load_state_dicts(self, agent: CynthAIAgent, dicts: list[dict]) -> None:
+        self._pool.clear()
+        for sd in dicts:
+            snap = copy.deepcopy(agent)
+            snap.load_state_dict(sd)
+            snap.eval()
+            for p in snap.parameters():
+                p.requires_grad_(False)
+            self._pool.append(snap)
+
 
 # -- P10b: EMA Opponent -------------------------------------------------------------
 
@@ -317,6 +330,12 @@ class EMAOpponent:
 
     def sample(self, current_agent: CynthAIAgent) -> CynthAIAgent:
         return self.ema
+
+    def state_dict(self) -> dict:
+        return self.ema.state_dict()
+
+    def load_state_dict(self, sd: dict) -> None:
+        self.ema.load_state_dict(sd)
 
 
 # -- Opponent token slice helper --------------------------------------------------
@@ -501,8 +520,26 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
         print(f"Resumed from {cfg.resume}  (update {ckpt['update']})")
         print(f"  run_name={cfg.run_name}  total_updates={cfg.total_updates}")
 
-    pool        = OpponentPool(pool_size=cfg.pool_size)
+    pool         = OpponentPool(pool_size=cfg.pool_size)
     ema_opponent = EMAOpponent(agent, decay=cfg.ema_decay)  # P10b
+
+    # Restore pool and EMA from pool_ema_latest.pt (separate lightweight file)
+    if cfg.resume:
+        pool_ema_path = Path(cfg.resume).parent / "pool_ema_latest.pt"
+        if pool_ema_path.exists():
+            pe = torch.load(pool_ema_path, map_location=device, weights_only=True)
+            try:
+                ema_opponent.load_state_dict(pe["ema"])
+                print(f"  EMA opponent restored (from update {pe.get('update', '?')}).")
+            except Exception as e:
+                print(f"  EMA restore failed ({e}) — starting fresh EMA.")
+            try:
+                pool.load_state_dicts(agent, pe["pool"])
+                print(f"  Opponent pool restored: {len(pool)} snapshots.")
+            except Exception as e:
+                print(f"  Pool restore failed ({e}) — starting with empty pool.")
+        else:
+            print("  No pool_ema_latest.pt found — starting with empty pool and fresh EMA.")
     win_history : deque[int] = deque(maxlen=cfg.win_rate_window)
     total_eps   = 0
     last_snapshot_update = 0  # P3: cooldown counter for WR-based snapshots
@@ -524,17 +561,17 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
         t0 = time.perf_counter()
 
         # -- 1a. Opponent selection (P10b-P10c: EMA + pool + fixed policies) -----------
-        # Mixing: 10% Random / 10% FullOffense / 60% EMA (or self-play before warmup)
-        #         / 20% pool (or EMA if pool empty)
+        # Mixing: 5% Random / 10% FullOffense / 60% EMA / 25% pool
+        #         Pool fallback: FullOffense (harder than nascent EMA)
         roll = random.random()
-        if roll < 0.10:
+        if roll < 0.05:
             opponent = RandomPolicy()
             opp_label = "rand"
-        elif roll < 0.20:
+        elif roll < 0.15:
             opponent = FullOffensePolicy()
             opp_label = "fo"
-        elif roll < 0.80:
-            # 70% — EMA opponent (stable lagging self-play)
+        elif roll < 0.75:
+            # 60% — EMA opponent (stable lagging self-play)
             if update > cfg.ema_warmup:
                 opponent = ema_opponent.sample(agent)
                 opp_label = "ema"
@@ -542,13 +579,13 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 opponent = agent
                 opp_label = "self"
         else:
-            # 20% — pool (diversity) or EMA fallback
+            # 25% — pool (diversity) or FullOffense fallback if pool empty
             if len(pool) > 0:
                 opponent = pool.sample(agent)
                 opp_label = f"pool({len(pool)})"
             else:
-                opponent = ema_opponent.sample(agent) if update > cfg.ema_warmup else agent
-                opp_label = "ema" if update > cfg.ema_warmup else "self"
+                opponent = FullOffensePolicy()
+                opp_label = "fo"
 
         # -- 1b. Rollout collection ----------------------------------------------------
         agent.eval()
@@ -774,7 +811,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
 
         # -- 5. Periodic evaluation ---------------------------------------------------
         # P3: every eval_freq updates, run 500 games vs each opponent type
-        if update % cfg.eval_freq == 0:
+        if update % cfg.eval_freq == 0 or update == 100:
             agent.eval()
             eval_t0 = time.perf_counter()
 
@@ -867,7 +904,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
             print(f"  eval finished [{eval_elapsed:.1f}s]")
 
         # -- 7. Checkpoint (standalone; snapshot is inside eval block) -----------------
-        if update % cfg.checkpoint_freq == 0:
+        if update % cfg.checkpoint_freq == 0 or update == 100:
             ckpt_path = Path(cfg.checkpoint_dir) / f"agent_{update:06d}.pt"
             torch.save({
                 "update":    update,
@@ -877,6 +914,15 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
             }, ckpt_path)
             print(f"  -> checkpoint saved: {ckpt_path}")
 
+        # -- 7b. Pool + EMA — overwrite a single file every update --------------------
+        pool_ema_path = Path(cfg.checkpoint_dir) / "pool_ema_latest.pt"
+        torch.save({
+            "update": update,
+            "ema":    ema_opponent.state_dict(),
+            "pool":   pool.state_dicts(),
+        }, pool_ema_path)
+
+        if update % cfg.checkpoint_freq == 0 or update == 100:
             # Save attention maps alongside checkpoint
             save_attention_maps(agent, cfg.checkpoint_dir,
                                 tag=f"update{update:06d}", device=device)

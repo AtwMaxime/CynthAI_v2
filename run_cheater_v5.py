@@ -78,9 +78,9 @@ if __name__ == "__main__":
         dense_phase_values      = (),
 
         # Checkpointing / eval
-        checkpoint_freq = 100,
-        eval_freq       = 100,
-        eval_n_games    = 100,
+        checkpoint_freq = 200,
+        eval_freq       = 200,
+        eval_n_games    = 500,
         log_every       = 1,
         win_rate_window = 100,
 

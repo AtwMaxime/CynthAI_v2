@@ -749,6 +749,18 @@ if teacher_logits is not None:
 
 ---
 
+## P19 — Ajuster le mix d'adversaires (supprimer Random, augmenter Pool)
+
+**Constat** (cheater_v5, ~u80) : L'agent bat déjà RandomPolicy à >90% dès les premiers updates. Garder 10% Random dans le mix n'apporte plus de signal utile — l'agent n'apprend rien de ces parties.
+
+**Proposition** : Passer de `10% rand / 10% FO / 60% EMA / 20% pool` à `0% rand / 10% FO / 60% EMA / 30% pool`. Le FO reste pour ancrer un plancher de difficulté minimal. Le pool à 30% apporte plus de diversité stylistique une fois qu'il se remplit.
+
+**À faire** : Modifier les seuils dans `training/self_play.py` (bloc opponent selection, ~ligne 563) une fois que cheater_v5 a fini ou qu'on relance une nouvelle run.
+
+**Fichiers** : `training/self_play.py`, `run_cheater_v5.py` (ou nouveau launcher).
+
+---
+
 ## R3 — Correction du générateur de team (Team Builder)
 
 **Problème** : Le générateur de team actuel ne reproduit pas fidèlement le comportement de Showdown Gen 9 Random Battle. Les équipes générées dévient du format officiel (sets incorrects, distribution d'items/moves erronée, règles de rôle non respectées).
