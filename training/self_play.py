@@ -242,6 +242,13 @@ class TrainingConfig:
     eval_freq:       int = 20      # P3: run evaluation every N updates
     eval_n_games:    int = 500     # P3: games per opponent in evaluation
 
+    # Independent critic (optional — separate Transformer, no shared weights with actor)
+    use_independent_critic: bool  = False
+    critic_n_layers:        int   = 2      # Transformer depth (actor uses 3)
+    critic_lr:              float = 5e-4   # independent learning rate
+    critic_wd:              float = 1e-4   # independent weight decay
+    critic_grad_norm:       float = 0.5    # independent gradient clip
+
     # Device
     device: str = "cpu"
 
@@ -452,13 +459,26 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
     _first_metrics = not metrics_path.exists()
     _first_eval    = not eval_path.exists()
 
-    agent     = CynthAIAgent().to(device)
-    optimizer = torch.optim.AdamW(
-        agent.parameters(),
-        lr           = cfg.lr,
-        weight_decay = cfg.weight_decay,
-        eps          = 1e-5,
-    )
+    agent = CynthAIAgent(
+        use_independent_critic = cfg.use_independent_critic,
+        critic_n_layers        = cfg.critic_n_layers,
+    ).to(device)
+
+    if cfg.use_independent_critic:
+        critic_params = list(agent.independent_critic.parameters())
+        critic_ids    = {id(p) for p in critic_params}
+        actor_params  = [p for p in agent.parameters() if id(p) not in critic_ids]
+        optimizer = torch.optim.AdamW([
+            {"params": actor_params,  "lr": cfg.lr,        "weight_decay": cfg.weight_decay},
+            {"params": critic_params, "lr": cfg.critic_lr, "weight_decay": cfg.critic_wd},
+        ], eps=1e-5)
+    else:
+        optimizer = torch.optim.AdamW(
+            agent.parameters(),
+            lr           = cfg.lr,
+            weight_decay = cfg.weight_decay,
+            eps          = 1e-5,
+        )
 
     start_update = 1
     if cfg.resume:
@@ -654,7 +674,14 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 losses["total"] = losses["total"] + rank_loss
 
                 losses["total"].backward()
-                grad_norm = nn.utils.clip_grad_norm_(agent.parameters(), cfg.max_grad_norm)
+                if cfg.use_independent_critic:
+                    critic_params = list(agent.independent_critic.parameters())
+                    critic_ids    = {id(p) for p in critic_params}
+                    actor_params  = [p for p in agent.parameters() if id(p) not in critic_ids]
+                    nn.utils.clip_grad_norm_(actor_params,  cfg.max_grad_norm)
+                    grad_norm = nn.utils.clip_grad_norm_(critic_params, cfg.critic_grad_norm)
+                else:
+                    grad_norm = nn.utils.clip_grad_norm_(agent.parameters(), cfg.max_grad_norm)
                 optimizer.step()
 
                 for k, v in losses.items():

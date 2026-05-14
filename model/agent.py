@@ -30,6 +30,7 @@ import torch.nn.functional as F
 
 from model.embeddings import PokemonEmbeddings, PokemonBatch
 from model.backbone import BattleBackbone, D_MODEL, OPP_SLOTS
+from model.critic import IndependentCritic
 from env.action_space import ActionEncoder
 from model.prediction_heads import PredictionHeads, PredictionLogits
 
@@ -53,7 +54,11 @@ class CynthAIAgent(nn.Module):
     move_embed and type_embed with PokemonEmbeddings (same weight objects).
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        use_independent_critic: bool = False,
+        critic_n_layers:        int  = 2,
+    ):
         super().__init__()
         self.poke_emb   = PokemonEmbeddings()
         self.backbone   = BattleBackbone()
@@ -62,6 +67,10 @@ class CynthAIAgent(nn.Module):
             type_embed = self.poke_emb.type_embed,
         )
         self.predictor  = PredictionHeads()
+
+        self.use_independent_critic = use_independent_critic
+        if use_independent_critic:
+            self.independent_critic = IndependentCritic(n_layers=critic_n_layers)
 
     def forward(
         self,
@@ -78,7 +87,12 @@ class CynthAIAgent(nn.Module):
         pokemon_tokens = self.poke_emb(poke_batch)          # [B, K*12, TOKEN_DIM]
 
         # ── 2. Single Transformer pass ────────────────────────────────────────
-        pre_tokens, post_tokens, value = self.backbone.encode(pokemon_tokens, field_tensor)
+        pre_tokens, post_tokens, backbone_value = self.backbone.encode(pokemon_tokens, field_tensor)
+
+        if self.use_independent_critic:
+            value = self.independent_critic(pokemon_tokens, field_tensor)
+        else:
+            value = backbone_value
 
         # ── 3. Action embeddings (from PRE-transformer tokens — no self-match) ─
         action_embeds = self.action_enc(

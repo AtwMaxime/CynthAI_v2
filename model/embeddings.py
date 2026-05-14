@@ -40,6 +40,30 @@ TOKEN_DIM: int  = D_SPECIES + D_TYPE + D_TYPE + D_TYPE + D_ITEM + D_ABILITY + 4 
 # = 32 + 8 + 8 + 8 + 16 + 16 + 128 + 223 = 439
 
 
+class ScalarRunningNorm(nn.Module):
+    """
+    Per-feature running normalization for the 223 Pokémon scalars.
+    EMA mean/var updated during training, frozen during eval.
+    """
+
+    def __init__(self, n_features: int, momentum: float = 0.05, eps: float = 1e-5):
+        super().__init__()
+        self.momentum = momentum
+        self.eps      = eps
+        self.register_buffer("running_mean", torch.zeros(n_features))
+        self.register_buffer("running_var",  torch.ones(n_features))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x: [B, N, n_features]
+        if self.training:
+            flat = x.detach().reshape(-1, x.shape[-1])   # [B*N, n_features]
+            batch_mean = flat.mean(dim=0)
+            batch_var  = flat.var(dim=0, unbiased=False)
+            self.running_mean.lerp_(batch_mean, self.momentum)
+            self.running_var.lerp_(batch_var,   self.momentum)
+        return (x - self.running_mean) / (self.running_var.sqrt() + self.eps)
+
+
 # ── PokemonBatch ───────────────────────────────────────────────────────────────
 
 @dataclass
@@ -256,6 +280,7 @@ class PokemonEmbeddings(nn.Module):
         self.item_embed    = nn.Embedding(N_ITEMS, D_ITEM)
         self.ability_embed = nn.Embedding(N_ABILITIES, D_ABILITY)
         self.type_embed    = nn.Embedding.from_pretrained(TYPE_EMBEDDING_PRIOR, freeze=False)
+        self.scalar_norm   = ScalarRunningNorm(N_SCALARS)
         self._init_species_from_base_stats()
 
     def _init_species_from_base_stats(self) -> None:
@@ -285,7 +310,8 @@ class PokemonEmbeddings(nn.Module):
         mv = self.move_embed(batch.move_idx)           # [B, N, 4, D_MOVE]
         mv = mv.reshape(B, N, 4 * D_MOVE)             # [B, N, 4*D_MOVE]
 
-        return torch.cat([sp, t1, t2, tr, it, ab, mv, batch.scalars], dim=-1)
+        scalars = self.scalar_norm(batch.scalars)
+        return torch.cat([sp, t1, t2, tr, it, ab, mv, scalars], dim=-1)
         # → [B, N, 32+8+8+8+16+16+128+223] = [B, N, 439]
 
 
