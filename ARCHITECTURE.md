@@ -3,18 +3,22 @@
 ## High-Level Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         CynthAIAgent (agent.py)                         │
-│                                                                         │
-│   State Dict ──▶ PokemonEmbeddings ──▶ BattleBackbone ──┬──▶ Value      │
-│   (PyBattle)      (embeddings.py)     (backbone.py)     │               │
-│                                                         ├──▶ Logits     │
-│                    ActionEncoder ◀── pre_tokens ─────────┤               │
-│                    (action_space.py)  (pre-Transformer)  │               │
-│                                                         └──▶ Preds      │
-│                    PredictionHeads ◀── post_tokens ──────┘               │
-│                    (prediction_heads.py)  (post-Transformer)            │
-└─────────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────┐
+│                          CynthAIAgent (agent.py)                          │
+│                                                                           │
+│   State Dict ──▶ PokemonEmbeddings ──▶ BattleBackbone ──┬──▶ Value        │
+│   (PyBattle)      (embeddings.py)      (backbone.py)    │   [backbone OR  │
+│                    + ScalarRunningNorm                   │    IndepCritic] │
+│                                                          ├──▶ Logits       │
+│                    ActionEncoder ◀── pre_tokens ─────────┤                 │
+│                    (action_space.py)  (pre-Transformer)  │                 │
+│                                                          └──▶ Preds        │
+│                    PredictionHeads ◀── post_tokens ──────┘                 │
+│                    (prediction_heads.py)  (post-Transformer)              │
+│                                                                           │
+│   [optional] IndependentCritic ◀── pokemon_tokens, field_tensor           │
+│              (critic.py)            (own Transformer, own optimizer)      │
+└───────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Data Flow: State → Token → Transformer → Action
@@ -32,37 +36,53 @@ Step 1: Encode            Step 2: Embed              Step 3: Transformer
 │  weather     │         │ item(16)     │           │  │  [B,K,13,D_MODEL] │
 │  terrain     │         │ ability(16)  │           │  ├─ add temporal_emb │
 │  ...         │         │ moves[4](32) │           │  └─ add slot_emb     │
-└──────────────┘         │ scalars(223) │           │                      │
-                         │ = 439 dims   │           │ TransformerEncoder   │
-                         └──────────────┘           │  3 layers × 4 heads  │
-                                                    │  Pre-LN, d_model=256 │
-                                                    │  FFN=512, dropout=0.15│
-                                                    │                      │
-                                                    │ Output:              │
-                                                    │  pre_tokens  [B,13,256]  ← before Transformer
-                                                    │  post_tokens [B,13,256]  ← after Transformer
+└──────────────┘         │              │           │                      │
+                         │ scalars(223) │           │ TransformerEncoder   │
+                         │  ↑           │           │  3 layers × 4 heads  │
+                         │ ScalarRun-   │           │  Pre-LN, d_model=256 │
+                         │ ningNorm     │           │  FFN=512, dropout=0.15│
+                         │ (EMA norm,   │           │                      │
+                         │  per-feature)│           │ Output:              │
+                         │ = 439 dims   │           │  pre_tokens  [B,13,256]  ← before Transformer
+                         └──────────────┘           │  post_tokens [B,13,256]  ← after Transformer
                                                     └──────┬───────────────┘
                                                            │
        ┌──────────────────────┌────────────────────────────┤
        ▼                      ▼                            ▼
 Step 4a: Value Head    Step 4b: Actor Head          Step 4c: Prediction Heads
 ┌────────────────┐   ┌─────────────────────────┐   ┌──────────────────────┐
-│ value_head     │   │ ActionEncoder(pre_tokens)│   │ PredictionHeads      │
-│                │   │  + action_cross_attn     │   │                      │
-│ mean_pool over │   │  + action_score          │   │ post_tokens[:,6:12,:]│
-│ post_tokens(13)│   │                          │   │        ↓             │
-│   ↓            │   │ Query: action_embeds     │   │ item_head    (Linear)│
-│ [B, 256]       │   │   [B, 13, 256]           │   │ ability_head (Linear)│
-│   ↓            │   │ Key/Value: post_tokens   │   │ tera_head    (Linear)│
-│ Linear(256,256)│   │   [B, 13, 256]           │   │ move_head    (Linear)│
-│ ReLU           │   │        ↓                 │   │ stats_head   (Linear)│
-│ Linear(256,1)  │   │ MultiheadAttention(4)    │   │        ↓             │
-│   ↓            │   │        ↓                 │   │ item [B,6,250]       │
-│ V(s) [B, 1]   │   │ Linear → scalar          │   │ abil [B,6,311]       │
-└────────────────┘   │        ↓                 │   │ tera [B,6,19]        │
-                     │ logits [B, 13]           │   │ moves[B,6,686] (BCE) │
-                     │ masked_fill(illegal,-1e9)│   │ stats[B,6,6]  (MSE)  │
-                     └─────────────────────────┘   └──────────────────────┘
+│ Attention pool │   │ ActionEncoder(pre_tokens)│   │ PredictionHeads      │
+│ over post_toks │   │  + action_cross_attn     │   │                      │
+│                │   │  + action_score          │   │ post_tokens[:,6:12,:]│
+│ query = Linear │   │                          │   │        ↓             │
+│ (D_MODEL→1)    │   │ Query: action_embeds     │   │ item_head    (Linear)│
+│   ↓ softmax    │   │   [B, 13, 256]           │   │ ability_head (Linear)│
+│ weighted sum   │   │ Key/Value: post_tokens   │   │ tera_head    (Linear)│
+│   [B, 256]     │   │   [B, 13, 256]           │   │ move_head    (Linear)│
+│   ↓            │   │        ↓                 │   │ stats_head   (Linear)│
+│ Linear(256,256)│   │ MultiheadAttention(4)    │   │        ↓             │
+│ ReLU           │   │        ↓                 │   │ item [B,6,250]       │
+│ Linear(256,1)  │   │ Linear → scalar          │   │ abil [B,6,311]       │
+│   ↓            │   │        ↓                 │   │ tera [B,6,19]        │
+│ V(s) [B, 1]   │   │ logits [B, 13]           │   │ moves[B,6,686] (BCE) │
+│                │   │ masked_fill(illegal,-1e9)│   │ stats[B,6,6]  (MSE)  │
+│ [replaced by   │   └─────────────────────────┘   └──────────────────────┘
+│  IndepCritic   │
+│  when enabled] │
+└────────────────┘
+
+Step 4a (alt): IndependentCritic  [use_independent_critic=True]
+┌────────────────────────────────────────────────────────────┐
+│ IndependentCritic (critic.py)                              │
+│                                                            │
+│ Same inputs as backbone: pokemon_tokens, field_tensor      │
+│ Own Transformer (n_layers=2, same hyperparams)             │
+│ Own attention-pooling value head                           │
+│ Own optimizer: AdamW(lr=5e-4, wd=1e-4)                     │
+│ Own grad clip: 1.0 (vs 0.5 for actor)                      │
+│   ↓                                                        │
+│ V(s) [B, 1]   (backbone value head output discarded)       │
+└────────────────────────────────────────────────────────────┘
 ```
 
 ## Token Sequence Layout
@@ -185,9 +205,8 @@ Opponent tokens [B, 6, D_MODEL]  (post_tokens[:, 6:12, :])
 
 All heads are single Linear layers — the Transformer tokens already encode rich context.
 Each head is masked to revealed slots only; unrevealed slots contribute zero gradient.
-Move head uses BCE (multi-label) rather than CE: a Pokémon can use any of its 4 known moves,
-and the label is a binary vector with 1s at each known move. Top-4 recall is reported at eval.
-Stats head loss is scaled by `c_stats=0.001` to prevent raw stat values (~1-700) from dominating.
+Move head uses BCE (multi-label): a Pokémon can use any of its 4 known moves; label is a binary vector with 1s at each known move. Top-4 recall reported at eval.
+Stats head loss scaled by `c_stats=0.001`.
 
 ## POMDP Masking System
 
@@ -220,7 +239,7 @@ Masked PokemonBatch (zeros for unrevealed indices + scalars)
 ```
 
 Applied twice: during rollout (decision-making) and again during training (data augmentation).
-At mask_ratio=0.0 (Phase I), all opponent info is visible — "cheater" mode for bootstrapping.
+At mask_ratio=0.0 ("cheater" mode), all opponent info is visible — used for bootstrapping.
 At mask_ratio=1.0 (Phase III), only revealed info is visible — realistic POMDP setting.
 
 ## PPO Training Loop
@@ -264,8 +283,9 @@ for update in 1..total_updates:
   │     attn reg: - c_attn_entropy × attn_entropy             │
   │               + c_attn_rank × (ln(13) − attn_rank)        │
   │     total.backward()                                       │
-  │     clip_grad_norm_(0.5)                                   │
-  │     optimizer.step()                                       │
+  │     clip_grad_norm_(actor=0.5, critic=1.0)                 │
+  │     actor_optimizer.step()                                 │
+  │     [critic_optimizer.step()  — if IndependentCritic]      │
   └───────────────────────────────────────────────────────────┘
        │
   ┌─ 2b. EMA weight update ───────────────────────────────────┐
@@ -275,20 +295,20 @@ for update in 1..total_updates:
   ┌─ 3. LR Schedule ──────────────────────────────────────────┐
   │   Warmup (linear 0→lr over 20 steps)                      │
   │   Cosine decay (lr → lr_min=1e-5)                         │
+  │   [separate schedule for critic if IndependentCritic]      │
   └───────────────────────────────────────────────────────────┘
        │
   ┌─ 4. Logging (stdout + metrics.csv) ───────────────────────┐
   └───────────────────────────────────────────────────────────┘
        │
   ┌─ 5. Evaluation (every eval_freq updates) ─────────────────┐
-  │   100 games vs Random, FullOffense, EMA, Pool             │
-  │   Periodic pool snapshot every pool_snapshot_freq=100      │
-  │   (no win-rate gate — periodic regardless of performance)  │
-  │   Save diagnostic plots + eval.csv + attention maps        │
+  │   eval_n_games vs Random, FullOffense, EMA, Pool          │
+  │   Periodic pool snapshot every pool_snapshot_freq updates  │
+  │   Save diagnostic plots + eval.csv + eval_data/*.json      │
   └───────────────────────────────────────────────────────────┘
        │
   ┌─ 6. Checkpoint (every checkpoint_freq updates) ───────────┐
-  │   agent_NNNNNN.pt (model + optimizer + config + update)    │
+  │   agent_NNNNNN.pt (model + optimizer(s) + config + update) │
   └───────────────────────────────────────────────────────────┘
 ```
 
@@ -308,7 +328,8 @@ for update in 1..total_updates:
 │ Move 2   │ 32   │ (shared weight with Move 1)           │
 │ Move 3   │ 32   │ (shared weight with Move 1)           │
 │ Move 4   │ 32   │ (shared weight with Move 1)           │
-│ Scalars  │ 223  │ Raw float32 values (no embedding)     │
+│ Scalars  │ 223  │ Raw floats, normalised by             │
+│          │      │ ScalarRunningNorm (EMA per-feature)   │
 ├──────────┼──────┼──────────────────────────────────────┤
 │ TOTAL    │ 439  │                                       │
 └──────────┴──────┴──────────────────────────────────────┘
@@ -324,6 +345,12 @@ Scalars breakdown (223 values):
   + volatiles(181)
   + is_active(1) + fainted(1) + trapped(1) + force_switch(1) + revealed(1)
   = 223
+
+ScalarRunningNorm (model/embeddings.py):
+  EMA update during training:  mean ← lerp(mean, batch_mean, 0.05)
+                                var  ← lerp(var,  batch_var,  0.05)
+  Frozen at eval (model.eval()): uses accumulated stats read-only.
+  Buffers saved in checkpoint → no warm-up needed on resume.
 ```
 
 ## Field Token (72-dim)
@@ -346,17 +373,28 @@ Scalars breakdown (223 values):
 
 ## Model Size Breakdown
 
+### Actor-only (shared critic, `use_independent_critic=False`)
+
 | Module | Parameters |
 |--------|-----------|
 | PokemonEmbeddings (species + type + item + ability + move tables) | ~75K |
 | BattleBackbone — input projections (pokemon_proj + field_proj) | ~132K |
 | BattleBackbone — positional embeddings (temporal + slot) | ~4K |
 | BattleBackbone — TransformerEncoder (3 layers × 4 heads, d=256, ffn=512) | ~1.58M |
-| BattleBackbone — value head (Linear-ReLU-Linear) | ~66K |
+| BattleBackbone — attention-pooling value head | ~66K |
 | BattleBackbone — action cross-attention + score | ~263K |
 | ActionEncoder (move_proj + mechanic_proj + switch_proj) | ~79K |
 | PredictionHeads (item + ability + tera + move + stats heads) | ~327K |
 | **Total** | **~2.53M** |
+
+### With IndependentCritic (`use_independent_critic=True`, `critic_n_layers=2`)
+
+| Additional Module | Parameters |
+|--------|-----------|
+| IndependentCritic — input projections + positional emb | ~136K |
+| IndependentCritic — TransformerEncoder (2 layers) | ~1.05M |
+| IndependentCritic — attention-pooling value head | ~66K |
+| **Total with critic** | **~3.78M** |
 
 ## Key Design Decisions
 
@@ -364,17 +402,21 @@ Scalars breakdown (223 values):
 
 2. **Pre- vs post-Transformer tokens split**: Action queries use pre-Transformer tokens (raw projected features + positional embeddings, before self-attention). This avoids the active Pokémon self-matching itself in cross-attention (P13e). The backbone keys/values and prediction heads use post-Transformer (enriched) tokens.
 
-3. **Mean-pool for value**: Simple averaging over 13 current-turn post-Transformer tokens. Order-invariant, costs zero parameters, avoids the 3328→256 flattening bottleneck.
+3. **Attention pooling for value**: Learned query scores each of the 13 current-turn post-Transformer tokens; softmax weights produce a weighted sum fed into the value MLP. More expressive than mean-pooling: the active Pokémon and field tokens can receive higher weight than fainted bench slots.
 
-4. **Shared embedding weights**: `ActionEncoder` shares `move_embed` and `type_embed` with `PokemonEmbeddings`, ensuring consistent representations and fewer parameters.
+4. **Independent Critic**: Separate Transformer for V(s), with its own learning rate (5e-4 vs 2.5e-4 for actor) and grad clip (1.0 vs 0.5). Decoupling eliminates the gradient tension between actor and critic when they share a backbone. Critic can train faster without destabilising the actor's representations.
 
-5. **Pre-LN Transformer**: Layer norm before each sub-layer (not after), standard in modern architectures for training stability.
+5. **ScalarRunningNorm**: Per-feature EMA normalisation of the 223 raw scalars before token projection. Avoids arbitrary hard-coded constants and adapts to the actual distribution of in-battle values. Frozen at eval, saved in checkpoints.
 
-6. **Linear prediction heads only**: No MLPs — the Transformer tokens encode rich enough context. MLPs would overfit on the sparse reveal signal and add unnecessary parameters.
+6. **Shared embedding weights**: `ActionEncoder` shares `move_embed` and `type_embed` with `PokemonEmbeddings`, ensuring consistent representations and fewer parameters.
 
-7. **Global return normalisation**: Returns are z-scored once per rollout inside `compute_gae()` before minibatch splits. This gives the value head a stable target across all minibatches in a PPO update — per-minibatch normalisation would create a moving target that prevents the critic from learning.
+7. **Pre-LN Transformer**: Layer norm before each sub-layer (not after), standard in modern architectures for training stability.
 
-8. **BCE multi-label for move head**: Move prediction uses binary cross-entropy over all 686 moves rather than 4 independent cross-entropies. This naturally handles the unordered set of a Pokémon's moves and avoids the positional ambiguity of slot-wise CE.
+8. **Linear prediction heads only**: No MLPs — the Transformer tokens encode rich enough context. MLPs would overfit on the sparse reveal signal and add unnecessary parameters.
+
+9. **Global return normalisation**: Returns are z-scored once per rollout inside `compute_gae()` before minibatch splits. This gives the value head a stable target across all minibatches in a PPO update — per-minibatch normalisation would create a moving target.
+
+10. **BCE multi-label for move head**: Move prediction uses binary cross-entropy over all 686 moves rather than 4 independent cross-entropies. This naturally handles the unordered set of a Pokémon's moves and avoids the positional ambiguity of slot-wise CE.
 
 ## Patch History
 
@@ -382,24 +424,27 @@ Chronological log of significant architectural and training changes. Details and
 
 | Patch | Area | Change |
 |-------|------|--------|
-| P10a | Training | POMDP masking symétrised — `agent_opp` now also receives masked observations (same `RevealedTracker` info from its side). Fixes the systematic information asymmetry that caused win rates to collapse. |
-| P10b | Training | EMA Opponent added — polyak-averaged copy of online weights (decay=0.995) replaces pool as the primary opponent. Always available, no snapshot threshold. |
-| P10c | Training | Residual pool kept for diversity — periodic snapshots every 100 updates regardless of win rate. Size capped at 10. WR-gated snapshot system removed. |
+| P10a | Training | POMDP masking symmetrised — `agent_opp` now also receives masked observations. Fixes systematic information asymmetry. |
+| P10b | Training | EMA Opponent added — polyak-averaged copy of online weights (decay=0.995). Always available, no snapshot threshold. |
+| P10c | Training | Residual pool kept for diversity — periodic snapshots every 100 updates regardless of win rate. Size capped at 10. |
 | P11a | Training | Advantage normalisation per-batch (z-score) in `compute_losses()`. |
 | P11b | Training | `c_value` 1.0 → 2.0 for stronger critic regularisation. |
 | P11c | Training | `min_steps` 1024 → 2048 for denser rollouts (~3-4 battles per env per update). |
-| P13b | Backbone | Padding mask added — zero-filled turns (early game, K=4 window not full) are excluded from self-attention via `src_key_padding_mask`. |
-| P13c | Reward | `HP_ADV_SCALE` ×5 + `COUNT_ADV_SCALE=0.03` added — improves signal density between sparse terminal rewards. |
-| P13d | Prediction | Move head factorised with 128-dim bottleneck (705K → 387K params). Later superseded by P15c move head redesign. |
-| P13e | ActionEncoder | `active_token` removed from move query input — prevents self-match shortcut where move queries trivially attend to the active Pokémon token. |
-| P14 | Backbone | Cross-attention entropy regularisation — `c_attn_entropy × H(attn_w)` added to loss to prevent all 13 action queries from collapsing to the FIELD token. Dropout 0.1 → 0.15. |
-| P15b | Training | Prediction head masks corrected — auxiliary loss masks now use simulator ground truth (`species_idx != UNK`) instead of `RevealedTracker` booleans. Fixes `item_acc=0%` pathology. |
-| P15c | Prediction | Stats head added (`Linear(256→6)`, MSE ×0.001) predicting opponent HP + atk/def/spa/spd/spe. Move head redesigned as single BCE multi-label head (686 outputs) replacing slot-wise CE. |
-| P16a | Training | `c_entropy` reduced to prevent entropy bonus from dominating the policy loss. |
-| P16b | Training | `n_epochs` 2 → 4 — clip_frac was very low, model can support more update passes per rollout. |
+| P13b | Backbone | Padding mask added — zero-filled turns excluded from self-attention via `src_key_padding_mask`. |
+| P13c | Reward | `HP_ADV_SCALE` ×5 + `COUNT_ADV_SCALE=0.03` added — improves signal density. |
+| P13d | Prediction | Move head factorised with 128-dim bottleneck. Superseded by P15c. |
+| P13e | ActionEncoder | `active_token` removed from move query input — prevents self-match shortcut. |
+| P14 | Backbone | Cross-attention entropy regularisation — prevents action queries collapsing to FIELD token. Dropout 0.1 → 0.15. |
+| P15b | Training | Prediction head masks corrected — auxiliary loss masks use simulator ground truth instead of RevealedTracker booleans. Fixes `item_acc=0%` pathology. |
+| P15c | Prediction | Stats head added (Linear(256→6), MSE ×0.001). Move head redesigned as single BCE multi-label head. |
+| P16a | Training | `c_entropy` reduced to prevent entropy bonus from dominating policy loss. |
+| P16b | Training | `n_epochs` 2 → 4 — clip_frac was very low, model supports more update passes per rollout. |
 | P16d | Training | Advantage diagnostics added to logs: `adv_mean`, `adv_std`, `ratio_dev`. |
-| P17 | Reward | Dense rewards scaled ×10 (KO ±0.5, HP ±0.5, count ±0.3). Status inflicted (+0.1), hazard set (+0.1/layer), hazard removed (+0.1/layer) added. |
-| P17b | Training | `c_stats=0.001` added — scales stats MSE loss to prevent raw stat values (~1-700) from dominating the auxiliary loss. |
-| P18 | Backbone | Cross-attention rank regularisation — von Neumann entropy of attention singular values added to loss to penalise low-rank attention (all queries attending to same pattern). |
-| P22 | ActionEncoder | `active_token` removal confirmed stable (was P13e); move_proj input is now `D_MOVE+2=34` dims only. |
-| —   | Training | **Return normalisation moved to `compute_gae()`** — z-score computed once per rollout before minibatch splits, replacing per-minibatch normalisation in `compute_losses()`. Fixes moving-target pathology that prevented critic from learning (EV stuck at ~0.05). |
+| P17 | Reward | Dense rewards rescaled. Status inflicted, hazard set/removed rewards added. |
+| P17b | Training | `c_stats=0.001` — scales stats MSE to prevent raw values (~1-700) from dominating auxiliary loss. |
+| P18 | Backbone | Cross-attention rank regularisation — von Neumann entropy of attention SVs penalises low-rank attention. |
+| P22 | ActionEncoder | `active_token` removal confirmed stable; move_proj input is `D_MOVE+2=34` dims. |
+| —   | Training | Return normalisation moved to `compute_gae()` — z-score computed once per rollout, fixes moving-target pathology (EV stuck at ~0.05). |
+| —   | Backbone | Value head: mean-pooling replaced by attention pooling — learned query scores each token, softmax-weighted sum. More expressive, active Pokémon can receive higher weight. |
+| —   | Model | **IndependentCritic** (`model/critic.py`) — separate Transformer for V(s), decoupled from actor backbone. Own lr (5e-4), wd, grad clip (1.0). Eliminates actor/critic gradient tension on shared weights. |
+| —   | Embeddings | **ScalarRunningNorm** — EMA per-feature normalisation of 223 raw scalars (momentum=0.05). Replaces arbitrary hard-coded divisors. Buffers saved in checkpoints. |
