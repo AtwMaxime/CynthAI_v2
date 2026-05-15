@@ -472,11 +472,19 @@ class RolloutBuffer:
 
         self._advantages = adv
 
-        # Normalise returns globally (once per rollout, before minibatch splits)
-        # so the value head has a stable target across all minibatches.
-        ret_t = torch.tensor(ret, dtype=torch.float32)
-        ret_t = (ret_t - ret_t.mean()) / (ret_t.std() + 1e-8)
+        # Z-score returns, then apply the SAME normalisation to value_old so
+        # that critic targets and critic predictions are in the same space.
+        # Without this, value_old drifts → ret drifts → positive feedback → divergence.
+        ret_t    = torch.tensor(ret, dtype=torch.float32)
+        ret_mean = ret_t.mean()
+        ret_std  = ret_t.std() + 1e-8
+        ret_t    = (ret_t - ret_mean) / ret_std
         self._returns = ret_t.tolist()
+
+        # Normalise stored value_old with the same stats so EV and value loss
+        # are computed in the same space as the normalised targets.
+        for tr in self._transitions:
+            tr.value_old = (tr.value_old - ret_mean.item()) / ret_std.item()
 
     def minibatches(self, batch_size: int, device: torch.device):
         """Yield shuffled minibatches as dicts of batched tensors."""

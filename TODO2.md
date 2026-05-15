@@ -6,6 +6,30 @@ Le générateur actuel ne reproduit pas fidèlement le format Gen 9 Random Battl
 Parser `randombattlesets.json` (source Pokémon Showdown) pour remplacer l'approximation actuelle
 par une lookup table exacte (moves, items, EVs/natures par rôle, abilities).
 
+## Bug critique : value_preds hors échelle (EV ≈ 0)
+
+**Constat** (cheater_v5, u100) : `value_preds` mean=3.96, std=49, max=711 alors que `value_returns` sont z-scorés (mean=0, std=1). Le critic prédit dans un espace complètement différent des targets → EV ≈ 0, value loss ne converge pas, fonction de valeur quasi-constante.
+
+**Cause** : dans `compute_gae` (rollout.py), les returns sont z-scorés (`ret = (ret - mean) / std`) mais `value_old` (les prédictions brutes du critic) n't pas normalisées. La value loss compare des prédictions brutes contre des targets normalisées.
+
+**Fix** : soit normaliser `value_old` au même moment que les returns, soit stocker les returns bruts pour le logging et ne z-scorer que pour la loss. À investiguer dans `training/losses.py` et `training/rollout.py`.
+
+**Fichiers** : `training/rollout.py` (compute_gae), `training/losses.py` (value loss), `training/evaluate.py` (logging value_preds/value_returns).
+
+---
+
+## Tera non implémenté dans le simulateur Rust
+
+**Constat** (cheater_v5) : `p.get("terastallized")` retourne toujours `None` même après térastallisation. Le simulateur accepte la commande `move N terastallize` mais n'applique aucun effet et n'émet pas l'événement `|-terastallize|`. Résultat : `tera_used` est toujours `False`, les slots 4-7 sont légaux à chaque tour, et l'agent choisit des tera moves qui ne font rien.
+
+**Fix court terme** : masquer définitivement les slots 4-7 dans `build_action_mask` (`tera_used = True` forcé) jusqu'à implémentation complète du tera dans le simulateur Rust.
+
+**Fix long terme** : implémenter la térastallisation dans `pokemon-showdown-rs` (type boost, changement de type, émission `|-terastallize|`, mise à jour du champ `terastallized` dans le state).
+
+**Fichiers** : `training/rollout.py` (`build_action_mask`), `simulator/src/` (Rust).
+
+---
+
 ## Entraîner un bon cheater
 
 Agent en information complète (mask_ratio=0.0, dense_scale=1.0) sur 2000-3000 updates.
