@@ -195,9 +195,55 @@ justifie plus de capacité.
 
 ---
 
+## Rollout multiprocess workers (priorité haute)
+
+**Constat** : le training sur auriga (Xeon Silver 4214R @ 2.4 GHz) tourne à ~48s/update
+avec n_envs=64, min_steps=4096. Le bottleneck est **CPU Python** : la boucle de rollout
+(`collect_rollout`) tourne dans un seul process et encode/collate séquentiellement
+64 × K=4 × 12 PokemonFeatures à chaque pas. Le GPU est idle ~90% du temps pendant
+la rollout.
+
+**Profil du problème** :
+- Chaque itération de la boucle while : 2× `_build_agent_inputs` (collation de 3072
+  objets Python → tensors) + boucle `for i in range(n_envs)` séquentielle.
+- `time.GIL released in Rust sim` : vrai mais inutile si les appels sont séquentiels.
+- CPU Xeon : ~2× plus lent en single-thread qu'un i9 gaming pour les boucles Python.
+
+**Solution : N workers multiprocess**
+
+Architecture standard (OpenAI Five, CleanRL) :
+```
+Main process (GPU)
+  ├── PPO update (gradient, AdamW)
+  └── broadcast weights → workers
+
+Worker 0 (CPU, n_envs/N envs, copy du modèle, no_grad)
+Worker 1 (CPU, n_envs/N envs, copy du modèle, no_grad)
+...
+Worker N-1
+  └── push RolloutBuffer → main via mp.Queue ou shared memory
+```
+
+Avec 8 workers sur 48 cœurs → rollout ~6-8× plus rapide.
+
+**Implémentation** :
+1. `collect_rollout` devient une fonction tournant dans un worker process séparé.
+2. Poids synchro via `torch.multiprocessing` shared tensors ou sérialisation
+   state_dict entre chaque update.
+3. Workers envoient un `RolloutBuffer` sérialisé (ou tensors numpy) via `mp.Queue`.
+4. Main process agrège les buffers, calcule GAE global, fait le PPO update.
+5. Broadcast des nouveaux poids vers workers.
+
+**Alternative plus simple : `concurrent.futures.ProcessPoolExecutor`**
+Lancer N calls `collect_rollout(n_envs//N, min_steps//N, ...)` en parallèle et
+concat les buffers. Plus simple mais moins efficace (re-import du modèle à chaque call).
+
+**Effort** : 2-3 jours. Précondition : profiler rollout vs PPO split pour confirmer
+que rollout domine bien (expected: >85%).
+
 ## Envs asynchrones
 
-Actuellement les 32 envs sont synchrones — le learner attend que tous aient terminé
+Actuellement les envs sont synchrones — le learner attend que tous aient terminé
 leur rollout avant d'optimiser. Avec des envs asynchrones, chaque env envoie ses
 transitions dès qu'un épisode se termine, et l'optimiseur tourne en continu.
 
@@ -250,6 +296,7 @@ for action in legal_actions:
 | 🟡 Moyen terme | Attention pooling (value head) | 2h |
 | 🟡 Moyen terme | Pool snapshot win-rate gate | 1h |
 | 🟡 Moyen terme | One-step lookahead (inférence) | 1 jour |
+| 🟡 Moyen terme | Rollout multiprocess workers (×6-8 speedup) | 2-3 jours |
 | 🟢 Long terme | IMPALA / V-trace | 1 semaine |
 | 🟢 Long terme | League Training | 1 semaine+ |
 | 🟢 Long terme | Scaling (d_model 256→512+) | 2-3 jours |

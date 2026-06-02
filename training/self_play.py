@@ -53,6 +53,12 @@ from env.bots import FullOffensePolicy
 import gc
 from tqdm import tqdm
 
+try:
+    import wandb
+    _WANDB_AVAILABLE = True
+except ImportError:
+    _WANDB_AVAILABLE = False
+
 
 def _save_fig(fig, path_stem: str):
     """Save figure as both PNG and PDF."""
@@ -472,6 +478,16 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
             cfg.checkpoint_dir = str(Path("checkpoints") / cfg.run_name)
     Path(cfg.checkpoint_dir).mkdir(parents=True, exist_ok=True)
 
+    # W&B init
+    if _WANDB_AVAILABLE:
+        wandb.init(
+            project = "cynthai",
+            name    = cfg.run_name,
+            config  = asdict(cfg),
+            resume  = "allow",
+            id      = cfg.run_name,
+        )
+
     # CSV loggers — don't re-write headers on resume
     metrics_path = Path(cfg.checkpoint_dir) / "metrics.csv"
     eval_path    = Path(cfg.checkpoint_dir) / "eval.csv"
@@ -561,16 +577,13 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
         t0 = time.perf_counter()
 
         # -- 1a. Opponent selection (P10b-P10c: EMA + pool + fixed policies) -----------
-        # Mixing: 5% Random / 10% FullOffense / 60% EMA / 25% pool
-        #         Pool fallback: FullOffense (harder than nascent EMA)
+        # Mixing: 0% Random / 10% FullOffense / 60% EMA / 30% pool
+        #         Pool fallback: EMA (plus stable que FullOffense une fois l'EMA chaude)
         roll = random.random()
-        if roll < 0.05:
-            opponent = RandomPolicy()
-            opp_label = "rand"
-        elif roll < 0.15:
+        if roll < 0.10:
             opponent = FullOffensePolicy()
             opp_label = "fo"
-        elif roll < 0.75:
+        elif roll < 0.70:
             # 60% — EMA opponent (stable lagging self-play)
             if update > cfg.ema_warmup:
                 opponent = ema_opponent.sample(agent)
@@ -579,13 +592,13 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 opponent = agent
                 opp_label = "self"
         else:
-            # 25% — pool (diversity) or FullOffense fallback if pool empty
+            # 30% — pool (diversity) or EMA fallback if pool empty
             if len(pool) > 0:
                 opponent = pool.sample(agent)
                 opp_label = f"pool({len(pool)})"
             else:
-                opponent = FullOffensePolicy()
-                opp_label = "fo"
+                opponent = ema_opponent.sample(agent) if update > cfg.ema_warmup else agent
+                opp_label = "ema"
 
         # -- 1b. Rollout collection ----------------------------------------------------
         agent.eval()
@@ -809,6 +822,33 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     _first_metrics = False
                 w.writerow(row)
 
+            if _WANDB_AVAILABLE:
+                wandb.log({
+                    "train/win_rate":          win_rate,
+                    "train/update_time_s":     elapsed,
+                    "train/episodes":          total_eps,
+                    "train/pool_size":         len(pool),
+                    "loss/policy":             loss_acc["policy"] / ns,
+                    "loss/value":              loss_acc["value"] / ns,
+                    "loss/entropy":            loss_acc["entropy"] / ns,
+                    "loss/pred":               loss_acc["pred"] / ns,
+                    "loss/total":              loss_acc["total"] / ns,
+                    "optim/lr":                lr,
+                    "optim/grad_norm":         loss_acc["grad_norm"] / ns,
+                    "optim/clip_frac":         loss_acc["clip_frac"] / ns,
+                    "optim/explained_variance": loss_acc["explained_variance"] / ns,
+                    "optim/adv_mean":          loss_acc.get("adv_mean", 0) / ns,
+                    "optim/adv_std":           loss_acc.get("adv_std", 0) / ns,
+                    "pred/item_acc":           loss_acc.get("item_acc", 0) / ns,
+                    "pred/ability_acc":        loss_acc.get("ability_acc", 0) / ns,
+                    "pred/tera_acc":           loss_acc.get("tera_acc", 0) / ns,
+                    "pred/move_recall":        loss_acc.get("move_recall", 0) / ns,
+                    "attn/entropy":            loss_acc.get("attn_entropy", 0) / ns,
+                    "attn/rank":               loss_acc.get("attn_rank", 0) / ns,
+                    "schedule/mask_ratio":     mask_ratio,
+                    "schedule/dense_scale":    dense_scale,
+                }, step=update)
+
         # -- 5. Periodic evaluation ---------------------------------------------------
         # P3: every eval_freq updates, run 500 games vs each opponent type
         if update % cfg.eval_freq == 0 or update == 100:
@@ -885,10 +925,28 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     _first_eval = False
                 w.writerow(row)
 
-            # Save evaluation diagnostic plots
+            if _WANDB_AVAILABLE:
+                eval_log = {}
+                for label in ("random", "fulloff", "ema", "pool"):
+                    r = eval_results[label]
+                    eval_log[f"eval/{label}_wr"] = r["win_rate"]
+                    for comp, val in r.get("reward_decomp_avg", {}).items():
+                        eval_log[f"reward/{label}/{comp}"] = val
+                wandb.log(eval_log, step=update)
+
+            # Save evaluation diagnostic plots + attention maps, then push all to wandb
             try:
                 save_eval_plots(eval_results, cfg.checkpoint_dir,
                                 tag=f"update{update:06d}")
+                save_attention_maps(agent, cfg.checkpoint_dir,
+                                    tag=f"update{update:06d}", device=device)
+                if _WANDB_AVAILABLE:
+                    plot_images = {}
+                    for png in sorted(Path(cfg.checkpoint_dir).rglob(f"*update{update:06d}*.png")):
+                        key = f"plots/{png.parent.name}/{png.stem}"
+                        plot_images[key] = wandb.Image(str(png))
+                    if plot_images:
+                        wandb.log(plot_images, step=update)
             except Exception as e:
                 print(f"  WARNING: eval plots failed: {e}")
 
@@ -921,11 +979,6 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
             "ema":    ema_opponent.state_dict(),
             "pool":   pool.state_dicts(),
         }, pool_ema_path)
-
-        if update % cfg.checkpoint_freq == 0 or update == 100:
-            # Save attention maps alongside checkpoint
-            save_attention_maps(agent, cfg.checkpoint_dir,
-                                tag=f"update{update:06d}", device=device)
 
         # Collect garbage to prevent Rust PyBattle objects from accumulating
         gc.collect()
