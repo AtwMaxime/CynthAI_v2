@@ -6,30 +6,6 @@ Le générateur actuel ne reproduit pas fidèlement le format Gen 9 Random Battl
 Parser `randombattlesets.json` (source Pokémon Showdown) pour remplacer l'approximation actuelle
 par une lookup table exacte (moves, items, EVs/natures par rôle, abilities).
 
-## Bug critique : value_preds hors échelle (EV ≈ 0)
-
-**Constat** (cheater_v5, u100) : `value_preds` mean=3.96, std=49, max=711 alors que `value_returns` sont z-scorés (mean=0, std=1). Le critic prédit dans un espace complètement différent des targets → EV ≈ 0, value loss ne converge pas, fonction de valeur quasi-constante.
-
-**Cause** : dans `compute_gae` (rollout.py), les returns sont z-scorés (`ret = (ret - mean) / std`) mais `value_old` (les prédictions brutes du critic) n't pas normalisées. La value loss compare des prédictions brutes contre des targets normalisées.
-
-**Fix** : soit normaliser `value_old` au même moment que les returns, soit stocker les returns bruts pour le logging et ne z-scorer que pour la loss. À investiguer dans `training/losses.py` et `training/rollout.py`.
-
-**Fichiers** : `training/rollout.py` (compute_gae), `training/losses.py` (value loss), `training/evaluate.py` (logging value_preds/value_returns).
-
----
-
-## Tera non implémenté dans le simulateur Rust
-
-**Constat** (cheater_v5) : `p.get("terastallized")` retourne toujours `None` même après térastallisation. Le simulateur accepte la commande `move N terastallize` mais n'applique aucun effet et n'émet pas l'événement `|-terastallize|`. Résultat : `tera_used` est toujours `False`, les slots 4-7 sont légaux à chaque tour, et l'agent choisit des tera moves qui ne font rien.
-
-**Fix court terme** : masquer définitivement les slots 4-7 dans `build_action_mask` (`tera_used = True` forcé) jusqu'à implémentation complète du tera dans le simulateur Rust.
-
-**Fix long terme** : implémenter la térastallisation dans `pokemon-showdown-rs` (type boost, changement de type, émission `|-terastallize|`, mise à jour du champ `terastallized` dans le state).
-
-**Fichiers** : `training/rollout.py` (`build_action_mask`), `simulator/src/` (Rust).
-
----
-
 ## Entraîner un bon cheater
 
 Agent en information complète (mask_ratio=0.0, dense_scale=1.0) sur 2000-3000 updates.
@@ -160,6 +136,49 @@ si CLS est juste un embedding appris concaténé à l'entrée.
 
 ---
 
+## CLS token statique pour la value head (accès à l'historique complet)
+
+**Problème actuel** : l'attention pooling actuel agrège uniquement les 13 tokens du
+turn courant (`post_tokens[:, -13:, :]`). V(s) est aveugle aux turns précédents —
+il ne voit pas qu'un Tera a été posé il y a 3 turns, que les hazards s'accumulent,
+ou que le momentum a changé.
+
+**Proposition** : ajouter un token CLS appris (embedding fixe, `nn.Parameter(D_MODEL)`)
+en tête de la séquence complète de 52 tokens. Il participe aux 3 couches de self-attention
+et agrège naturellement l'information sur les K=4 turns. `post_tokens[:, 0, :]` alimente
+directement le MLP de la value head.
+
+```python
+# Dans BattleBackbone.__init__ :
+self.cls_token = nn.Parameter(torch.zeros(1, 1, d_model))
+
+# Dans _build_sequence() :
+cls = self.cls_token.expand(B, -1, -1)       # [B, 1, D]
+seq = torch.cat([cls, seq], dim=1)           # [B, 53, D] au lieu de [B, 52, D]
+
+# Après TransformerEncoder :
+cls_out = post_tokens[:, 0, :]               # [B, D]
+value   = self.value_mlp(cls_out)            # [B, 1]
+```
+
+**Différences clés avec la variante LSTM** (section "Architecture : mémoire") :
+- Pas de récurrence — le CLS voit les K=4 turns simultanément via self-attention,
+  il ne les accumule pas séquentiellement. Plus simple, pas de hidden state à gérer
+  dans le rollout buffer.
+- Limite : ne peut pas mémoriser au-delà de K turns. Si K=4 suffit, ce design est
+  préférable au LSTM pour sa simplicité.
+
+**Points d'attention à l'implémentation** :
+- Ne pas inclure le CLS dans les tokens de l'actor head (qui utilise déjà les 13 tokens
+  du turn courant) — isoler l'impact au seul value head.
+- Le padding mask doit être mis à jour : le slot CLS (index 0) n'est jamais paddé.
+- Slot embedding : donner au CLS son propre slot_id (ex: slot 13), ou pas d'embedding
+  positionnel du tout (le CLS n'a pas de position sémantique dans la séquence).
+- Coût : +1 token dans la séquence (52→53), négligeable. Paramètres additionnels : D=256
+  floats pour l'embedding CLS + rien d'autre si on réutilise le MLP existant.
+
+---
+
 ## Scaling : modèles plus gros
 
 Pour référence : OpenAI Five ~140M params, AlphaStar ~55M params, CynthAI_v2 actuel ~2.5M.
@@ -226,7 +245,8 @@ for action in legal_actions:
 | 🔴 Quick wins | PFSP sur le pool existant | 2-3h |
 | 🟡 Moyen terme | Corriger le générateur de teams | 1 jour |
 | 🟡 Moyen terme | Entraîner le cheater | 2-3 jours GPU |
-| 🟡 Moyen terme | CLS token + LSTM | 1-2 jours |
+| 🟡 Moyen terme | CLS token statique (value head, accès historique complet) | 2-3h |
+| 🟡 Moyen terme | CLS token + LSTM (mémoire persistante inter-turns) | 1-2 jours |
 | 🟡 Moyen terme | Attention pooling (value head) | 2h |
 | 🟡 Moyen terme | Pool snapshot win-rate gate | 1h |
 | 🟡 Moyen terme | One-step lookahead (inférence) | 1 jour |

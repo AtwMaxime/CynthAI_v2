@@ -12,7 +12,7 @@ struct PyBattle {
 
 #[pymethods]
 impl PyBattle {
-    /// Create a new battle.
+    /// Create a new battle with randomly generated teams (fake generator).
     /// format: e.g. "gen9randombattle"
     /// seed: integer used to seed both team generation and the battle PRNG
     #[new]
@@ -37,6 +37,35 @@ impl PyBattle {
             p2: Some(PlayerOptions {
                 name: "p2".to_string(),
                 team: TeamFormat::Sets(team2),
+                avatar: None,
+                rating: None,
+                seed: None,
+            }),
+            ..Default::default()
+        });
+
+        PyBattle { inner: battle }
+    }
+
+    /// Create a new battle with pre-generated packed teams (official Showdown format).
+    /// team1_packed / team2_packed: packed team strings as produced by Teams.pack() in JS.
+    /// Example: "Garchomp||ChoiceScarf|RoughSkin|earthquake,dragonclaw,..."
+    /// seed: integer used to seed the battle PRNG (not team generation).
+    #[staticmethod]
+    fn from_packed_teams(format: &str, seed: u32, team1_packed: &str, team2_packed: &str) -> Self {
+        let battle = Battle::new(BattleOptions {
+            format_id: ID::new(format),
+            seed: Some(PRNGSeed::Gen5([0, 0, 0, seed])),
+            p1: Some(PlayerOptions {
+                name: "p1".to_string(),
+                team: TeamFormat::Packed(team1_packed.to_string()),
+                avatar: None,
+                rating: None,
+                seed: None,
+            }),
+            p2: Some(PlayerOptions {
+                name: "p2".to_string(),
+                team: TeamFormat::Packed(team2_packed.to_string()),
                 avatar: None,
                 rating: None,
                 seed: None,

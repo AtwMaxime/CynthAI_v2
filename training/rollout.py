@@ -641,12 +641,13 @@ def collect_rollout(
     Returns a RolloutBuffer with GAE already computed.
     """
     from simulator import PyBattle
+    from env.team_pool import sample_teams
 
     side_opp  = 1 - side_self
     buffer    = RolloutBuffer()
     seeds     = list(range(n_envs))
 
-    envs        = [PyBattle(format_id, seed=s) for s in seeds]
+    envs        = [PyBattle.from_packed_teams(format_id, s, *sample_teams()) for s in seeds]
     wins_self   = [BattleWindow() for _ in range(n_envs)]
     wins_opp    = [BattleWindow() for _ in range(n_envs)]
     prev_states = [e.get_state() for e in envs]
@@ -771,7 +772,7 @@ def collect_rollout(
                 else:
                     # Choice invalide â†’ reset env, skip transition.
                     print(f"INVALID choice env={i} p1={p1!r} p2={p2!r}", file=sys.stderr)
-                    envs[i] = PyBattle(format_id, seed=next_seed)
+                    envs[i] = PyBattle.from_packed_teams(format_id, next_seed, *sample_teams())
                     next_seed += 1
                     wins_self[i].reset()
                     wins_opp[i].reset()
@@ -850,14 +851,14 @@ def collect_rollout(
                             if done:
                                 tracker_self.reset(i)
                                 tracker_opp.reset(i)
-                                envs[i] = PyBattle(format_id, seed=next_seed)
+                                envs[i] = PyBattle.from_packed_teams(format_id, next_seed, *sample_teams())
                                 next_seed += 1
                                 wins_self[i].reset()
                                 wins_opp[i].reset()
                                 curr_states[i] = envs[i].get_state()
                         else:
                             print(f"SUB-TURN SWITCH FAIL env={i} p1={p1!r} p2={p2!r}", file=sys.stderr)
-                            envs[i] = PyBattle(format_id, seed=next_seed)
+                            envs[i] = PyBattle.from_packed_teams(format_id, next_seed, *sample_teams())
                             next_seed += 1
                             wins_self[i].reset()
                             wins_opp[i].reset()
@@ -898,7 +899,7 @@ def collect_rollout(
                             tracker_opp.update(i, log_entries, new_state, side_self)
                         else:
                             print(f"SUB-TURN SWITCH FAIL (opp) env={i} p1={p1!r} p2={p2!r}", file=sys.stderr)
-                            envs[i] = PyBattle(format_id, seed=next_seed)
+                            envs[i] = PyBattle.from_packed_teams(format_id, next_seed, *sample_teams())
                             next_seed += 1
                             wins_self[i].reset()
                             wins_opp[i].reset()
@@ -962,7 +963,7 @@ def collect_rollout(
                 if done:
                     tracker_self.reset(i)
                     tracker_opp.reset(i)
-                    envs[i] = PyBattle(format_id, seed=next_seed)
+                    envs[i] = PyBattle.from_packed_teams(format_id, next_seed, *sample_teams())
                     next_seed += 1
                     wins_self[i].reset()
                     wins_opp[i].reset()

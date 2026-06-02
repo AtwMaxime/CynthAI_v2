@@ -30,7 +30,7 @@ import simulator
 
 # ── Chargement du dex des moves ──────────────────────────────────────────────
 _MOVES_JSON = Path(__file__).resolve().parent.parent.parent / \
-    "pokemon-showdown-rs-master" / "data" / "moves.json"
+    "pokemon-showdown-rs" / "data" / "moves.json"
 
 def _load_moves():
     with open(_MOVES_JSON) as f:
