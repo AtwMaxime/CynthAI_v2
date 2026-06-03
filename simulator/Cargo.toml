@@ -9,4 +9,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 pyo3 = { version = "0.22", features = ["extension-module"] }
-pokemon-showdown = { path = "../../pokemon-showdown-rs-master" }
+pokemon-showdown = { path = "../../pokemon-showdown-rs" }

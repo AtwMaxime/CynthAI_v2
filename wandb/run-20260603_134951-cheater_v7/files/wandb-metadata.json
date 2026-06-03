@@ -1,0 +1,47 @@
+{
+  "os": "Linux-6.17.9-76061709-generic-x86_64-with-glibc2.35",
+  "python": "CPython 3.13.12",
+  "startedAt": "2026-06-03T11:49:51.974518Z",
+  "program": "/local_scratch/mattwood/projects/rl_agent/CynthAI_v2/run_cheater_v7.py",
+  "codePath": "run_cheater_v7.py",
+  "codePathLocal": "run_cheater_v7.py",
+  "git": {
+    "remote": "https://github.com/AtwMaxime/CynthAI_v2",
+    "commit": "34ad229f4088de3aea0dc6a502a118ff080ed841"
+  },
+  "email": "attwoodmaxime@gmail.com",
+  "root": "/local_scratch/mattwood/projects/rl_agent/CynthAI_v2",
+  "host": "auriga",
+  "executable": "/local_scratch/mattwood/projects/rl_agent/CynthAI_v2/.venv/bin/python",
+  "cpu_count": 24,
+  "cpu_count_logical": 48,
+  "gpu": "NVIDIA RTX A6000",
+  "gpu_count": 2,
+  "disk": {
+    "/": {
+      "total": "205286289408",
+      "used": "152295673856"
+    }
+  },
+  "memory": {
+    "total": "134788165632"
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA RTX A6000",
+      "memoryTotal": "51527024640",
+      "cudaCores": 10752,
+      "architecture": "Ampere",
+      "uuid": "GPU-f8180d21-89fb-10e4-cdac-dbcfb917cf36"
+    },
+    {
+      "name": "NVIDIA RTX A6000",
+      "memoryTotal": "51527024640",
+      "cudaCores": 10752,
+      "architecture": "Ampere",
+      "uuid": "GPU-328bb626-a950-aa70-5728-453a6d41283c"
+    }
+  ],
+  "cudaVersion": "13.0",
+  "writerId": "p8unjiwnridsot2ur523kfmtjqw9xol5"
+}

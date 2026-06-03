@@ -6,7 +6,7 @@ def _load_native():
     # Priority 1: maturin editable install (site-packages/simulator/simulator.cpXXX-win_amd64.pyd)
     for sp in sys.path:
         pkg_dir = Path(sp) / "simulator"
-        for pyd in sorted(pkg_dir.glob("simulator*.pyd")):
+        for pyd in sorted(pkg_dir.glob("simulator*.pyd")) + sorted(pkg_dir.glob("simulator*.so")):
             if pyd != Path(__file__).parent / "simulator.pyd":
                 spec = importlib.util.spec_from_file_location("simulator", pyd)
                 if spec:

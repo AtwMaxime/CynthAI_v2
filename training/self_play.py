@@ -53,6 +53,12 @@ from env.bots import FullOffensePolicy
 import gc
 from tqdm import tqdm
 
+try:
+    import wandb
+    _WANDB_AVAILABLE = True
+except ImportError:
+    _WANDB_AVAILABLE = False
+
 
 def _save_fig(fig, path_stem: str):
     """Save figure as both PNG and PDF."""
@@ -248,6 +254,11 @@ class TrainingConfig:
     critic_lr:              float = 5e-4   # independent learning rate
     critic_wd:              float = 1e-4   # independent weight decay
     critic_grad_norm:       float = 0.5    # independent gradient clip
+
+    # Critic-stability diagnostics / switches (all default off)
+    value_dump_threshold:   float = 0.0    # dump rollout states where |V| exceeds this (0 = off)
+    critic_value_bound:     float = 0.0    # Switch A: tanh-bound critic output to ±this (0 = off)
+    value_target_clip:      float = 0.0    # Switch B: clip GAE bootstrap/returns to ±this (0 = off)
 
     # Device
     device: str = "cpu"
@@ -472,6 +483,16 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
             cfg.checkpoint_dir = str(Path("checkpoints") / cfg.run_name)
     Path(cfg.checkpoint_dir).mkdir(parents=True, exist_ok=True)
 
+    # W&B init
+    if _WANDB_AVAILABLE:
+        wandb.init(
+            project = "cynthai",
+            name    = cfg.run_name,
+            config  = asdict(cfg),
+            resume  = "allow",
+            id      = cfg.run_name,
+        )
+
     # CSV loggers — don't re-write headers on resume
     metrics_path = Path(cfg.checkpoint_dir) / "metrics.csv"
     eval_path    = Path(cfg.checkpoint_dir) / "eval.csv"
@@ -481,6 +502,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
     agent = CynthAIAgent(
         use_independent_critic = cfg.use_independent_critic,
         critic_n_layers        = cfg.critic_n_layers,
+        critic_value_bound     = cfg.critic_value_bound,
     ).to(device)
 
     if cfg.use_independent_critic:
@@ -561,16 +583,13 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
         t0 = time.perf_counter()
 
         # -- 1a. Opponent selection (P10b-P10c: EMA + pool + fixed policies) -----------
-        # Mixing: 5% Random / 10% FullOffense / 60% EMA / 25% pool
-        #         Pool fallback: FullOffense (harder than nascent EMA)
+        # Mixing: 0% Random / 10% FullOffense / 60% EMA / 30% pool
+        #         Pool fallback: EMA (plus stable que FullOffense une fois l'EMA chaude)
         roll = random.random()
-        if roll < 0.05:
-            opponent = RandomPolicy()
-            opp_label = "rand"
-        elif roll < 0.15:
+        if roll < 0.10:
             opponent = FullOffensePolicy()
             opp_label = "fo"
-        elif roll < 0.75:
+        elif roll < 0.70:
             # 60% — EMA opponent (stable lagging self-play)
             if update > cfg.ema_warmup:
                 opponent = ema_opponent.sample(agent)
@@ -579,13 +598,13 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 opponent = agent
                 opp_label = "self"
         else:
-            # 25% — pool (diversity) or FullOffense fallback if pool empty
+            # 30% — pool (diversity) or EMA fallback if pool empty
             if len(pool) > 0:
                 opponent = pool.sample(agent)
                 opp_label = f"pool({len(pool)})"
             else:
-                opponent = FullOffensePolicy()
-                opp_label = "fo"
+                opponent = ema_opponent.sample(agent) if update > cfg.ema_warmup else agent
+                opp_label = "ema"
 
         # -- 1b. Rollout collection ----------------------------------------------------
         agent.eval()
@@ -621,6 +640,10 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
             device     = device,
             mask_ratio = mask_ratio,
             dense_scale = dense_scale,
+            value_target_clip    = cfg.value_target_clip,
+            value_dump_threshold = cfg.value_dump_threshold,
+            update               = update,
+            dump_dir             = cfg.checkpoint_dir,
         )
 
         for t in buffer._transitions:
@@ -721,11 +744,18 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     grad_norm = nn.utils.clip_grad_norm_(agent.parameters(), cfg.max_grad_norm)
                 optimizer.step()
 
+                # Critic-explosion diagnostics: reduce by running max/min over
+                # minibatches (an averaged max hides the spike we are hunting).
+                _MAX_KEYS = ("vp_max", "ret_max", "abs_err_max")
+                _MIN_KEYS = ("vp_min", "ret_min")
                 for k, v in losses.items():
-                    if isinstance(v, torch.Tensor):
-                        loss_acc[k] += v.item()
+                    val = v.item() if isinstance(v, torch.Tensor) else v
+                    if k in _MAX_KEYS:
+                        loss_acc[k] = max(loss_acc[k], val) if k in loss_acc else val
+                    elif k in _MIN_KEYS:
+                        loss_acc[k] = min(loss_acc[k], val) if k in loss_acc else val
                     else:
-                        loss_acc[k] += v
+                        loss_acc[k] += val
                 loss_acc["grad_norm"] += grad_norm.item()
                 for k, v in acc.items():
                     loss_acc[k] += v
@@ -801,6 +831,16 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     "attn_entropy": loss_acc.get("attn_entropy", 0) / ns,
                     "attn_rank": loss_acc.get("attn_rank", 0) / ns,
                     "rank_reg": loss_acc.get("rank_reg", 0) / ns,
+                    # Critic-explosion diagnostics (mean/std averaged; min/max are running extremes)
+                    "vp_mean": loss_acc.get("vp_mean", 0) / ns,
+                    "vp_std": loss_acc.get("vp_std", 0) / ns,
+                    "vp_min": loss_acc.get("vp_min", 0),
+                    "vp_max": loss_acc.get("vp_max", 0),
+                    "ret_mean": loss_acc.get("ret_mean", 0) / ns,
+                    "ret_std": loss_acc.get("ret_std", 0) / ns,
+                    "ret_min": loss_acc.get("ret_min", 0),
+                    "ret_max": loss_acc.get("ret_max", 0),
+                    "abs_err_max": loss_acc.get("abs_err_max", 0),
                     "opp": opp_label,
                 }
                 w = csv.DictWriter(f, fieldnames=list(row.keys()))
@@ -808,6 +848,39 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     w.writeheader()
                     _first_metrics = False
                 w.writerow(row)
+
+            if _WANDB_AVAILABLE:
+                wandb.log({
+                    "train/win_rate":          win_rate,
+                    "train/update_time_s":     elapsed,
+                    "train/episodes":          total_eps,
+                    "train/pool_size":         len(pool),
+                    "loss/policy":             loss_acc["policy"] / ns,
+                    "loss/value":              loss_acc["value"] / ns,
+                    "loss/entropy":            loss_acc["entropy"] / ns,
+                    "loss/pred":               loss_acc["pred"] / ns,
+                    "loss/total":              loss_acc["total"] / ns,
+                    "optim/lr":                lr,
+                    "optim/grad_norm":         loss_acc["grad_norm"] / ns,
+                    "optim/clip_frac":         loss_acc["clip_frac"] / ns,
+                    "optim/explained_variance": loss_acc["explained_variance"] / ns,
+                    "optim/adv_mean":          loss_acc.get("adv_mean", 0) / ns,
+                    "optim/adv_std":           loss_acc.get("adv_std", 0) / ns,
+                    "pred/item_acc":           loss_acc.get("item_acc", 0) / ns,
+                    "pred/ability_acc":        loss_acc.get("ability_acc", 0) / ns,
+                    "pred/tera_acc":           loss_acc.get("tera_acc", 0) / ns,
+                    "pred/move_recall":        loss_acc.get("move_recall", 0) / ns,
+                    "attn/entropy":            loss_acc.get("attn_entropy", 0) / ns,
+                    "attn/rank":               loss_acc.get("attn_rank", 0) / ns,
+                    "schedule/mask_ratio":     mask_ratio,
+                    "schedule/dense_scale":    dense_scale,
+                    "critic/vp_mean":          loss_acc.get("vp_mean", 0) / ns,
+                    "critic/vp_std":           loss_acc.get("vp_std", 0) / ns,
+                    "critic/vp_min":           loss_acc.get("vp_min", 0),
+                    "critic/vp_max":           loss_acc.get("vp_max", 0),
+                    "critic/ret_max":          loss_acc.get("ret_max", 0),
+                    "critic/abs_err_max":      loss_acc.get("abs_err_max", 0),
+                }, step=update)
 
         # -- 5. Periodic evaluation ---------------------------------------------------
         # P3: every eval_freq updates, run 500 games vs each opponent type
@@ -885,10 +958,28 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     _first_eval = False
                 w.writerow(row)
 
-            # Save evaluation diagnostic plots
+            if _WANDB_AVAILABLE:
+                eval_log = {}
+                for label in ("random", "fulloff", "ema", "pool"):
+                    r = eval_results[label]
+                    eval_log[f"eval/{label}_wr"] = r["win_rate"]
+                    for comp, val in r.get("reward_decomp_avg", {}).items():
+                        eval_log[f"reward/{label}/{comp}"] = val
+                wandb.log(eval_log, step=update)
+
+            # Save evaluation diagnostic plots + attention maps, then push all to wandb
             try:
                 save_eval_plots(eval_results, cfg.checkpoint_dir,
                                 tag=f"update{update:06d}")
+                save_attention_maps(agent, cfg.checkpoint_dir,
+                                    tag=f"update{update:06d}", device=device)
+                if _WANDB_AVAILABLE:
+                    plot_images = {}
+                    for png in sorted(Path(cfg.checkpoint_dir).rglob(f"*update{update:06d}*.png")):
+                        key = f"plots/{png.parent.name}/{png.stem}"
+                        plot_images[key] = wandb.Image(str(png))
+                    if plot_images:
+                        wandb.log(plot_images, step=update)
             except Exception as e:
                 print(f"  WARNING: eval plots failed: {e}")
 
@@ -921,11 +1012,6 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
             "ema":    ema_opponent.state_dict(),
             "pool":   pool.state_dicts(),
         }, pool_ema_path)
-
-        if update % cfg.checkpoint_freq == 0 or update == 100:
-            # Save attention maps alongside checkpoint
-            save_attention_maps(agent, cfg.checkpoint_dir,
-                                tag=f"update{update:06d}", device=device)
 
         # Collect garbage to prevent Rust PyBattle objects from accumulating
         gc.collect()

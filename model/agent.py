@@ -58,6 +58,7 @@ class CynthAIAgent(nn.Module):
         self,
         use_independent_critic: bool = False,
         critic_n_layers:        int  = 2,
+        critic_value_bound:     float = 0.0,
     ):
         super().__init__()
         self.poke_emb   = PokemonEmbeddings()
@@ -70,7 +71,8 @@ class CynthAIAgent(nn.Module):
 
         self.use_independent_critic = use_independent_critic
         if use_independent_critic:
-            self.independent_critic = IndependentCritic(n_layers=critic_n_layers)
+            self.independent_critic = IndependentCritic(
+                n_layers=critic_n_layers, value_bound=critic_value_bound)
 
     def forward(
         self,

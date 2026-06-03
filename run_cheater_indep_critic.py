@@ -29,17 +29,17 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     cfg = TrainingConfig(
-        run_name      = "cheater_v4",
+        run_name      = "cheater_v5",
         resume        = args.resume,
         total_updates = 3000,
 
         # Rollout
-        n_envs    = 32,
-        min_steps = 2048,
+        n_envs    = 64,
+        min_steps = 4096,
 
         # PPO — actor
         n_epochs      = 4,
-        batch_size    = 128,
+        batch_size    = 256,
         lr            = 2.5e-4,
         lr_min        = 1e-5,
         warmup_steps  = 20,
@@ -81,7 +81,7 @@ if __name__ == "__main__":
         # Checkpointing / eval
         checkpoint_freq = 100,
         eval_freq       = 100,
-        eval_n_games    = 100,
+        eval_n_games    = 500,
         log_every       = 1,
         win_rate_window = 100,
 
