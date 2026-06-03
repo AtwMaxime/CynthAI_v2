@@ -1,0 +1,7 @@
+CynthAI_v2 self-play  |  3,783,427 params  |  device=cuda  |  3000 updates
+ update    win%    policy     value   entropy      pred     total        lr  info  opp
+Training:   0%|          | 4/3000 [03:56<49:07:45, 59.03s/updates, WR=46.0%  loss=14.696  lr=5.00e-05  opp=ema  eps=150] 
+      1   43.3%    0.1681    1.0822   -1.8799   36.9543   24.4806  1.25e-05  [62.8s  eps=30  pool=0  gn=9.982  cf=0.783  ev=-0.100  am=0.975  as=1.163  rd=0.6146  ia=0.33 aa=0.05 ma=0.08  ae=2.1705  ar=1.9763  rr=0.0029  opp=ema]
+      2   47.7%    0.1329    0.9959   -1.6968   25.2818   17.2733  2.50e-05  [56.0s  eps=65  pool=0  gn=2.066  cf=0.695  ev=-0.002  am=0.153  as=0.794  rd=0.5021  ia=0.24 aa=0.02 ma=0.06  ae=1.8173  ar=1.9780  rr=0.0029  opp=self]
+      3   51.0%    0.0275    1.0104   -1.9175   23.5394   16.1502  3.75e-05  [57.1s  eps=109  pool=0  gn=1.531  cf=0.430  ev=-0.015  am=0.161  as=0.810  rd=0.2216  ia=0.26 aa=0.03 ma=0.06  ae=1.8879  ar=1.9920  rr=0.0029  opp=self]
+      4   46.0%    0.0160    1.0001   -1.8829   21.1707   14.6962  5.00e-05  [60.0s  eps=150  pool=0  gn=1.577  cf=0.340  ev=-0.003  am=0.106  as=0.807  rd=0.1773  ia=0.28 aa=0.02 ma=0.06  ae=1.9515  ar=2.0063  rr=0.0028  opp=ema]

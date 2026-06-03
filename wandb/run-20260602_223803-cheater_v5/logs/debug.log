@@ -1,0 +1,19 @@
+2026-06-02 22:38:03,341 INFO    MainThread:4096011 [wandb_setup.py:_flush():81] Current SDK version is 0.27.0
+2026-06-02 22:38:03,341 INFO    MainThread:4096011 [wandb_setup.py:_flush():81] Configure stats pid to 4096011
+2026-06-02 22:38:03,342 INFO    MainThread:4096011 [wandb_setup.py:_flush():81] Loading settings from environment variables
+2026-06-02 22:38:03,342 INFO    MainThread:4096011 [wandb_init.py:setup_run_log_directory():723] Logging user logs to /local_scratch/mattwood/projects/rl_agent/CynthAI_v2/wandb/run-20260602_223803-cheater_v5/logs/debug.log
+2026-06-02 22:38:03,342 INFO    MainThread:4096011 [wandb_init.py:setup_run_log_directory():724] Logging internal logs to /local_scratch/mattwood/projects/rl_agent/CynthAI_v2/wandb/run-20260602_223803-cheater_v5/logs/debug-internal.log
+2026-06-02 22:38:03,342 INFO    MainThread:4096011 [wandb_init.py:init():851] calling init triggers
+2026-06-02 22:38:03,342 INFO    MainThread:4096011 [wandb_init.py:init():856] wandb.init called with sweep_config: {}
+config: {'lr': 0.00025, 'lr_min': 1e-05, 'total_updates': 3000, 'warmup_steps': 20, 'n_envs': 64, 'min_steps': 4096, 'format_id': 'gen9randombattle', 'n_epochs': 4, 'batch_size': 256, 'gamma': 0.99, 'lam': 0.95, 'clip_eps': 0.2, 'c_value': 2.0, 'c_entropy': 0.003, 'c_pred': 0.6, 'c_attn_entropy': 0.01, 'c_attn_rank': 0.005, 'max_grad_norm': 0.5, 'weight_decay': 0.0001, 'pool_size': 10, 'pool_snapshot_threshold': 0.55, 'pool_cooldown': 5, 'ema_decay': 0.995, 'ema_warmup': 5, 'pool_snapshot_freq': 100, 'mask_schedule': 'phase', 'mask_warmup': 200, 'mask_max_ratio': 1.0, 'mask_exp_k': 3.0, 'mask_step_update': 500, 'mask_phase_breakpoints': (), 'mask_phase_values': (), 'dense_schedule': 'phase', 'dense_warmup': 0, 'dense_min_scale': 0.25, 'dense_exp_k': 3.0, 'dense_step_update': 500, 'dense_phase_breakpoints': (), 'dense_phase_values': (), 'run_name': 'cheater_v5', 'checkpoint_dir': 'checkpoints/cheater_v5', 'checkpoint_freq': 100, 'log_every': 1, 'win_rate_window': 100, 'eval_freq': 100, 'eval_n_games': 500, 'use_independent_critic': True, 'critic_n_layers': 2, 'critic_lr': 0.0005, 'critic_wd': 0.0001, 'critic_grad_norm': 1.0, 'device': 'cuda', 'resume': '', '_wandb': {}}
+2026-06-02 22:38:03,343 INFO    MainThread:4096011 [wandb_init.py:init():899] starting backend
+2026-06-02 22:38:03,576 INFO    MainThread:4096011 [wandb_init.py:init():914] sending inform_init request
+2026-06-02 22:38:03,895 INFO    MainThread:4096011 [wandb_init.py:init():919] backend started and connected
+2026-06-02 22:38:03,925 INFO    MainThread:4096011 [wandb_init.py:init():989] updated telemetry
+2026-06-02 22:38:03,934 INFO    MainThread:4096011 [wandb_init.py:init():1012] communicating run to backend with 90.0 second timeout
+2026-06-02 22:38:04,515 INFO    MainThread:4096011 [wandb_init.py:init():1057] starting run threads in backend
+2026-06-02 22:38:04,577 INFO    MainThread:4096011 [wandb_run.py:_console_start():2509] atexit reg
+2026-06-02 22:38:04,577 INFO    MainThread:4096011 [wandb_run.py:_redirect():2359] redirect: wrap_raw
+2026-06-02 22:38:04,577 INFO    MainThread:4096011 [wandb_run.py:_redirect():2428] Wrapping output streams.
+2026-06-02 22:38:04,577 INFO    MainThread:4096011 [wandb_run.py:_redirect():2451] Redirects installed.
+2026-06-02 22:38:04,580 INFO    MainThread:4096011 [wandb_init.py:init():1095] run started, returning control to user process
