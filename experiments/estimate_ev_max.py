@@ -24,6 +24,8 @@ from dataclasses import dataclass, field as dc_field
 from pathlib import Path
 from typing import Optional
 
+import multiprocessing as mp
+
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -257,6 +259,36 @@ def collect_states(
     return all_states
 
 
+# ── Globals for fork-based parallel rollouts ──────────────────────────────────
+# Set in the main process before Pool creation; inherited by workers via fork.
+_g_states: list = []
+_g_agent_sd: dict = {}
+_g_k: int = 0
+_g_agent = None  # created in each worker via _worker_init
+
+
+def _worker_init() -> None:
+    """Pool initializer: build agent on CPU once per worker process."""
+    global _g_agent
+    _g_agent = CynthAIAgent(use_independent_critic=True, critic_n_layers=2)
+    _g_agent.load_state_dict(_g_agent_sd)
+    _g_agent.eval()
+    _g_agent.to(torch.device("cpu"))
+
+
+def _worker_single(idx: int):
+    """Run _g_k rollouts for _g_states[idx]. Returns (idx, list[float])."""
+    snap = _g_states[idx]
+    returns = []
+    for i in range(_g_k):
+        # Per-rollout seed for reproducibility (torch PRNG for action sampling)
+        torch.manual_seed(idx * 100_000 + i)
+        random.seed(idx * 100_000 + i)
+        ret = run_mc_rollout(snap.battle_fork, snap.window, _g_agent, torch.device("cpu"))
+        returns.append(ret)
+    return idx, returns
+
+
 # ── Phase 2: MC rollouts ───────────────────────────────────────────────────────
 
 def run_mc_rollout(
@@ -348,21 +380,41 @@ def run_all_rollouts(
     agent: CynthAIAgent,
     k_rollouts: int,
     device: torch.device,
+    n_workers: int = 0,
 ) -> None:
-    """Fill state.rollout_returns for every state in-place."""
-    total = len(states) * k_rollouts
-    print(f"[Phase 2] Running {total} MC rollouts ({k_rollouts}/state)...")
+    """Fill state.rollout_returns for every state in-place using parallel CPU workers.
 
-    pbar = tqdm(total=total, desc="Phase 2 rollouts", unit="rollout")
-    for snap in states:
-        snap.rollout_returns = []
-        for _ in range(k_rollouts):
-            ret = run_mc_rollout(snap.battle_fork, snap.window, agent, device)
-            snap.rollout_returns.append(ret)
-            pbar.update(1)
-        pbar.set_postfix({"turn": snap.turn, "mean_R": f"{sum(snap.rollout_returns)/len(snap.rollout_returns):.3f}"})
-    pbar.close()
-    print(f"[Phase 2] Done.\n")
+    Uses multiprocessing fork: child processes inherit the battle objects from the
+    parent without pickling. The agent runs on CPU in workers (CUDA is not fork-safe).
+    """
+    global _g_states, _g_agent_sd, _g_k
+
+    if n_workers <= 0:
+        n_workers = min(32, mp.cpu_count())
+    n_workers = min(n_workers, len(states))
+
+    total = len(states) * k_rollouts
+    est_min = total * 15 / n_workers / 60
+    print(f"[Phase 2] {total} rollouts ({k_rollouts}/state) | {n_workers} CPU workers | est. ~{est_min:.0f} min")
+
+    # Set globals before fork so workers inherit them
+    _g_states   = states
+    _g_agent_sd = {k: v.cpu() for k, v in agent.state_dict().items()}
+    _g_k        = k_rollouts
+
+    ctx = mp.get_context("fork")
+    with ctx.Pool(processes=n_workers, initializer=_worker_init) as pool:
+        results = list(tqdm(
+            pool.imap_unordered(_worker_single, range(len(states))),
+            total=len(states),
+            desc="Phase 2 rollouts",
+            unit="state",
+        ))
+
+    for idx, returns in results:
+        states[idx].rollout_returns = returns
+
+    print("[Phase 2] Done.\n")
 
 
 # ── Phase 3: Analysis ──────────────────────────────────────────────────────────
@@ -568,6 +620,8 @@ def main():
     parser.add_argument("--output-dir",    default="experiments/results/ev_max")
     parser.add_argument("--device",        default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--seed",          type=int, default=42)
+    parser.add_argument("--n-workers",     type=int, default=0,
+                        help="Parallel workers for Phase 2 rollouts (0=auto, uses all CPUs up to 32)")
     args = parser.parse_args()
 
     random.seed(args.seed)
@@ -594,8 +648,8 @@ def main():
     # Phase 1: collect states
     states = collect_states(agent, args.n_per_bucket, device)
 
-    # Phase 2: MC rollouts
-    run_all_rollouts(states, agent, args.k_rollouts, device)
+    # Phase 2: MC rollouts (parallel CPU workers)
+    run_all_rollouts(states, agent, args.k_rollouts, device, n_workers=args.n_workers)
 
     # Phase 3: analyse
     results = analyse(states, args.k_rollouts)
