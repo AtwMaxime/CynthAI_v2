@@ -26,8 +26,14 @@ class IndependentCritic(nn.Module):
     and returns V(s) as [B, 1].
     """
 
-    def __init__(self, n_layers: int = 2):
+    def __init__(self, n_layers: int = 2, value_bound: float = 0.0):
         super().__init__()
+
+        # Switch A: when > 0, the raw head output is squashed to ±value_bound via
+        # tanh, so no single state can emit an exploded value (e.g. 450) that
+        # poisons bootstrapped GAE targets. With z-scored targets (std≈1), a
+        # bound of ~10 covers ~10σ without clipping legitimate values.
+        self.value_bound = value_bound
 
         self.pokemon_proj = nn.Linear(TOKEN_DIM, D_MODEL)
         self.field_proj   = nn.Linear(FIELD_DIM, D_MODEL)
@@ -86,4 +92,7 @@ class IndependentCritic(nn.Module):
         scores  = self.pool_query(current).squeeze(-1)           # [B, 13]
         weights = F.softmax(scores, dim=-1).unsqueeze(-1)        # [B, 13, 1]
         pooled  = (weights * current).sum(dim=1)                 # [B, D_MODEL]
-        return self.value_head(pooled)                           # [B, 1]
+        v = self.value_head(pooled)                              # [B, 1]
+        if self.value_bound > 0:
+            v = self.value_bound * torch.tanh(v / self.value_bound)
+        return v

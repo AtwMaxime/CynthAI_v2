@@ -57,6 +57,14 @@ if __name__ == "__main__":
         critic_wd              = 1e-4,
         critic_grad_norm       = 1.0,
 
+        # Critic-stability diagnostics / switches
+        #   Step 1 (diagnostic): dump exploding states, both switches OFF.
+        #   Step 2: enable Switch A first (critic_value_bound=10.0), then
+        #           optionally Switch B (value_target_clip=10.0).
+        value_dump_threshold = 20.0,   # raw |V| above which we dump the state
+        critic_value_bound   = 0.0,    # Switch A (off)
+        value_target_clip    = 0.0,    # Switch B (off)
+
         # Opponent pool
         pool_size               = 10,
         pool_snapshot_freq      = 100,

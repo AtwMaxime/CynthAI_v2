@@ -6,11 +6,41 @@ Le générateur actuel ne reproduit pas fidèlement le format Gen 9 Random Battl
 Parser `randombattlesets.json` (source Pokémon Showdown) pour remplacer l'approximation actuelle
 par une lookup table exacte (moves, items, EVs/natures par rôle, abilities).
 
+---
+
+## Bug critique : value_preds hors échelle (EV ≈ 0)
+
+**Constat** (cheater_v5, u100) : `value_preds` mean=3.96, std=49, max=711 alors que `value_returns` sont z-scorés (mean=0, std=1). Le critic prédit dans un espace complètement différent des targets → EV ≈ 0, value loss ne converge pas, fonction de valeur quasi-constante.
+
+**Cause** : dans `compute_gae` (rollout.py), les returns sont z-scorés (`ret = (ret - mean) / std`) mais `value_old` (les prédictions brutes du critic) ne sont pas normalisées. La value loss compare des prédictions brutes contre des targets normalisées.
+
+**Fix** : soit normaliser `value_old` au même moment que les returns, soit stocker les returns bruts pour le logging et ne z-scorer que pour la loss. À investiguer dans `training/losses.py` et `training/rollout.py`.
+- Switch A (cheater_v7) : `critic_value_bound=10.0` — tanh ±10 sur la sortie du critic.
+- Switch B : `value_target_clip` — clipping des targets GAE (à activer si Switch A insuffisant).
+
+**Fichiers** : `training/rollout.py` (compute_gae), `training/losses.py` (value loss), `training/evaluate.py` (logging value_preds/value_returns).
+
+---
+
+## Tera non implémenté dans le simulateur Rust
+
+**Constat** (cheater_v5) : `p.get("terastallized")` retourne toujours `None` même après térastallisation. Le simulateur accepte la commande `move N terastallize` mais n'applique aucun effet et n'émet pas l'événement `|-terastallize|`. Résultat : `tera_used` est toujours `False`, les slots 4-7 sont légaux à chaque tour, et l'agent choisit des tera moves qui ne font rien.
+
+**Fix court terme** : masquer définitivement les slots 4-7 dans `build_action_mask` (`tera_used = True` forcé) jusqu'à implémentation complète du tera dans le simulateur Rust.
+
+**Fix long terme** : implémenter la térastallisation dans `pokemon-showdown-rs` (type boost, changement de type, émission `|-terastallize|`, mise à jour du champ `terastallized` dans le state).
+
+**Fichiers** : `training/rollout.py` (`build_action_mask`), `simulator/src/` (Rust).
+
+---
+
 ## Entraîner un bon cheater
 
 Agent en information complète (mask_ratio=0.0, dense_scale=1.0) sur 2000-3000 updates.
 Métriques cibles : win rate vs Random ≥ 70%, explained_variance ≥ 0.3, move recall ≥ 0.7.
 Ce modèle servira de teacher pour la distillation vers le modèle POMDP (voir R1 dans TODO.md).
+
+---
 
 ## SFT sur replays top ladder (pour OU)
 
@@ -42,7 +72,7 @@ avec le correcteur V-trace :
 ```
 
 **Avantages vs PPO synchrone** : le learner tourne en continu sans attendre la fin des rollouts,
-ce qui améliore l'utilisation GPU. Avec 32 envs, l'accélération réelle dépend du ratio
+ce qui améliore l'utilisation GPU. Avec 64 envs, l'accélération réelle dépend du ratio
 compute/collect — à évaluer sur notre setup.
 
 **Implémentation** : replay buffer circulaire (taille ~4-8 rollouts), actors qui pushent
@@ -203,12 +233,6 @@ avec n_envs=64, min_steps=4096. Le bottleneck est **CPU Python** : la boucle de 
 64 × K=4 × 12 PokemonFeatures à chaque pas. Le GPU est idle ~90% du temps pendant
 la rollout.
 
-**Profil du problème** :
-- Chaque itération de la boucle while : 2× `_build_agent_inputs` (collation de 3072
-  objets Python → tensors) + boucle `for i in range(n_envs)` séquentielle.
-- `time.GIL released in Rust sim` : vrai mais inutile si les appels sont séquentiels.
-- CPU Xeon : ~2× plus lent en single-thread qu'un i9 gaming pour les boucles Python.
-
 **Solution : N workers multiprocess**
 
 Architecture standard (OpenAI Five, CleanRL) :
@@ -240,6 +264,8 @@ concat les buffers. Plus simple mais moins efficace (re-import du modèle à cha
 
 **Effort** : 2-3 jours. Précondition : profiler rollout vs PPO split pour confirmer
 que rollout domine bien (expected: >85%).
+
+---
 
 ## Envs asynchrones
 
@@ -280,33 +306,6 @@ for action in legal_actions:
 # Choisir argmax(score) au lieu de argmax(logits)
 ```
 
-
-## Priorités et effort estimé
-
-| Priorité | Item | Effort |
-|----------|------|--------|
-| 🔴 Quick wins | Normalisation scalaires bruts | 1-2h |
-| 🔴 Quick wins | K=4 → K=8 | 1h |
-| 🔴 Quick wins | eval_n_games 100 → 500 | 30min |
-| 🔴 Quick wins | PFSP sur le pool existant | 2-3h |
-| 🟡 Moyen terme | Corriger le générateur de teams | 1 jour |
-| 🟡 Moyen terme | Entraîner le cheater | 2-3 jours GPU |
-| 🟡 Moyen terme | CLS token statique (value head, accès historique complet) | 2-3h |
-| 🟡 Moyen terme | CLS token + LSTM (mémoire persistante inter-turns) | 1-2 jours |
-| 🟡 Moyen terme | Attention pooling (value head) | 2h |
-| 🟡 Moyen terme | Pool snapshot win-rate gate | 1h |
-| 🟡 Moyen terme | One-step lookahead (inférence) | 1 jour |
-| 🟡 Moyen terme | Rollout multiprocess workers (×6-8 speedup) | 2-3 jours |
-| 🟢 Long terme | IMPALA / V-trace | 1 semaine |
-| 🟢 Long terme | League Training | 1 semaine+ |
-| 🟢 Long terme | Scaling (d_model 256→512+) | 2-3 jours |
-| 🟢 Long terme | SFT replays + OU | projet à part entière |
-
-Les quick wins s'appliquent immédiatement sur le run en cours ou le suivant.
-Le moyen terme suppose que le cheater valide l'architecture de base (EV ≥ 0.3,
-WR vs Random ≥ 70%). Le long terme n'a de sens que si le projet passe à OU ou
-nécessite un niveau compétitif réel.
-
 Coût : N_legal_actions forward passes par décision (4-13×). Utilisable à l'inférence
 et en éval pour mesurer le gain vs politique greedy pure.
 
@@ -328,6 +327,8 @@ distances dans l'espace d'embedding, ce qui nuit à l'apprentissage du Transform
 normalisées avant d'être concaténées aux autres scalaires ? Si non, diviser par une
 constante fixe (ex: `hp_raw / 714`, `stats / 700`) ou appliquer une normalisation
 par running mean/std sur le premier batch.
+
+---
 
 ## Mix d'adversaires : supprimer Random, augmenter Pool
 
@@ -371,3 +372,33 @@ Ce double critère évite de snapshotter un agent en effondrement complet tout e
 garantissant qu'une régression longue ne bloque pas la diversité du pool indéfiniment.
 `WR vs Random` est la métrique la plus stable (peu de variance, adversaire fixe) — ne
 pas utiliser WR vs EMA qui fluctue avec l'agent lui-même.
+
+---
+
+## Priorités et effort estimé
+
+| Priorité | Item | Effort |
+|----------|------|--------|
+| 🔴 Urgent | Bug critique value_preds / critic explosion | en cours (v6/v7) |
+| 🔴 Quick wins | Normalisation scalaires bruts | 1-2h |
+| 🔴 Quick wins | K=4 → K=8 | 1h |
+| 🔴 Quick wins | eval_n_games 100 → 500 | 30min |
+| 🔴 Quick wins | PFSP sur le pool existant | 2-3h |
+| 🟡 Moyen terme | Corriger le générateur de teams | 1 jour |
+| 🟡 Moyen terme | Entraîner le cheater | 2-3 jours GPU |
+| 🟡 Moyen terme | CLS token statique (value head, accès historique complet) | 2-3h |
+| 🟡 Moyen terme | CLS token + LSTM (mémoire persistante inter-turns) | 1-2 jours |
+| 🟡 Moyen terme | Attention pooling (value head) | 2h |
+| 🟡 Moyen terme | Pool snapshot win-rate gate | 1h |
+| 🟡 Moyen terme | One-step lookahead (inférence) | 1 jour |
+| 🟡 Moyen terme | Rollout multiprocess workers (×6-8 speedup) | 2-3 jours |
+| 🟡 Moyen terme | Tera simulateur Rust (fix long terme) | 1 semaine |
+| 🟢 Long terme | IMPALA / V-trace | 1 semaine |
+| 🟢 Long terme | League Training | 1 semaine+ |
+| 🟢 Long terme | Scaling (d_model 256→512+) | 2-3 jours |
+| 🟢 Long terme | SFT replays + OU | projet à part entière |
+
+Les quick wins s'appliquent immédiatement sur le run en cours ou le suivant.
+Le moyen terme suppose que le cheater valide l'architecture de base (EV ≥ 0.3,
+WR vs Random ≥ 70%). Le long terme n'a de sens que si le projet passe à OU ou
+nécessite un niveau compétitif réel.

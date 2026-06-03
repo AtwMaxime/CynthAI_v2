@@ -31,10 +31,12 @@ Pokemon ordering in the 12-token sequence (per turn):
 
 from __future__ import annotations
 
+import json
 import random
 import sys
 from collections import deque
 from dataclasses import dataclass, field as dc_field
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import torch
@@ -56,6 +58,24 @@ from env.revealed_tracker import RevealedTracker
 
 if TYPE_CHECKING:
     from model.agent import CynthAIAgent
+
+
+# â”€â”€ Critic-explosion state dump â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+def dump_state(state: dict, *, value: float, update: int, env: int,
+               out_dir: str | None) -> None:
+    """Append one JSONL record (battle state + offending raw V) for diagnosis.
+
+    Called when |value_old| exceeds the rollout dump threshold so we can inspect
+    *which* states make the critic output explode.
+    """
+    if out_dir is None:
+        return
+    d = Path(out_dir) / "critic_dumps"
+    d.mkdir(parents=True, exist_ok=True)
+    rec = {"update": update, "env": env, "value": value, "state": state}
+    with open(d / f"update_{update:06d}.jsonl", "a") as f:
+        f.write(json.dumps(rec, default=str) + "\n")
 
 
 # â”€â”€ Reward hyperparameters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -446,16 +466,22 @@ class RolloutBuffer:
     def __len__(self) -> int:
         return len(self._transitions)
 
-    def compute_gae(self, gamma: float = 0.99, lam: float = 0.95) -> None:
+    def compute_gae(self, gamma: float = 0.99, lam: float = 0.95,
+                    value_target_clip: float = 0.0) -> None:
         """
         Generalised Advantage Estimation over complete episodes.
         Episode boundaries are detected via Transition.done == True.
         next_value = 0 at episode end (no bootstrapping needed for complete episodes).
+
+        Switch B (value_target_clip > 0): clamp the bootstrap next_val and the raw
+        returns to ±clip (raw scale) so a single exploded critic output cannot
+        poison the previous state's target nor inflate the batch z-score stats.
         """
         n   = len(self._transitions)
         adv = [0.0] * n
         ret = [0.0] * n
         gae = 0.0
+        clip = value_target_clip
 
         for t in reversed(range(n)):
             tr = self._transitions[t]
@@ -464,6 +490,9 @@ class RolloutBuffer:
                 gae      = 0.0
             else:
                 next_val = self._transitions[t + 1].value_old if t + 1 < n else 0.0
+
+            if clip > 0:
+                next_val = max(-clip, min(clip, next_val))
 
             delta = tr.reward + gamma * next_val - tr.value_old
             gae   = delta + gamma * lam * (0.0 if tr.done else gae)
@@ -476,6 +505,8 @@ class RolloutBuffer:
         # that critic targets and critic predictions are in the same space.
         # Without this, value_old drifts → ret drifts → positive feedback → divergence.
         ret_t    = torch.tensor(ret, dtype=torch.float32)
+        if clip > 0:
+            ret_t = ret_t.clamp(-clip, clip)   # bound outliers before normalising
         ret_mean = ret_t.mean()
         ret_std  = ret_t.std() + 1e-8
         ret_t    = (ret_t - ret_mean) / ret_std
@@ -630,6 +661,11 @@ def collect_rollout(
     mask_ratio: float = 0.0,    # P1: POMDP masking ratio (0=off, 1=full)
     dense_scale: float = 1.0,   # P2: scale non-terminal rewards
     max_crashes: int = 50,      # abort rollout if too many invalid choices
+    value_target_clip: float = 0.0,   # Switch B: clip GAE targets (0 = off)
+    value_dump_threshold: float = 0.0, # dump states where |V| exceeds this (0 = off)
+    update: int = 0,                   # current update index (for dump filenames)
+    dump_dir: str | None = None,       # checkpoint dir for critic_dumps/
+    max_dumps: int = 20,               # cap dumps per rollout
 ) -> RolloutBuffer:
     """
     Collect complete episodes across n_envs parallel battles until min_steps
@@ -646,6 +682,7 @@ def collect_rollout(
     side_opp  = 1 - side_self
     buffer    = RolloutBuffer()
     seeds     = list(range(n_envs))
+    n_dumps   = 0   # critic-explosion state dumps emitted this rollout
 
     envs        = [PyBattle.from_packed_teams(format_id, s, *sample_teams()) for s in seeds]
     wins_self   = [BattleWindow() for _ in range(n_envs)]
@@ -848,6 +885,12 @@ def collect_rollout(
                                 done              = done,
                                 value_old         = sub_out.value[j, 0].item(),
                             ))
+                            v_raw = sub_out.value[j, 0].item()
+                            if (value_dump_threshold > 0 and n_dumps < max_dumps
+                                    and abs(v_raw) > value_dump_threshold):
+                                dump_state(new_state, value=v_raw, update=update,
+                                           env=i, out_dir=dump_dir)
+                                n_dumps += 1
                             if done:
                                 tracker_self.reset(i)
                                 tracker_opp.reset(i)
@@ -960,6 +1003,13 @@ def collect_rollout(
                     value_old         = out_self.value[i, 0].item(),
                 ))
 
+                v_raw = out_self.value[i, 0].item()
+                if (value_dump_threshold > 0 and n_dumps < max_dumps
+                        and abs(v_raw) > value_dump_threshold):
+                    dump_state(curr_states[i], value=v_raw, update=update,
+                               env=i, out_dir=dump_dir)
+                    n_dumps += 1
+
                 if done:
                     tracker_self.reset(i)
                     tracker_opp.reset(i)
@@ -975,5 +1025,5 @@ def collect_rollout(
 
             prev_states = curr_states
 
-    buffer.compute_gae(gamma, lam)
+    buffer.compute_gae(gamma, lam, value_target_clip=value_target_clip)
     return buffer

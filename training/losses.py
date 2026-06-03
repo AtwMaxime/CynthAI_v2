@@ -96,6 +96,15 @@ def compute_losses(
         adv_std   = advantages.std().item()
         ratio_dev = (ratio - 1.0).abs().mean().item()
 
+        # Critic-explosion diagnostics: value preds vs (normalised) return targets.
+        vp = values.detach()
+        rt = returns.detach()
+        vp_mean = vp.mean().item(); vp_std = vp.std().item()
+        vp_min  = vp.min().item();  vp_max = vp.max().item()
+        ret_mean = rt.mean().item(); ret_std = rt.std().item()
+        ret_min  = rt.min().item();  ret_max = rt.max().item()
+        abs_err_max = (vp - rt).abs().max().item()
+
     # ── Total ─────────────────────────────────────────────────────────────────
     total = (
         policy_loss
@@ -114,5 +123,14 @@ def compute_losses(
         "adv_mean":   adv_mean,
         "adv_std":    adv_std,
         "ratio_dev":  ratio_dev,
+        "vp_mean":    vp_mean,
+        "vp_std":     vp_std,
+        "vp_min":     vp_min,
+        "vp_max":     vp_max,
+        "ret_mean":   ret_mean,
+        "ret_std":    ret_std,
+        "ret_min":    ret_min,
+        "ret_max":    ret_max,
+        "abs_err_max": abs_err_max,
         "total":      total,
     }
