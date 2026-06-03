@@ -153,6 +153,21 @@ impl PyBattle {
         self.inner.winner.clone()
     }
 
+    /// Clone the current battle state for forking MC rollouts.
+    /// Uses serde JSON round-trip to deep-copy all serialisable fields,
+    /// then re-injects the #[serde(skip)] fields from the original.
+    fn clone_battle(&self) -> PyResult<PyBattle> {
+        use pyo3::exceptions::PyRuntimeError;
+        let json = serde_json::to_string(&self.inner)
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        let mut inner: Battle = serde_json::from_str(&json)
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        inner.format     = self.inner.format.clone();
+        inner.dex        = pokemon_showdown::dex::Dex::global();
+        inner.rule_table = self.inner.rule_table.clone();
+        Ok(PyBattle { inner })
+    }
+
     /// Return the full observable battle state as a Python dict.
     /// This is the raw data consumed by env/state_encoder.py.
     fn get_state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
