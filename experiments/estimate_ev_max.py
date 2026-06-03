@@ -47,11 +47,10 @@ from training.rollout import (
 GAMMA = 0.99
 
 TURN_BUCKETS = [
-    (1,  5,  "turn_01-05"),
-    (6,  10, "turn_06-10"),
-    (11, 20, "turn_11-20"),
-    (21, 30, "turn_21-30"),
-    (31, 999, "turn_31+"),
+    (1,  5,   "turn_01-05"),
+    (6,  10,  "turn_06-10"),
+    (11, 20,  "turn_11-20"),
+    (21, 999, "turn_21+"),
 ]
 
 FORMAT_ID = "gen9randombattle"
