@@ -150,11 +150,14 @@ def train_critic(
     batch_size: int,
     device: torch.device,
 ) -> dict[str, list[float]]:
-    """Train critic offline; return per-epoch metrics on train set."""
+    """Train critic offline; return per-epoch metrics on train AND val sets."""
     opt = torch.optim.AdamW(critic.parameters(), lr=lr)
     norm_ret_t = torch.tensor(norm_returns, dtype=torch.float32)
 
-    logs: dict[str, list[float]] = {"ev": [], "corr": [], "r2": [], "mse": []}
+    logs: dict[str, list[float]] = {
+        "ev": [], "corr": [], "r2": [], "mse": [],
+        "ev_val": [], "corr_val": [], "r2_val": [], "mse_val": [],
+    }
 
     for epoch in range(n_epochs):
         critic.train()
@@ -174,19 +177,23 @@ def train_critic(
             nn.utils.clip_grad_norm_(critic.parameters(), 1.0)
             opt.step()
 
-        # Log on full train set at end of epoch
+        # Log on train + val after each epoch
         _, ev, corr, r2, mse = eval_critic(
             critic, poke_tokens, field_tensors, norm_returns, train_idx,
             batch_size=512, device=device,
         )
-        logs["ev"].append(ev)
-        logs["corr"].append(corr)
-        logs["r2"].append(r2)
-        logs["mse"].append(mse)
+        _, ev_v, corr_v, r2_v, mse_v = eval_critic(
+            critic, poke_tokens, field_tensors, norm_returns, val_idx,
+            batch_size=512, device=device,
+        )
+        logs["ev"].append(ev);         logs["corr"].append(corr)
+        logs["r2"].append(r2);         logs["mse"].append(mse)
+        logs["ev_val"].append(ev_v);   logs["corr_val"].append(corr_v)
+        logs["r2_val"].append(r2_v);   logs["mse_val"].append(mse_v)
 
-        if (epoch + 1) % 50 == 0:
+        if (epoch + 1) % 20 == 0:
             print(f"    epoch {epoch+1:3d}/{n_epochs}  "
-                  f"EV={ev:.3f}  corr={corr:.3f}  r²={r2:.3f}  MSE={mse:.4f}")
+                  f"EV={ev:.3f}  EV_val={ev_v:.3f}  corr_val={corr_v:.3f}  MSE={mse:.4f}")
 
     return logs
 
@@ -200,7 +207,7 @@ def main():
     parser.add_argument("--checkpoint",  required=True)
     parser.add_argument("--n_envs",      type=int,   default=32)
     parser.add_argument("--min_steps",   type=int,   default=8192)
-    parser.add_argument("--n_epochs",    type=int,   default=300)
+    parser.add_argument("--n_epochs",    type=int,   default=100)
     parser.add_argument("--batch_size",  type=int,   default=256)
     parser.add_argument("--device",      default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--critic_n_layers", type=int, default=2)
@@ -359,18 +366,31 @@ def main():
     print(f"MSE final (best LR)  : {best_mse_tr:.4f}")
     print(f"Best EV val          : {best_ev_val:.3f}")
 
-    if best_ev_val > 0.3:
-        print("\n→ EV_val > 0.3 : critic CAN learn — problem = budget online")
-        print("  Recommendation: increase critic_updates_per_ppo in v8")
-    elif best_ev_val > 0.1:
-        print("\n→ EV_val ∈ [0.1, 0.3] : architecture limited")
-        print("  Recommendation: critic_n_layers=4 in v8")
+    # Best val EV across all LRs and all epochs (not just final)
+    best_ev_val_any = max(
+        v for logs in all_logs.values() for v in logs["ev_val"]
+    )
+    best_ev_val_early = max(
+        v for logs in all_logs.values() for v in logs["ev_val"][:10]
+    )
+    print(f"Best EV val (any epoch)   : {best_ev_val_any:.3f}")
+    print(f"Best EV val (epochs 1-10) : {best_ev_val_early:.3f}  ← PPO-relevant")
+
+    if best_ev_val_early > 0.1:
+        print("\n→ EV_val peaks > 0.1 in first 10 epochs : critic learns online")
+        print("  Overfitting dominates at 100+ epochs — expected with 1.25M params / 6k samples")
+        print("  Recommendation: tune critic_updates_per_ppo + weight_decay in v8")
+    elif best_ev_val_any > 0.1:
+        print("\n→ EV_val > 0.1 but only after many epochs : critic too slow to learn online")
+        print("  Recommendation: higher LR or critic_n_layers=4 in v8")
     else:
-        print("\n→ EV_val < 0.1 : intrinsic variance too high → wait for MC")
+        print("\n→ EV_val < 0.1 everywhere : intrinsic return variance too high")
+        print("  Recommendation: wait for MC estimate or increase rollout size")
 
     # ── 10. Plots ─────────────────────────────────────────────────────────────
     colors = {"LR=1e-04": "#2196F3", "LR=1e-03": "#FF9800", "LR=5e-03": "#E91E63"}
-    epochs = list(range(1, args.n_epochs + 1))
+    epochs  = list(range(1, args.n_epochs + 1))
+    zoom_n  = min(50, args.n_epochs)   # zoom window for early epochs
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 9))
     fig.suptitle(
@@ -379,43 +399,45 @@ def main():
         fontsize=12,
     )
 
+    # [0,0] EV train vs epoch (full)
     ax = axes[0, 0]
     ax.set_title("EV vs epoch — TRAIN")
-    ax.axhline(0, color="gray", ls="--", lw=0.8, label="Baseline (EV=0)")
-    ax.axhline(ev_init_tr, color="black", ls=":", lw=1.2, label=f"Init EV={ev_init_tr:.3f}")
+    ax.axhline(0, color="gray", ls="--", lw=0.8, label="Baseline")
+    ax.axhline(ev_init_tr, color="black", ls=":", lw=1.2, label=f"Init={ev_init_tr:.3f}")
     for label, logs in all_logs.items():
         ax.plot(epochs, logs["ev"], color=colors.get(label, None), label=label)
     ax.set_xlabel("Epoch"); ax.set_ylabel("EV")
     ax.legend(fontsize=8)
 
+    # [0,1] EV val vs epoch (full)
     ax = axes[0, 1]
     ax.set_title("EV vs epoch — VAL")
     ax.axhline(0, color="gray", ls="--", lw=0.8, label="Baseline")
-    ax.axhline(ev_init_val, color="black", ls=":", lw=1.2, label=f"Init EV={ev_init_val:.3f}")
-    # Recompute val EV per epoch by running eval after each epoch is stored in logs (train only).
-    # We don't have val per epoch in this implementation. Plot final val points as markers.
-    for label, row in final_rows.items():
-        ax.axhline(row["ev_val"], color=colors.get(label, None), ls="-", lw=1.5,
-                   label=f"{label} final={row['ev_val']:.3f}")
+    ax.axhline(ev_init_val, color="black", ls=":", lw=1.2, label=f"Init={ev_init_val:.3f}")
+    for label, logs in all_logs.items():
+        ax.plot(epochs, logs["ev_val"], color=colors.get(label, None), label=label)
     ax.set_xlabel("Epoch"); ax.set_ylabel("EV")
     ax.legend(fontsize=8)
 
+    # [1,0] EV val zoomed — first 50 epochs (the PPO-relevant window)
     ax = axes[1, 0]
-    ax.set_title("corr vs epoch — TRAIN")
-    ax.axhline(0, color="gray", ls="--", lw=0.8)
-    ax.axhline(corr_init_tr, color="black", ls=":", lw=1.2, label=f"Init corr={corr_init_tr:.3f}")
+    ax.set_title(f"EV val — zoomed (first {zoom_n} epochs)  ← PPO-relevant")
+    ax.axhline(0, color="gray", ls="--", lw=0.8, label="Baseline")
+    ax.axhline(ev_init_val, color="black", ls=":", lw=1.2, label=f"Init={ev_init_val:.3f}")
     for label, logs in all_logs.items():
-        ax.plot(epochs, logs["corr"], color=colors.get(label, None), label=label)
-    ax.set_xlabel("Epoch"); ax.set_ylabel("Pearson r")
+        ax.plot(epochs[:zoom_n], logs["ev_val"][:zoom_n],
+                color=colors.get(label, None), label=label, lw=2)
+    ax.set_xlabel("Epoch"); ax.set_ylabel("EV val")
     ax.legend(fontsize=8)
 
+    # [1,1] corr val vs epoch
     ax = axes[1, 1]
-    ax.set_title("MSE vs epoch — TRAIN")
-    ax.axhline(mse_baseline, color="red", ls="--", lw=1.2, label=f"Baseline MSE={mse_baseline:.3f}")
-    ax.axhline(mse_init_tr, color="black", ls=":", lw=1.2, label=f"Init MSE={mse_init_tr:.4f}")
+    ax.set_title("corr (Pearson) vs epoch — VAL")
+    ax.axhline(0, color="gray", ls="--", lw=0.8)
+    ax.axhline(corr_init_val, color="black", ls=":", lw=1.2, label=f"Init={corr_init_val:.3f}")
     for label, logs in all_logs.items():
-        ax.plot(epochs, logs["mse"], color=colors.get(label, None), label=label)
-    ax.set_xlabel("Epoch"); ax.set_ylabel("MSE")
+        ax.plot(epochs, logs["corr_val"], color=colors.get(label, None), label=label)
+    ax.set_xlabel("Epoch"); ax.set_ylabel("Pearson r")
     ax.legend(fontsize=8)
 
     plt.tight_layout()
