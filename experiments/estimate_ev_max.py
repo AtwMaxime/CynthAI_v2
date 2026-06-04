@@ -402,17 +402,31 @@ def run_all_rollouts(
     _g_agent_sd = {k: v.cpu() for k, v in agent.state_dict().items()}
     _g_k        = k_rollouts
 
-    ctx = mp.get_context("fork")
-    with ctx.Pool(processes=n_workers, initializer=_worker_init) as pool:
-        results = list(tqdm(
-            pool.imap_unordered(_worker_single, range(len(states))),
-            total=len(states),
-            desc="Phase 2 rollouts",
-            unit="state",
-        ))
-
-    for idx, returns in results:
-        states[idx].rollout_returns = returns
+    if n_workers <= 1:
+        # Sequential fallback (safe with PyO3 objects, no fork/GIL issues)
+        pbar = tqdm(total=len(states), desc="Phase 2 rollouts", unit="state")
+        for idx, snap in enumerate(states):
+            returns = []
+            for i in range(k_rollouts):
+                torch.manual_seed(idx * 100_000 + i)
+                random.seed(idx * 100_000 + i)
+                ret = run_mc_rollout(snap.battle_fork, snap.window, agent, device)
+                returns.append(ret)
+            snap.rollout_returns = returns
+            pbar.update(1)
+            pbar.set_postfix({"turn": snap.turn, "mean_R": f"{sum(returns)/len(returns):.3f}"})
+        pbar.close()
+    else:
+        ctx = mp.get_context("fork")
+        with ctx.Pool(processes=n_workers, initializer=_worker_init) as pool:
+            results = list(tqdm(
+                pool.imap_unordered(_worker_single, range(len(states))),
+                total=len(states),
+                desc="Phase 2 rollouts",
+                unit="state",
+            ))
+        for idx, returns in results:
+            states[idx].rollout_returns = returns
 
     print("[Phase 2] Done.\n")
 
