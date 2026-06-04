@@ -512,6 +512,10 @@ class RolloutBuffer:
         ret_t    = (ret_t - ret_mean) / ret_std
         self._returns = ret_t.tolist()
 
+        self._raw_returns = ret          # list[float] — returns bruts avant Z-score
+        self._ret_mean    = ret_mean.item()
+        self._ret_std     = ret_std.item()
+
         # Normalise stored value_old with the same stats so EV and value loss
         # are computed in the same space as the normalised targets.
         for tr in self._transitions:
