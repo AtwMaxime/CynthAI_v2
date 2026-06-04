@@ -66,6 +66,7 @@ class StateSnapshot:
     window: BattleWindow         # deep-copied K-turn window for the forked state
     v_theta: float               # critic prediction at this state
     turn: int
+    game_idx: int = -1
     rollout_returns: list[float] = dc_field(default_factory=list)
 
 
@@ -140,6 +141,140 @@ def sample_action(agent: CynthAIAgent, window: BattleWindow, state: dict,
 
 # ── Phase 1: State collection ──────────────────────────────────────────────────
 
+def collect_states_batched(
+    agent: CynthAIAgent,
+    n_per_bucket: int,
+    device: torch.device,
+    batch_size: int = 64,
+    seed_start: int = 0,
+) -> list[StateSnapshot]:
+    """Vectorised Phase 1: run `batch_size` self-play battles in parallel with a
+    single batched forward per step. Each battle contributes at most ONE snapshot
+    (into its assigned target bucket) and is then reset to a fresh battle, so all
+    source games are distinct (games == states, 0%% duplication).
+    """
+    from training.rollout import _build_agent_inputs, _sample_action
+    from simulator import PyBattle
+
+    agent.eval()
+    buckets: dict[str, list[StateSnapshot]] = {b[2]: [] for b in TURN_BUCKETS}
+    full: set[str] = set()
+
+    def _bucket_for_turn(t):
+        for lo, hi, name in TURN_BUCKETS:
+            if lo <= t <= hi:
+                return name
+        return None
+
+    def _pick_target():
+        opens = [b[2] for b in TURN_BUCKETS if b[2] not in full]
+        return min(opens, key=lambda nm: len(buckets[nm])) if opens else None
+
+    def _all_full():
+        return all(len(buckets[b[2]]) >= n_per_bucket for b in TURN_BUCKETS)
+
+    state_seed = [seed_start]
+    game_counter = [0]
+
+    def _new_env():
+        t1, t2 = sample_teams()
+        b = PyBattle.from_packed_teams(FORMAT_ID, state_seed[0], t1, t2)
+        state_seed[0] += 1
+        game_counter[0] += 1
+        ws, wo = BattleWindow(), BattleWindow()
+        st = b.get_state()
+        pf, ff = encode_state(st, 0); ws.push(pf, ff)
+        pf, ff = encode_state(st, 1); wo.push(pf, ff)
+        return {"battle": b, "ws": ws, "wo": wo, "gid": game_counter[0],
+                "target": _pick_target(), "steps": 0}
+
+    total_needed = n_per_bucket * len(TURN_BUCKETS)
+    pbar = tqdm(total=total_needed, desc="Phase 1 collect", unit="state")
+
+    envs = [_new_env() for _ in range(batch_size)]
+    max_steps = 200
+
+    while not _all_full():
+        # reset dead / over-long / stale-target envs
+        for i in range(len(envs)):
+            e = envs[i]
+            if (e["battle"].ended or e["steps"] >= max_steps
+                    or e["target"] is None or e["target"] in full):
+                envs[i] = _new_env()
+
+        states_now = [e["battle"].get_state() for e in envs]
+
+        dec = []
+        for i, st in enumerate(states_now):
+            if st["sides"][0].get("request_state", "") == "None" and \
+               st["sides"][1].get("request_state", "") == "None":
+                continue
+            dec.append(i)
+        if not dec:
+            for i in range(len(envs)):
+                envs[i] = _new_env()
+            continue
+
+        sub_s  = [states_now[i] for i in dec]
+        ws_sub = [envs[i]["ws"] for i in dec]
+        wo_sub = [envs[i]["wo"] for i in dec]
+        masks_self = torch.stack([build_action_mask(st, 0) for st in sub_s]).to(device)
+        masks_opp  = torch.stack([build_action_mask(st, 1) for st in sub_s]).to(device)
+        ins_self = _build_agent_inputs(ws_sub, sub_s, 0, device)
+        ins_opp  = _build_agent_inputs(wo_sub, sub_s, 1, device)
+        with torch.no_grad():
+            out_self = agent(*ins_self, masks_self)
+            out_opp  = agent(*ins_opp,  masks_opp)
+        acts_self = _sample_action(out_self.log_probs, masks_self)
+        acts_opp  = _sample_action(out_opp.log_probs,  masks_opp)
+        vals = out_self.value.reshape(-1)
+
+        snapped = set()
+        for k, i in enumerate(dec):
+            e = envs[i]; st = sub_s[k]; turn = st.get("turn", 0); tb = e["target"]
+            if tb is not None and tb not in full and _bucket_for_turn(turn) == tb \
+               and len(buckets[tb]) < n_per_bucket:
+                snap = StateSnapshot(
+                    battle_fork=e["battle"].clone_battle(),
+                    window=copy.deepcopy(e["ws"]),
+                    v_theta=float(vals[k].item()),
+                    turn=turn,
+                    game_idx=e["gid"],
+                )
+                buckets[tb].append(snap)
+                pbar.update(1)
+                pbar.set_postfix({b[2]: len(buckets[b[2]]) for b in TURN_BUCKETS})
+                if len(buckets[tb]) >= n_per_bucket:
+                    full.add(tb)
+                envs[i] = _new_env()
+                snapped.add(i)
+
+        for k, i in enumerate(dec):
+            if i in snapped:
+                continue
+            e = envs[i]; st = sub_s[k]
+            if st["sides"][0].get("request_state", "") == "None" or bool(masks_self[k].all().item()):
+                a_self = "default"
+            else:
+                a_self = action_to_choice(int(acts_self[k].item()), st, 0)
+            if st["sides"][1].get("request_state", "") == "None" or bool(masks_opp[k].all().item()):
+                a_opp = "default"
+            else:
+                a_opp = action_to_choice(int(acts_opp[k].item()), st, 1)
+            ok = e["battle"].make_choices(a_self, a_opp)
+            if not ok:
+                e["battle"].make_choices("default", "default")
+            curr = e["battle"].get_state()
+            pf, ff = encode_state(curr, 0); e["ws"].push(pf, ff)
+            pf, ff = encode_state(curr, 1); e["wo"].push(pf, ff)
+            e["steps"] += 1
+
+    pbar.close()
+    all_states = [s for b in buckets.values() for s in b]
+    print(f"[Phase 1] Done (batched). {len(all_states)} states; {game_counter[0]} games spawned.\n")
+    return all_states
+
+
 def collect_states(
     agent: CynthAIAgent,
     n_per_bucket: int,
@@ -183,6 +318,13 @@ def collect_states(
         pf, ff = encode_state(prev_state, 0); win_self.push(pf, ff)
         pf, ff = encode_state(prev_state, 1); win_opp.push(pf, ff)
 
+        # One snapshot per battle -> independent source games. Aim for the
+        # least-filled still-open bucket so every bucket fills with distinct games.
+        open_buckets = [b[2] for b in TURN_BUCKETS if b[2] not in full_buckets]
+        if not open_buckets:
+            break
+        target_bucket = min(open_buckets, key=lambda nm: len(buckets[nm]))
+
         max_turns = 200
         for _ in range(max_turns):
             if battle.ended:
@@ -200,9 +342,9 @@ def collect_states(
                 prev_state = state
                 continue
 
-            # Snapshot this state if its bucket is not yet full
+            # One snapshot per battle: only when we reach the target bucket
             bname = _bucket_for_turn(turn)
-            if bname and bname not in full_buckets and len(buckets[bname]) < n_per_bucket:
+            if bname == target_bucket and len(buckets[bname]) < n_per_bucket:
                 win_copy = copy.deepcopy(win_self)
                 v_theta = get_value(agent, win_copy, state, side_idx=0, device=device)
 
@@ -212,12 +354,14 @@ def collect_states(
                     window=copy.deepcopy(win_self),
                     v_theta=v_theta,
                     turn=turn,
+                    game_idx=total_games,
                 )
                 buckets[bname].append(snap)
                 pbar.update(1)
                 pbar.set_postfix({b[2]: len(buckets[b[2]]) for b in TURN_BUCKETS})
                 if len(buckets[bname]) >= n_per_bucket:
                     full_buckets.add(bname)
+                break  # stop this battle after one snapshot -> distinct source games
 
             # Advance battle: sample actions stochastically
             # Need to handle sub-turn switches gracefully
@@ -375,6 +519,109 @@ def run_mc_rollout(
     return total_return
 
 
+def run_all_rollouts_batched(
+    states: list[StateSnapshot],
+    agent: CynthAIAgent,
+    k_rollouts: int,
+    device: torch.device,
+    batch_size: int = 256,
+    gamma: float = GAMMA,
+) -> None:
+    """Fill state.rollout_returns in-place with a vectorised multi-env rollout.
+
+    All (state, rollout) copies are stepped as parallel envs with a single
+    batched agent forward per step (mirrors training's collect_rollout), on CPU.
+    Per-env stepping semantics match run_mc_rollout exactly.
+    """
+    from training.rollout import _build_agent_inputs, _sample_action
+
+    agent.eval()
+    jobs = [si for si, _ in enumerate(states) for _ in range(k_rollouts)]
+    total = len(jobs)
+    returns_by_state: list[list[float]] = [[] for _ in states]
+
+    print(f"[Phase 2] {total} rollouts ({k_rollouts}/state) | batched CPU | batch_size={batch_size}")
+    pbar = tqdm(total=total, desc="Phase 2 batched", unit="rollout")
+    max_turns = 300
+
+    def _choices(active, states_now, windows, side):
+        sub_s = [states_now[j] for j in active]
+        sub_w = [windows[j] for j in active]
+        masks = torch.stack([build_action_mask(st, side) for st in sub_s]).to(device)
+        ins = _build_agent_inputs(sub_w, sub_s, side, device)
+        with torch.no_grad():
+            out = agent(*ins, masks)
+        acts = _sample_action(out.log_probs, masks)
+        ch = {}
+        for k, j in enumerate(active):
+            st = sub_s[k]
+            if st["sides"][side].get("request_state", "") == "None" or bool(masks[k].all().item()):
+                ch[j] = "default"
+            else:
+                ch[j] = action_to_choice(int(acts[k].item()), st, side)
+        return ch
+
+    for start in range(0, total, batch_size):
+        chunk = jobs[start:start + batch_size]
+        B = len(chunk)
+
+        battles   = [states[si].battle_fork.clone_battle() for si in chunk]
+        wins_self = [copy.deepcopy(states[si].window) for si in chunk]
+        wins_opp  = [BattleWindow() for _ in chunk]
+        prev      = [b.get_state() for b in battles]
+        for j in range(B):
+            pf, ff = encode_state(prev[j], 1); wins_opp[j].push(pf, ff)
+
+        ret      = [0.0] * B
+        disc     = [1.0] * B
+        finished = [False] * B
+
+        for _ in range(max_turns):
+            active = [j for j in range(B) if not finished[j] and not battles[j].ended]
+            if not active:
+                break
+            states_now = {j: battles[j].get_state() for j in active}
+
+            dec = []
+            for j in active:
+                st = states_now[j]
+                if st["sides"][0].get("request_state", "") == "None" and \
+                   st["sides"][1].get("request_state", "") == "None":
+                    prev[j] = st
+                    continue
+                dec.append(j)
+            if not dec:
+                continue
+
+            ch_self = _choices(dec, states_now, wins_self, 0)
+            ch_opp  = _choices(dec, states_now, wins_opp, 1)
+
+            for j in dec:
+                ok = battles[j].make_choices(ch_self[j], ch_opp[j])
+                if not ok:
+                    battles[j].make_choices("default", "default")
+                curr   = battles[j].get_state()
+                done   = curr.get("ended", False)
+                winner = curr.get("winner")
+                won    = (winner == "p1") if done else None
+                reward, _ = compute_step_reward(prev[j], curr, done, won, side_idx=0)
+                ret[j]  += disc[j] * reward
+                disc[j] *= gamma
+                pf, ff = encode_state(curr, 0); wins_self[j].push(pf, ff)
+                pf, ff = encode_state(curr, 1); wins_opp[j].push(pf, ff)
+                prev[j] = curr
+                if done:
+                    finished[j] = True
+
+        for j, si in enumerate(chunk):
+            returns_by_state[si].append(ret[j])
+            pbar.update(1)
+
+    pbar.close()
+    for si, snap in enumerate(states):
+        snap.rollout_returns = returns_by_state[si]
+
+
 def run_all_rollouts(
     states: list[StateSnapshot],
     agent: CynthAIAgent,
@@ -432,6 +679,25 @@ def run_all_rollouts(
 
 
 # ── Phase 3: Analysis ──────────────────────────────────────────────────────────
+
+def _dist_summary(arr) -> dict:
+    """Quantiles + 20-bin histogram for a 1-D array (e.g. V_pi_hat distribution)."""
+    a = np.asarray(arr, dtype=float)
+    if a.size == 0:
+        return {}
+    qs = [0, 5, 10, 25, 50, 75, 90, 95, 100]
+    counts, edges = np.histogram(a, bins=20)
+    return {
+        "n":    int(a.size),
+        "mean": round(float(a.mean()), 4),
+        "std":  round(float(a.std()), 4),
+        "quantiles": {f"p{q}": round(float(np.percentile(a, q)), 4) for q in qs},
+        "histogram": {
+            "counts":    counts.tolist(),
+            "bin_edges": [round(float(e), 4) for e in edges],
+        },
+    }
+
 
 def analyse(states: list[StateSnapshot], k_rollouts: int) -> dict:
     """Compute EVπ,max, R², and per-bucket breakdowns."""
@@ -503,6 +769,8 @@ def analyse(states: list[StateSnapshot], k_rollouts: int) -> dict:
             "mean_v_pi":    round(float(np.mean(b_v_pi)), 4),
             "mean_v_theta": round(float(np.mean(b_vth)), 4),
             "mse":          round(float(np.mean((b_vth - b_v_pi)**2)), 4),
+            "mean_cond_var_R": round(float(np.mean(b_cvar)), 4),
+            "v_pi_dist":     _dist_summary(b_v_pi),
         }
 
     return {
@@ -522,6 +790,8 @@ def analyse(states: list[StateSnapshot], k_rollouts: int) -> dict:
             "mean_v_theta":     round(float(np.mean(v_thetas)), 4),
             "std_v_theta":      round(float(np.std(v_thetas)), 4),
             "bias_correction":  round(bias, 4),
+            "mean_cond_var_R":  round(float(np.mean(cond_vars)), 4),
+            "v_pi_dist":        _dist_summary(v_pi_hats),
         },
         "by_bucket": buckets_out,
         "raw": {
@@ -636,6 +906,12 @@ def main():
     parser.add_argument("--seed",          type=int, default=42)
     parser.add_argument("--n-workers",     type=int, default=0,
                         help="Parallel workers for Phase 2 rollouts (0=auto, uses all CPUs up to 32)")
+    parser.add_argument("--collect-only", action="store_true",
+                        help="Run only Phase 1 and report collection/duplication stats, then exit")
+    parser.add_argument("--batched", action="store_true",
+                        help="Use vectorised multi-env batched rollout (CPU) for Phase 2")
+    parser.add_argument("--batch-size", type=int, default=256,
+                        help="Number of parallel envs per batch in batched rollout")
     args = parser.parse_args()
 
     random.seed(args.seed)
@@ -660,10 +936,61 @@ def main():
     print(f"Agent loaded from {args.checkpoint}\n")
 
     # Phase 1: collect states
-    states = collect_states(agent, args.n_per_bucket, device)
+    if args.batched:
+        states = collect_states_batched(agent, args.n_per_bucket, device, batch_size=64)
+    else:
+        states = collect_states(agent, args.n_per_bucket, device)
 
-    # Phase 2: MC rollouts (parallel CPU workers)
-    run_all_rollouts(states, agent, args.k_rollouts, device, n_workers=args.n_workers)
+    if args.collect_only:
+        from collections import defaultdict as _dd
+        by_b = _dd(list)
+        for s in states:
+            for lo, hi, name in TURN_BUCKETS:
+                if lo <= s.turn <= hi:
+                    by_b[name].append(s)
+                    break
+        report = {}
+        print("\n=== Collection diagnostics ===")
+        print(f"{'Bucket':<14}{'states':>8}{'distinct':>10}{'games':>8}{'dup%':>8}{'sameBattle%':>13}")
+        tot_states = tot_distinct = 0
+        all_games = set()
+        for lo, hi, name in TURN_BUCKETS:
+            ss = by_b.get(name, [])
+            n = len(ss)
+            distinct = len({(x.game_idx, x.turn) for x in ss})
+            games = len({x.game_idx for x in ss})
+            dup = 100.0 * (n - distinct) / n if n else 0.0
+            same_battle = 100.0 * (n - games) / n if n else 0.0
+            report[name] = {"states": n, "distinct_snapshots": distinct,
+                            "distinct_games": games,
+                            "dup_pct": round(dup, 2),
+                            "same_battle_pct": round(same_battle, 2)}
+            print(f"{name:<14}{n:>8}{distinct:>10}{games:>8}{dup:>8.1f}{same_battle:>13.1f}")
+            tot_states += n
+            tot_distinct += distinct
+            all_games |= {x.game_idx for x in ss}
+        g_dup = 100.0 * (tot_states - tot_distinct) / tot_states if tot_states else 0.0
+        g_sb = 100.0 * (tot_states - len(all_games)) / tot_states if tot_states else 0.0
+        print(f"{'GLOBAL':<14}{tot_states:>8}{tot_distinct:>10}{len(all_games):>8}{g_dup:>8.1f}{g_sb:>13.1f}")
+        report["GLOBAL"] = {"states": tot_states, "distinct_snapshots": tot_distinct,
+                            "distinct_games": len(all_games),
+                            "dup_pct": round(g_dup, 2),
+                            "same_battle_pct": round(g_sb, 2)}
+        out = output_dir / "collection_diag.json"
+        with open(out, "w") as f:
+            json.dump(report, f, indent=2)
+        print(f"\nSaved {out}")
+        return
+
+    # Phase 2: MC rollouts
+    if args.batched:
+        roll_device = torch.device("cpu")
+        agent.to(roll_device)
+        run_all_rollouts_batched(states, agent, args.k_rollouts, roll_device,
+                                 batch_size=args.batch_size)
+        agent.to(device)
+    else:
+        run_all_rollouts(states, agent, args.k_rollouts, device, n_workers=args.n_workers)
 
     # Phase 3: analyse
     results = analyse(states, args.k_rollouts)
