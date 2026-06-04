@@ -441,9 +441,48 @@ def main():
     ax.legend(fontsize=8)
 
     plt.tight_layout()
-    out = Path(__file__).parent / "offline_critic_fit.png"
-    plt.savefig(out, dpi=120)
-    print(f"\nPlot saved: {out}")
+    out_png = Path(__file__).parent / "offline_critic_fit.png"
+    plt.savefig(out_png, dpi=120)
+    print(f"\nPlot saved: {out_png}")
+
+    # ── 11. Save JSON results ──────────────────────────────────────────────────
+    import json
+    results = {
+        "checkpoint": args.checkpoint,
+        "n_transitions": N,
+        "n_train": len(train_idx),
+        "n_val": len(val_idx),
+        "returns": {
+            "raw_mean": float(raw_returns.mean()),
+            "raw_std":  float(raw_returns.std()),
+            "raw_min":  float(raw_returns.min()),
+            "raw_max":  float(raw_returns.max()),
+            "ret_mean": ret_mean,
+            "ret_std":  ret_std,
+        },
+        "init": {
+            "train": {"ev": ev_init_tr, "corr": corr_init_tr, "r2": r2_init_tr, "mse": mse_init_tr},
+            "val":   {"ev": ev_init_val, "corr": corr_init_val, "r2": r2_init_val, "mse": mse_init_val},
+        },
+        "mse_baseline": mse_baseline,
+        "runs": {
+            label: {
+                "lr": float(label.split("=")[1]),
+                "final": final_rows[label],
+                "per_epoch": {
+                    "train": {k: all_logs[label][k] for k in ("ev", "corr", "r2", "mse")},
+                    "val":   {k: all_logs[label][k] for k in ("ev_val", "corr_val", "r2_val", "mse_val")},
+                },
+            }
+            for label in all_logs
+        },
+        "best_ev_val_any_epoch":   best_ev_val_any,
+        "best_ev_val_early_10ep":  best_ev_val_early,
+    }
+    out_json = Path(__file__).parent / "offline_critic_fit.json"
+    with open(out_json, "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"Results saved: {out_json}")
 
 
 if __name__ == "__main__":
