@@ -1,0 +1,290 @@
+{
+  "config": {
+    "collect_update": 1000,
+    "updates": [
+      300,
+      600,
+      1000,
+      1400,
+      1700
+    ],
+    "n_per_bucket": 80,
+    "threshold": 5.0,
+    "bound": 10.0,
+    "seed": 42,
+    "n_states": 320,
+    "n_blowup": 2
+  },
+  "blowup_states": [
+    {
+      "idx": 212,
+      "v_theta_collect": -119.614,
+      "input": {
+        "turn": 11,
+        "bucket": "turn_11-20",
+        "game_idx": 70,
+        "pb_scalars": {
+          "shape": [
+            1,
+            48,
+            223
+          ],
+          "min": 0.0,
+          "max": 362.0,
+          "max_abs": 362.0,
+          "mean_abs": 9.3357,
+          "std": 42.4846,
+          "n_nan": 0,
+          "n_inf": 0
+        },
+        "pb_idx_max": {
+          "species_idx": 1312,
+          "type1_idx": 12,
+          "type2_idx": 17,
+          "tera_idx": 17,
+          "item_idx": 243,
+          "ability_idx": 294,
+          "move_idx": 656
+        },
+        "ft": {
+          "shape": [
+            1,
+            4,
+            72
+          ],
+          "min": 0.0,
+          "max": 1.0,
+          "max_abs": 1.0,
+          "mean_abs": 0.0556,
+          "std": 0.2195,
+          "n_nan": 0,
+          "n_inf": 0
+        },
+        "field_real_turns": 4,
+        "field_padded_turns": 0,
+        "move_idx": [
+          74,
+          320,
+          60,
+          524
+        ],
+        "mech_id": 1,
+        "mech_type": 14,
+        "pp_ratio": [
+          1.0,
+          1.0,
+          0.917,
+          1.0
+        ]
+      },
+      "layer_activations": {
+        "pokemon_proj": {
+          "max_abs": 2576.8552,
+          "mean_abs": 59.4297,
+          "std": 260.2722
+        },
+        "field_proj": {
+          "max_abs": 1.1271,
+          "mean_abs": 0.2352,
+          "std": 0.294
+        },
+        "transformer": {
+          "max_abs": 2577.7346,
+          "mean_abs": 57.6758,
+          "std": 250.0914
+        },
+        "pool_query": {
+          "max_abs": 72.9641,
+          "mean_abs": 6.1894,
+          "std": 20.1484
+        },
+        "value_head.0": {
+          "max_abs": 2814.8582,
+          "mean_abs": 701.5168,
+          "std": 890.9707
+        },
+        "value_head.1": {
+          "max_abs": 2156.3069,
+          "mean_abs": 380.7037,
+          "std": 524.0445
+        },
+        "value_head.2": {
+          "max_abs": 119.614,
+          "mean_abs": 119.614,
+          "std": NaN
+        }
+      }
+    },
+    {
+      "idx": 213,
+      "v_theta_collect": -179.5792,
+      "input": {
+        "turn": 12,
+        "bucket": "turn_11-20",
+        "game_idx": 70,
+        "pb_scalars": {
+          "shape": [
+            1,
+            48,
+            223
+          ],
+          "min": 0.0,
+          "max": 362.0,
+          "max_abs": 362.0,
+          "mean_abs": 9.3036,
+          "std": 42.3803,
+          "n_nan": 0,
+          "n_inf": 0
+        },
+        "pb_idx_max": {
+          "species_idx": 1312,
+          "type1_idx": 12,
+          "type2_idx": 17,
+          "tera_idx": 17,
+          "item_idx": 243,
+          "ability_idx": 294,
+          "move_idx": 656
+        },
+        "ft": {
+          "shape": [
+            1,
+            4,
+            72
+          ],
+          "min": 0.0,
+          "max": 1.0,
+          "max_abs": 1.0,
+          "mean_abs": 0.0556,
+          "std": 0.2182,
+          "n_nan": 0,
+          "n_inf": 0
+        },
+        "field_real_turns": 4,
+        "field_padded_turns": 0,
+        "move_idx": [
+          579,
+          163,
+          434,
+          633
+        ],
+        "mech_id": 1,
+        "mech_type": 3,
+        "pp_ratio": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_activations": {
+        "pokemon_proj": {
+          "max_abs": 3865.3855,
+          "mean_abs": 76.1585,
+          "std": 330.7957
+        },
+        "field_proj": {
+          "max_abs": 1.1271,
+          "mean_abs": 0.2354,
+          "std": 0.2943
+        },
+        "transformer": {
+          "max_abs": 3866.657,
+          "mean_abs": 73.4291,
+          "std": 317.8317
+        },
+        "pool_query": {
+          "max_abs": 112.1015,
+          "mean_abs": 9.7194,
+          "std": 30.775
+        },
+        "value_head.0": {
+          "max_abs": 4209.4326,
+          "mean_abs": 1052.4224,
+          "std": 1336.1396
+        },
+        "value_head.1": {
+          "max_abs": 3243.8889,
+          "mean_abs": 575.4813,
+          "std": 788.9575
+        },
+        "value_head.2": {
+          "max_abs": 179.5792,
+          "mean_abs": 179.5792,
+          "std": NaN
+        }
+      }
+    }
+  ],
+  "evolution": {
+    "300": [
+      {
+        "idx": 212,
+        "turn": 11,
+        "raw_value": 0.0348,
+        "bounded_value": 0.0348
+      },
+      {
+        "idx": 213,
+        "turn": 12,
+        "raw_value": 0.0928,
+        "bounded_value": 0.0928
+      }
+    ],
+    "600": [
+      {
+        "idx": 212,
+        "turn": 11,
+        "raw_value": -0.0331,
+        "bounded_value": -0.0331
+      },
+      {
+        "idx": 213,
+        "turn": 12,
+        "raw_value": 0.0993,
+        "bounded_value": 0.0992
+      }
+    ],
+    "1000": [
+      {
+        "idx": 212,
+        "turn": 11,
+        "raw_value": -119.614,
+        "bounded_value": -10.0
+      },
+      {
+        "idx": 213,
+        "turn": 12,
+        "raw_value": -179.5792,
+        "bounded_value": -10.0
+      }
+    ],
+    "1400": [
+      {
+        "idx": 212,
+        "turn": 11,
+        "raw_value": 0.023,
+        "bounded_value": 0.023
+      },
+      {
+        "idx": 213,
+        "turn": 12,
+        "raw_value": 0.1178,
+        "bounded_value": 0.1178
+      }
+    ],
+    "1700": [
+      {
+        "idx": 212,
+        "turn": 11,
+        "raw_value": 0.0837,
+        "bounded_value": 0.0837
+      },
+      {
+        "idx": 213,
+        "turn": 12,
+        "raw_value": 0.084,
+        "bounded_value": 0.084
+      }
+    ]
+  }
+}
