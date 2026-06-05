@@ -216,8 +216,10 @@ def run_eval(
     action_histogram = [0] * 13
     reward_decomp_sum: dict[str, float] = {"ko_own": 0.0, "ko_opp": 0.0, "hp_adv": 0.0, "count_adv": 0.0, "status": 0.0, "hazard": 0.0, "hazard_remove": 0.0, "terminal": 0.0}
     reward_decomp_n = 0
-    value_preds: list[float] = []
-    value_returns: list[float] = []
+    value_preds:      list[float] = []
+    value_returns:    list[float] = []
+    value_win_labels: list[float] = []   # 1.0=won, 0.0=lost, 0.5=truncated
+    ep_value_buf:     dict        = {}   # env_idx → list of indices into value_preds
 
     # Cross-attention aggregation
     cross_attn_sums: torch.Tensor | None = None
@@ -265,10 +267,13 @@ def run_eval(
             if 0 <= t.action < 13:
                 action_histogram[t.action] += 1
 
-            # Value calibration
+            # Value calibration + win-label tracking
             if t_idx < len(buffer._returns):
+                vp_idx = len(value_preds)
                 value_preds.append(t.value_old)
                 value_returns.append(buffer._returns[t_idx])
+                value_win_labels.append(0.5)  # filled in when episode ends
+                ep_value_buf.setdefault(t.env_idx, []).append(vp_idx)
 
             # Reward decomposition
             if t.reward_components:
@@ -284,10 +289,16 @@ def run_eval(
                 ep_len = 0
                 if t.reward > 0.0:
                     wins += 1
+                    win_label = 1.0
                 elif t.reward < 0.0:
                     losses += 1
+                    win_label = 0.0
                 else:
                     ties += 1
+                    win_label = 0.5
+                # Propagate outcome to all transitions in this episode
+                for idx in ep_value_buf.pop(t.env_idx, []):
+                    value_win_labels[idx] = win_label
 
     # Clean up flag
     if capture_cross_attn:
@@ -310,6 +321,23 @@ def run_eval(
     if reward_decomp_n > 0:
         reward_decomp_avg = {k: v / reward_decomp_n for k, v in reward_decomp_sum.items()}
 
+    # corr(v, win) and AUC(v, win) — critic calibration vs actual game outcome
+    corr_v_win = 0.0
+    auc_v_win  = 0.5
+    known = [(vp, wl) for vp, wl in zip(value_preds, value_win_labels) if wl != 0.5]
+    if len(known) >= 20:
+        import numpy as np
+        vps = np.array([x[0] for x in known], dtype=np.float64)
+        wls = np.array([x[1] for x in known], dtype=np.float64)
+        if vps.std() > 1e-8:
+            corr_v_win = float(np.corrcoef(vps, wls)[0, 1])
+        n_pos = int(wls.sum())
+        n_neg = len(wls) - n_pos
+        if n_pos > 0 and n_neg > 0:
+            order    = np.argsort(vps)
+            rank_sum = float(np.where(wls[order] == 1.0, np.arange(len(wls)), 0).sum())
+            auc_v_win = (rank_sum - n_pos * (n_pos - 1) / 2) / (n_pos * n_neg)
+
     result = {
         "win_rate": win_rate,
         "wins":     wins,
@@ -325,6 +353,8 @@ def run_eval(
         "reward_decomp_avg": reward_decomp_avg,
         "value_preds":       value_preds,
         "value_returns":     value_returns,
+        "corr_v_win":        corr_v_win,
+        "auc_v_win":         auc_v_win,
     }
 
     if capture_cross_attn and cross_attn_sums is not None and cross_attn_n > 0:

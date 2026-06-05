@@ -37,13 +37,14 @@ from model.prediction_heads import PredictionHeads, PredictionLogits
 
 @dataclass
 class AgentOutput:
-    current_tokens: torch.Tensor     # [B, 13, D_MODEL]
-    value:          torch.Tensor     # [B, 1]
-    action_logits:  torch.Tensor     # [B, 13]  masked
-    log_probs:      torch.Tensor     # [B, 13]  log_softmax
+    current_tokens: torch.Tensor          # [B, 13, D_MODEL]
+    value:          torch.Tensor          # [B, 1]
+    action_logits:  torch.Tensor          # [B, 13]  masked
+    log_probs:      torch.Tensor          # [B, 13]  log_softmax
     pred_logits:    PredictionLogits
-    attn_entropy:   torch.Tensor     # scalar — cross-attention entropy (P14)
-    attn_rank:      torch.Tensor     # scalar — cross-attention rank (P18)
+    attn_entropy:   torch.Tensor          # scalar — cross-attention entropy (P14)
+    attn_rank:      torch.Tensor          # scalar — cross-attention rank (P18)
+    win_logit:      torch.Tensor | None = None  # [B, 1] or None — victory head output
 
 
 class CynthAIAgent(nn.Module):
@@ -56,9 +57,10 @@ class CynthAIAgent(nn.Module):
 
     def __init__(
         self,
-        use_independent_critic: bool = False,
-        critic_n_layers:        int  = 2,
+        use_independent_critic: bool  = False,
+        critic_n_layers:        int   = 2,
         critic_value_bound:     float = 0.0,
+        use_victory_head:       bool  = False,
     ):
         super().__init__()
         self.poke_emb   = PokemonEmbeddings()
@@ -72,7 +74,10 @@ class CynthAIAgent(nn.Module):
         self.use_independent_critic = use_independent_critic
         if use_independent_critic:
             self.independent_critic = IndependentCritic(
-                n_layers=critic_n_layers, value_bound=critic_value_bound)
+                n_layers         = critic_n_layers,
+                value_bound      = critic_value_bound,
+                use_victory_head = use_victory_head,
+            )
 
     def forward(
         self,
@@ -93,9 +98,10 @@ class CynthAIAgent(nn.Module):
 
         if self.use_independent_critic:
             # Detach to prevent value loss gradient from contaminating poke_emb
-            value = self.independent_critic(pokemon_tokens.detach(), field_tensor.detach())
+            value, win_logit = self.independent_critic(pokemon_tokens.detach(), field_tensor.detach())
         else:
-            value = backbone_value
+            value     = backbone_value
+            win_logit = None
 
         # ── 3. Action embeddings (from PRE-transformer tokens — no self-match) ─
         action_embeds = self.action_enc(
@@ -123,4 +129,5 @@ class CynthAIAgent(nn.Module):
             pred_logits    = pred_logits,
             attn_entropy   = attn_entropy,
             attn_rank      = attn_rank,
+            win_logit      = win_logit,
         )

@@ -169,7 +169,8 @@ class Transition:
     reward:    float
     done:      bool
     value_old: float
-    env_idx:   int = -1
+    env_idx:   int   = -1
+    win_label: float = 0.5  # 1.0=won, 0.0=lost, 0.5=unknown (truncated episode)
 
     # Reward decomposition (populated during eval, empty during training)
     reward_components: dict = dc_field(default_factory=dict)
@@ -522,6 +523,29 @@ class RolloutBuffer:
         for tr in self._transitions:
             tr.value_old = (tr.value_old - ret_mean.item()) / ret_std.item()
 
+        self.assign_win_labels()
+
+    def assign_win_labels(self) -> None:
+        """Propagate episode outcomes backward to all transitions in each episode.
+
+        Scans each env's transitions in reverse order: when a terminal transition
+        (done=True) is found, its outcome (reward > 0 → won) is propagated backward
+        to all preceding transitions in the same episode. Truncated episodes keep
+        win_label=0.5 (unknown).
+        """
+        from collections import defaultdict
+        env_indices: dict[int, list[int]] = defaultdict(list)
+        for i, tr in enumerate(self._transitions):
+            env_indices[tr.env_idx].append(i)
+
+        for indices in env_indices.values():
+            current_win = 0.5  # unknown until a terminal is found (scanning backward)
+            for i in reversed(indices):
+                tr = self._transitions[i]
+                if tr.done:
+                    current_win = 1.0 if tr.reward > 0 else 0.0
+                tr.win_label = current_win
+
     def minibatches(self, batch_size: int, device: torch.device):
         """Yield shuffled minibatches as dicts of batched tensors."""
         n       = len(self._transitions)
@@ -557,6 +581,7 @@ class RolloutBuffer:
             "action_mask":       torch.stack([t.action_mask        for t in trs]).to(device),
             "advantages":        torch.tensor([self._advantages[i] for i in indices], dtype=torch.float32, device=device),
             "returns":           torch.tensor([self._returns[i]    for i in indices], dtype=torch.float32, device=device),
+            "win_labels":      torch.tensor([t.win_label for t in trs], dtype=torch.float32, device=device),
             "reveal_species":  torch.tensor([t.reveal_state.get("species", (False,)*6) for t in trs], device=device),
             "reveal_item":     torch.tensor([t.reveal_state.get("item",    (False,)*6) for t in trs], device=device),
             "reveal_ability":  torch.tensor([t.reveal_state.get("ability", (False,)*6) for t in trs], device=device),

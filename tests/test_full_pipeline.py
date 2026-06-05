@@ -298,9 +298,17 @@ for n_layers in [1, 2, 3]:
     critic = IndependentCritic(n_layers=n_layers)
     critic.eval()
     with torch.no_grad():
-        v = critic(tok, field_t)
+        v, wl = critic(tok, field_t)
     check(f"n_layers={n_layers} -> value shape [B, 1]", tuple(v.shape) == (B, 1))
     check(f"n_layers={n_layers} -> no NaN",             not v.isnan().any().item())
+    check(f"n_layers={n_layers} -> win_logit is None (no victory head)", wl is None)
+
+critic_vh = IndependentCritic(n_layers=2, use_victory_head=True)
+critic_vh.eval()
+with torch.no_grad():
+    v_vh, wl_vh = critic_vh(tok, field_t)
+check("victory head -> value shape [B, 1]",     tuple(v_vh.shape) == (B, 1))
+check("victory head -> win_logit shape [B, 1]", tuple(wl_vh.shape) == (B, 1))
 
 
 # ── 9. PredictionHeads ────────────────────────────────────────────────────────

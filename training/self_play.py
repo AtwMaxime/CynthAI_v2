@@ -260,6 +260,10 @@ class TrainingConfig:
     critic_value_bound:   float = 0.0  # Switch A: tanh squash ±bound on critic output (0 = off)
     value_target_clip:    float = 0.0  # Switch B: clip return targets to ±clip (0 = off)
 
+    # Victory head — auxiliary BCE loss on the CLS token of IndependentCritic
+    use_victory_head: bool  = False
+    c_victory:        float = 0.1   # weight for victory BCE loss
+
     # Device
     device: str = "cpu"
 
@@ -503,6 +507,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
         use_independent_critic = cfg.use_independent_critic,
         critic_n_layers        = cfg.critic_n_layers,
         critic_value_bound     = cfg.critic_value_bound,
+        use_victory_head       = cfg.use_victory_head,
     ).to(device)
 
     if cfg.use_independent_critic:
@@ -740,6 +745,22 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     if abs(vp_max_batch) > cfg.value_dump_threshold:
                         print(f"[WARN] vp_max={vp_max_batch:.1f} exceeds dump threshold={cfg.value_dump_threshold:.1f}", flush=True)
 
+                # Victory head auxiliary loss (BCE on episode outcome)
+                if cfg.use_victory_head and out.win_logit is not None:
+                    win_labels  = batch["win_labels"]
+                    known_mask  = win_labels != 0.5
+                    if known_mask.any():
+                        victory_loss = F.binary_cross_entropy_with_logits(
+                            out.win_logit.squeeze(-1)[known_mask],
+                            win_labels[known_mask],
+                        )
+                        with torch.no_grad():
+                            win_prob    = torch.sigmoid(out.win_logit.squeeze(-1)[known_mask])
+                            victory_acc = ((win_prob > 0.5) == win_labels[known_mask].bool()).float().mean()
+                        losses["victory"]     = victory_loss.detach()
+                        losses["victory_acc"] = victory_acc
+                        losses["total"]       = losses["total"] + cfg.c_victory * victory_loss
+
                 losses["total"].backward()
                 if cfg.use_independent_critic:
                     critic_params = list(agent.independent_critic.parameters())
@@ -831,6 +852,8 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     "attn_entropy": loss_acc.get("attn_entropy", 0) / ns,
                     "attn_rank": loss_acc.get("attn_rank", 0) / ns,
                     "rank_reg": loss_acc.get("rank_reg", 0) / ns,
+                    "victory": loss_acc.get("victory", 0) / ns,
+                    "victory_acc": loss_acc.get("victory_acc", 0) / ns,
                     "opp": opp_label,
                 }
                 w = csv.DictWriter(f, fieldnames=list(row.keys()))
@@ -864,6 +887,8 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     "attn/rank":               loss_acc.get("attn_rank", 0) / ns,
                     "schedule/mask_ratio":     mask_ratio,
                     "schedule/dense_scale":    dense_scale,
+                    "critic/victory_loss":     loss_acc.get("victory", 0) / ns,
+                    "critic/victory_acc":      loss_acc.get("victory_acc", 0) / ns,
                 }, step=update)
 
         # -- 5. Periodic evaluation ---------------------------------------------------
@@ -949,6 +974,9 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     eval_log[f"eval/{label}_wr"] = r["win_rate"]
                     for comp, val in r.get("reward_decomp_avg", {}).items():
                         eval_log[f"reward/{label}/{comp}"] = val
+                    if "corr_v_win" in r:
+                        eval_log[f"critic/{label}_corr_v_win"] = r["corr_v_win"]
+                        eval_log[f"critic/{label}_auc_v_win"]  = r["auc_v_win"]
                 wandb.log(eval_log, step=update)
 
             # Save evaluation diagnostic plots + attention maps, then push all to wandb
