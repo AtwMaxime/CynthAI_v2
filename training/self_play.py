@@ -255,6 +255,11 @@ class TrainingConfig:
     critic_wd:              float = 1e-4   # independent weight decay
     critic_grad_norm:       float = 0.5    # independent gradient clip
 
+    # Critic-stability diagnostics / switches
+    value_dump_threshold: float = 0.0  # log warning when |vp_max| > threshold (0 = disabled)
+    critic_value_bound:   float = 0.0  # Switch A: tanh squash ±bound on critic output (0 = off)
+    value_target_clip:    float = 0.0  # Switch B: clip return targets to ±clip (0 = off)
+
     # Device
     device: str = "cpu"
 
@@ -497,6 +502,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
     agent = CynthAIAgent(
         use_independent_critic = cfg.use_independent_critic,
         critic_n_layers        = cfg.critic_n_layers,
+        critic_value_bound     = cfg.critic_value_bound,
     ).to(device)
 
     if cfg.use_independent_critic:
@@ -694,12 +700,16 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 pred_loss = PredictionHeads.compute_loss(out.pred_logits, *targets)["total"]
                 acc = PredictionHeads.compute_accuracy(out.pred_logits, *targets)
 
+                returns_in = batch["returns"]
+                if cfg.value_target_clip > 0:
+                    returns_in = returns_in.clamp(-cfg.value_target_clip, cfg.value_target_clip)
+
                 losses = compute_losses(
                     logits_new   = out.action_logits,
                     log_prob_old = batch["log_prob_old"],
                     actions      = batch["actions"],
                     advantages   = batch["advantages"],
-                    returns      = batch["returns"],
+                    returns      = returns_in,
                     values       = out.value,
                     action_mask  = batch["action_mask"],
                     pred_loss    = pred_loss,
@@ -722,6 +732,13 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 rank_loss = cfg.c_attn_rank * (max_vn - attn_rank_val)
                 losses["rank_reg"] = rank_loss.detach()
                 losses["total"] = losses["total"] + rank_loss
+
+                if cfg.value_dump_threshold > 0:
+                    vp_max_batch = losses.get("vp_max", 0)
+                    if isinstance(vp_max_batch, torch.Tensor):
+                        vp_max_batch = vp_max_batch.item()
+                    if abs(vp_max_batch) > cfg.value_dump_threshold:
+                        print(f"[WARN] vp_max={vp_max_batch:.1f} exceeds dump threshold={cfg.value_dump_threshold:.1f}", flush=True)
 
                 losses["total"].backward()
                 if cfg.use_independent_critic:
