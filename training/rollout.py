@@ -169,6 +169,7 @@ class Transition:
     reward:    float
     done:      bool
     value_old: float
+    env_idx:   int = -1
 
     # Reward decomposition (populated during eval, empty during training)
     reward_components: dict = dc_field(default_factory=dict)
@@ -888,6 +889,7 @@ def collect_rollout(
                                 reward_components = components,
                                 done              = done,
                                 value_old         = sub_out.value[j, 0].item(),
+                                env_idx           = i,
                             ))
                             v_raw = sub_out.value[j, 0].item()
                             if (value_dump_threshold > 0 and n_dumps < max_dumps
@@ -1005,6 +1007,7 @@ def collect_rollout(
                     reward_components = components,
                     done              = done,
                     value_old         = out_self.value[i, 0].item(),
+                    env_idx           = i,
                 ))
 
                 v_raw = out_self.value[i, 0].item()

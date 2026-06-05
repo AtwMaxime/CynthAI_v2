@@ -375,6 +375,147 @@ pas utiliser WR vs EMA qui fluctue avec l'agent lui-même.
 
 ---
 
+## Enrichir les métriques d'eval (evaluate.py)
+
+Actuellement l'eval log : win_rate, EV, clip_frac, attn_entropy, attn_rank, move_recall,
+pred_loss. Ces métriques sont toutes "locales" (un step, une loss). Les probing scripts
+(probing.py, probing_svd.py, probing_detr.py) ont montré qu'il existe des signaux
+représentationnels bien plus riches, récupérables en ~15-30s supplémentaires par eval.
+
+### Implémentation cible : `training/evaluate.py`
+
+L'eval collecte déjà un buffer de ~2k transitions. Il suffit d'y ajouter :
+1. Un forward pass `cache_tokens_full` sur ce buffer → `seq_all`, `detr_queries`, `actions`
+2. `extract_next_hp_labels` + masques no-switch → HP/KO labels
+3. Quelques fits sklearn rapides (LogReg/Ridge sur ~1600 train / ~400 val)
+
+Coût total estimé : **~20-30s** sur CPU, **~10-15s** sur GPU.
+
+---
+
+### Groupe 1 — Repr Geometry (depuis probing_svd.py)
+
+Pure torch, zéro sklearn, <2s. Métriques de collapse/diversité des représentations.
+
+```
+eval/repr_eff_rank_cur         # eff_rank des 13 tokens du turn courant
+eval/repr_top1_energy_cur      # fraction d'énergie capturée par la 1ère SV (turn courant)
+eval/repr_eff_rank_all         # eff_rank des 52 tokens (4 turns)
+eval/repr_top1_energy_all      # même chose sur 4 turns
+eval/repr_eff_rank_detr        # eff_rank des 13 queries DETR (attn_out) — NEW
+eval/repr_norm_mean_cur        # L2 norm moyenne des tokens courants — détecte tokens morts
+```
+
+`repr_eff_rank_detr` n'est dans aucun script actuel : mesure si les 13 queries DETR
+restent diversifiées ou collapsent vers un seul pattern. Complémentaire à `attn_rank`
+(qui mesure les poids d'attention, pas les sorties).
+
+`repr_norm_mean_cur` : si la norme tombe à ~0 pour certains tokens → dead representation,
+signal d'alerte immédiat sans attendre les probes.
+
+---
+
+### Groupe 2 — Backbone Probing (depuis probing.py)
+
+~8-10s total (6 fits LogReg/Ridge sur [N, 256]).
+
+```
+eval/probe_backbone_win_auc_pool      # mean_pool_current → LogReg win, signal principal
+eval/probe_backbone_active_win_auc    # mean(OWN0, OPP0) → LogReg win
+eval/probe_backbone_bench_win_auc     # mean(OWN1-5, OPP1-5) → LogReg win
+eval/probe_backbone_active_gap        # bench_win_auc - active_win_auc (dérivé, gratuit)
+eval/probe_backbone_field_win_auc     # T3:F → LogReg win (champ = résumé global ?)
+eval/probe_backbone_active_hp_r2      # mean(T3:O0, T3:P0) → Ridge hp_ratio
+```
+
+`active_gap` est le signal le plus intéressant à long terme : si l'écart se creuse,
+les tokens actifs deviennent "décision-oriented" (moins descriptifs, plus contextuels)
+pendant que le bench reste "encyclopédique". Signature d'une spécialisation saine.
+
+`active_hp_r2` : teste si le token du mon actif encode son propre HP courant. Devrait
+rester haut (>0.97) — une chute serait un signe de collapse ou de sur-abstraction.
+
+**Non retenu :**
+- `return_r2_pool` : toujours ~0 avec critic indépendant, le backbone n'encode pas les returns
+- Probes 52 tokens individuels : trop lent (~20 min)
+- Cross-token matrix 12×12 : trop lent (~15 min), garder en offline uniquement
+
+---
+
+### Groupe 3 — DETR Probing (depuis probing_detr.py)
+
+~10-15s total. Nécessite `cache_tokens_full` + `extract_next_hp_labels` sur le buffer eval.
+
+```
+eval/probe_detr_win_auc          # chosen_query → LogReg win
+eval/probe_detr_action_acc       # mean_pool_13queries → LogReg 13-class action (top-1)
+eval/probe_detr_dhp_own_r2       # mean_pool queries → Ridge dHP_own (actif, no-switch)
+eval/probe_detr_dhp_opp_r2       # mean_pool queries → Ridge dHP_opp (actif, no-switch)
+eval/probe_detr_ko_own_auc       # mean_pool queries → LogReg KO_own (actif, no-switch)
+eval/probe_detr_ko_opp_auc       # mean_pool queries → LogReg KO_opp (bruité early, OK)
+```
+
+`probe_detr_action_acc` : fraction des transitions où la mean_pool des queries prédit
+correctement l'action jouée. À update 300 : 0.37, update 1700 : 0.29 (régression ?
+ou plus de diversité d'actions ?). À investiguer — peut être un bon proxy de "les queries
+se différencient bien les unes des autres".
+
+`dHP` et `KO` : signaux faibles à update 1700 (R²~0.08, AUC~0.64) car pas de supervision
+explicite. Ces métriques deviendront bien plus informatives si on ajoute des auxiliary
+losses de prédiction HP/KO, ou en phase POMDP avec distillation du cheater critic.
+**Tracker dès maintenant pour avoir la trajectoire complète.**
+
+---
+
+### Groupe 4 — Nouvelles idées (pas dans les scripts actuels)
+
+Signaux qui nécessiteraient un nouveau code de probe mais seraient pertinents :
+
+**4a. Per-turn win_auc (T0 vs T1 vs T2 vs T3)**
+```
+eval/probe_backbone_win_auc_t0   # mean_pool des 13 tokens du turn 0 (le plus vieux)
+eval/probe_backbone_win_auc_t3   # mean_pool turn courant
+```
+Mesure si l'historique apporte une information incrémentale : si `win_auc_t3 ≈ win_auc_t0`,
+l'historique est redondant. Si `t3 >> t0`, le turn courant domine.
+Implémentation : trivial (4 LogReg sur `seq_np[:, t*13:(t+1)*13, :].mean(1)`).
+
+**4b. DETR per-group specialization**
+```
+eval/probe_detr_win_auc_moves    # mean des queries move (slots 0-3) → LogReg win
+eval/probe_detr_win_auc_switch   # mean des queries switch (slots 8-12) → LogReg win
+```
+Révèle si les familles de queries se spécialisent différemment. Si `win_auc_switch >>
+win_auc_moves`, l'agent "sait" mieux quand switcher que quand attaquer.
+
+**4c. Cross-turn consistency (signal de mémoire)**
+```
+eval/repr_cross_turn_corr        # corr(T3_token_s, T0_token_s) moyenné sur les slots
+```
+Mesure si le même slot garde une représentation stable à travers les turns (identité)
+ou si elle est fortement modulée par le contexte. Haut = le Transformer propage
+l'identité; bas = forte réécriture contextuelle. Implémentation : cosine similarity
+entre les 13 tokens T0 et les 13 tokens T3 pour chaque état, moyenné sur le batch.
+
+**4d. Opponent identity probe (pertinent phase POMDP)**
+```
+eval/probe_backbone_opp_type1_acc   # T3:P0 → LogReg type1 de l'actif adverse
+```
+En mode cheater (full info) devrait rester ~0.90+. En mode POMDP avec masking,
+ce probe mesurera directement ce que l'agent peut inférer sur l'adversaire depuis
+les révélations partielles. Implémentation : trivial, une LogReg sur `seq_np[:, cur_turn_start+6, :]`.
+
+---
+
+### Note d'implémentation
+
+Le `cache_tokens_full` dans l'eval implique un double forward pass (encode + act) sur
+le buffer d'eval. Alternative plus propre : stocker `attn_out` directement dans la
+`Transition` pendant le rollout en passant `return_queries=True` au backbone — coût
+mémoire négligeable (+13×256 float32 par transition), zéro overhead supplémentaire.
+
+---
+
 ## Priorités et effort estimé
 
 | Priorité | Item | Effort |
@@ -389,6 +530,8 @@ pas utiliser WR vs EMA qui fluctue avec l'agent lui-même.
 | 🟡 Moyen terme | CLS token statique (value head, accès historique complet) | 2-3h |
 | 🟡 Moyen terme | CLS token + LSTM (mémoire persistante inter-turns) | 1-2 jours |
 | 🟡 Moyen terme | Attention pooling (value head) | 2h |
+| 🟡 Moyen terme | Enrichir métriques eval (groupes 1-3) | 3-4h |
+| 🟡 Moyen terme | Enrichir métriques eval (groupe 4, nouvelles idées) | 2-3h |
 | 🟡 Moyen terme | Pool snapshot win-rate gate | 1h |
 | 🟡 Moyen terme | One-step lookahead (inférence) | 1 jour |
 | 🟡 Moyen terme | Rollout multiprocess workers (×6-8 speedup) | 2-3 jours |

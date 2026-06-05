@@ -29,6 +29,9 @@ checkpoints/
 # Generated plots
 plots/
 
+# Large cache files (PyTorch tensors)
+*.pt
+
 # OS
 .DS_Store
 Thumbs.db

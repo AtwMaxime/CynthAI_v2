@@ -266,7 +266,8 @@ class BattleBackbone(nn.Module):
         self,
         pokemon_tokens: torch.Tensor,   # [B, K*12, TOKEN_DIM]
         field_tokens:   torch.Tensor,   # [B, K,    FIELD_DIM]
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        return_full_seq: bool = False,
+    ) -> tuple:
         """
         Run the Transformer once and return pre-transformer + post-transformer tokens + value.
 
@@ -276,10 +277,16 @@ class BattleBackbone(nn.Module):
         Post-tokens (after self-attention) are enriched with global battle context —
         used as cross-attention keys/values and prediction heads.
 
-        Returns:
+        Returns (return_full_seq=False, default):
             pre_tokens    : [B, 13, D_MODEL]  — current turn BEFORE Transformer
             post_tokens   : [B, 13, D_MODEL]  — current turn AFTER Transformer
             value         : [B, 1]             — V(s) estimate
+
+        Returns (return_full_seq=True):
+            pre_tokens    : [B, 13, D_MODEL]
+            post_tokens   : [B, 13, D_MODEL]
+            value         : [B, 1]
+            seq           : [B, 52, D_MODEL]  — full sequence AFTER Transformer (all K turns)
         """
         seq = self._build_sequence(pokemon_tokens, field_tokens)   # [B, 52, D_MODEL]
 
@@ -299,6 +306,8 @@ class BattleBackbone(nn.Module):
         pooled  = (weights * post_tokens).sum(dim=1)                # [B, D_MODEL]
         value   = self.value_head(pooled)                           # [B, 1]
 
+        if return_full_seq:
+            return pre_tokens, post_tokens, value, seq
         return pre_tokens, post_tokens, value
 
     def act(
@@ -306,15 +315,17 @@ class BattleBackbone(nn.Module):
         action_embeds:  torch.Tensor,   # [B, 13, D_MODEL]
         current_tokens: torch.Tensor,   # [B, 13, D_MODEL]
         action_mask:    torch.Tensor,   # [B, 13] bool — True = illegal
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:  # ([B, 13], scalar, scalar)
+        return_queries: bool = False,
+    ) -> tuple:
         """
         Actor head only — cross-attention of action_embeds over current_tokens.
         Call after encode(); does NOT re-run the Transformer.
 
-        Returns:
+        Returns (3-tuple by default, 4-tuple when return_queries=True):
             action_logits  : [B, 13] masked
             attn_entropy   : scalar — mean per-key entropy over heads × queries (P14)
             attn_rank      : scalar — von Neumann entropy of attention SVs (P18)
+            attn_out       : [B, 13, D_MODEL]  — DETR queries (only if return_queries=True)
 
         When self._store_cross_attn is True, accumulates attention weights
         into self._cross_attn_buffer for later retrieval via get_cross_attention_stats().
@@ -348,7 +359,10 @@ class BattleBackbone(nn.Module):
         # attn_rank ≈ ln(13) ≈ 2.565 for full rank, ~0 for rank-1
 
         logits = self.action_score(attn_out).squeeze(-1)   # [B, 13]
-        return logits.masked_fill(action_mask, -1e9), attn_entropy, attn_rank
+        result = (logits.masked_fill(action_mask, -1e9), attn_entropy, attn_rank)
+        if return_queries:
+            return result + (attn_out,)
+        return result
 
     def get_cross_attention_stats(self) -> dict | None:
         """
