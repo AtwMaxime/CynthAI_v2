@@ -61,8 +61,17 @@ class BattleBackbone(nn.Module):
       - Action logits via cross-attention on action embeddings (actor)
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        use_victory_head:   bool = False,
+        cls_value_grad:     bool = True,
+        cls_victory_grad:   bool = True,
+        cls_backbone_grad:  bool = True,
+    ):
         super().__init__()
+        self.cls_value_grad    = cls_value_grad
+        self.cls_victory_grad  = cls_victory_grad
+        self.cls_backbone_grad = cls_backbone_grad
 
         # ── Input projections (one per token type) ────────────────────────────
         self.pokemon_proj = nn.Linear(TOKEN_DIM, D_MODEL)
@@ -86,14 +95,19 @@ class BattleBackbone(nn.Module):
         )
 
         # ── Value head (Critic) ───────────────────────────────────────────────
-        # Attention pooling: learned query scores each of the 13 tokens,
-        # softmax weights → weighted sum → MLP. More expressive than mean-pooling.
-        self.value_pool_query = nn.Linear(D_MODEL, 1, bias=False)  # [D_MODEL → 1]
+        # CLS token prepended to sequence; Transformer aggregates global context
+        # into it; value head reads CLS output only (mirrors IndependentCritic).
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, D_MODEL))
         self.value_head = nn.Sequential(
             nn.Linear(D_MODEL, D_MODEL),
             nn.ReLU(),
             nn.Linear(D_MODEL, 1),
         )
+
+        # ── Optional victory head ─────────────────────────────────────────────
+        self.use_victory_head = use_victory_head
+        if use_victory_head:
+            self.victory_head = nn.Linear(D_MODEL, 1)
 
         # ── Policy head (Actor) ───────────────────────────────────────────────
         self.action_cross_attn = nn.MultiheadAttention(
@@ -170,10 +184,19 @@ class BattleBackbone(nn.Module):
         self._attention_maps.clear()
 
         seq = self._build_sequence(pokemon_tokens, field_tokens)   # [B, 52, D_MODEL]
+        B, dev = seq.shape[0], seq.device
 
-        # P13b: padding mask
-        turn_norm = field_tokens.abs().sum(dim=-1)
-        padding_mask = (turn_norm < 1e-6).repeat_interleave(13, dim=1)  # [B, 52]
+        # Prepend CLS token
+        cls = self.cls_token.expand(B, 1, D_MODEL)
+        seq = torch.cat([cls, seq], dim=1)                          # [B, 53, D_MODEL]
+
+        # P13b: padding mask — CLS is never masked
+        turn_norm    = field_tokens.abs().sum(dim=-1)               # [B, K]
+        padding_52   = (turn_norm < 1e-6).repeat_interleave(13, dim=1)  # [B, 52]
+        padding_mask = torch.cat([
+            torch.zeros(B, 1, dtype=torch.bool, device=dev),
+            padding_52,
+        ], dim=1)                                                    # [B, 53]
 
         # Manual layer-by-layer forward to capture attention weights.
         # This avoids fastpath/bypass issues with monkey-patching _sa_block.
@@ -201,11 +224,9 @@ class BattleBackbone(nn.Module):
             else:
                 seq = layer.norm2(seq + layer._ff_block(seq))
 
+        cls_out        = seq[:, 0, :]                               # [B, D_MODEL]
         current_tokens = seq[:, -N_SLOTS:, :]                      # [B, 13, D_MODEL]
-        scores  = self.value_pool_query(current_tokens).squeeze(-1) # [B, 13]
-        weights = F.softmax(scores, dim=-1).unsqueeze(-1)           # [B, 13, 1]
-        pooled  = (weights * current_tokens).sum(dim=1)             # [B, D_MODEL]
-        value   = self.value_head(pooled)                           # [B, 1]
+        value          = self.value_head(cls_out)                   # [B, 1]
 
         # Build token labels: T0_OWN0..T0_OWN5, T0_OPP0..T0_OPP5, T0_FIELD, ...
         token_labels = []
@@ -281,34 +302,71 @@ class BattleBackbone(nn.Module):
             pre_tokens    : [B, 13, D_MODEL]  — current turn BEFORE Transformer
             post_tokens   : [B, 13, D_MODEL]  — current turn AFTER Transformer
             value         : [B, 1]             — V(s) estimate
+            win_logit     : [B, 1] | None      — victory logit (None if not use_victory_head)
 
         Returns (return_full_seq=True):
             pre_tokens    : [B, 13, D_MODEL]
             post_tokens   : [B, 13, D_MODEL]
             value         : [B, 1]
-            seq           : [B, 52, D_MODEL]  — full sequence AFTER Transformer (all K turns)
+            win_logit     : [B, 1] | None
+            seq           : [B, 52, D_MODEL]  — full sequence AFTER Transformer (all K turns, CLS stripped)
+            cls_out       : [B, D_MODEL]       — CLS token output
         """
-        seq = self._build_sequence(pokemon_tokens, field_tokens)   # [B, 52, D_MODEL]
+        seq_52 = self._build_sequence(pokemon_tokens, field_tokens)  # [B, 52, D_MODEL]
+        B, dev = seq_52.shape[0], seq_52.device
 
         # Current turn tokens BEFORE Transformer (raw projected + pos emb, no self-attn)
-        pre_tokens = seq[:, -N_SLOTS:, :]                          # [B, 13, D_MODEL]
+        pre_tokens = seq_52[:, -N_SLOTS:, :]                        # [B, 13, D_MODEL]
 
-        # P13b: padding mask — zero-filled turns have all-zero field features
-        turn_norm = field_tokens.abs().sum(dim=-1)                   # [B, K]
-        padding_mask = (turn_norm < 1e-6).repeat_interleave(13, dim=1)  # [B, 52]
-        seq = self.transformer(seq, src_key_padding_mask=padding_mask)  # [B, 52, D_MODEL]
+        # Padding mask for 52 battle tokens (extended with False for CLS below)
+        turn_norm  = field_tokens.abs().sum(dim=-1)                  # [B, K]
+        padding_52 = (turn_norm < 1e-6).repeat_interleave(13, dim=1)  # [B, 52]
+        cls_pad    = torch.zeros(B, 1, dtype=torch.bool, device=dev)  # CLS never masked
 
-        # Current turn tokens AFTER Transformer (enriched by self-attention)
-        post_tokens = seq[:, -N_SLOTS:, :]                         # [B, 13, D_MODEL]
+        if self.cls_backbone_grad:
+            # ── Single pass: CLS participates fully in backbone computation ───
+            cls = self.cls_token.expand(B, 1, D_MODEL)
+            seq = torch.cat([cls, seq_52], dim=1)                    # [B, 53, D_MODEL]
+            padding_mask = torch.cat([cls_pad, padding_52], dim=1)
+            seq_out = self.transformer(seq, src_key_padding_mask=padding_mask)
+            cls_out     = seq_out[:, 0, :]                           # [B, D_MODEL]
+            post_tokens = seq_out[:, -N_SLOTS:, :]                   # [B, 13, D_MODEL]
+            full_seq    = seq_out[:, 1:, :]                          # [B, 52, D_MODEL]
+        else:
+            # ── Two passes: actor/backbone gradient cannot reach cls_token ───
+            #
+            # Pass 1 — backbone: CLS is detached so its gradient is blocked.
+            #   post_tokens, pre_tokens, and full_seq are produced here.
+            #   The backbone (actor, predictor, poke_emb) receives full gradient.
+            cls_frozen = self.cls_token.detach().expand(B, 1, D_MODEL)
+            seq_b  = torch.cat([cls_frozen, seq_52], dim=1)
+            pm_b   = torch.cat([cls_pad, padding_52], dim=1)
+            seq_out_b   = self.transformer(seq_b, src_key_padding_mask=pm_b)
+            post_tokens = seq_out_b[:, -N_SLOTS:, :]
+            full_seq    = seq_out_b[:, 1:, :]
+            #
+            # Pass 2 — value/victory: live cls_token, seq_52 detached.
+            #   cls_token receives gradient ONLY from value_head / victory_head.
+            #   Transformer weights receive gradient from both passes.
+            cls_live = self.cls_token.expand(B, 1, D_MODEL)
+            seq_v = torch.cat([cls_live, seq_52.detach()], dim=1)
+            pm_v  = torch.cat([cls_pad, padding_52], dim=1)
+            seq_out_v = self.transformer(seq_v, src_key_padding_mask=pm_v)
+            cls_out = seq_out_v[:, 0, :]
 
-        scores = self.value_pool_query(post_tokens).squeeze(-1)    # [B, 13]
-        weights = F.softmax(scores, dim=-1).unsqueeze(-1)           # [B, 13, 1]
-        pooled  = (weights * post_tokens).sum(dim=1)                # [B, D_MODEL]
-        value   = self.value_head(pooled)                           # [B, 1]
+        # Selective gradient control for value and victory heads
+        cls_for_value   = cls_out if self.cls_value_grad   else cls_out.detach()
+        value           = self.value_head(cls_for_value)              # [B, 1]
+
+        if self.use_victory_head:
+            cls_for_victory = cls_out if self.cls_victory_grad else cls_out.detach()
+            win_logit = self.victory_head(cls_for_victory)            # [B, 1]
+        else:
+            win_logit = None
 
         if return_full_seq:
-            return pre_tokens, post_tokens, value, seq
-        return pre_tokens, post_tokens, value
+            return pre_tokens, post_tokens, value, win_logit, full_seq, cls_out
+        return pre_tokens, post_tokens, value, win_logit
 
     def act(
         self,
@@ -399,6 +457,6 @@ class BattleBackbone(nn.Module):
             value          : [B, 1]
             action_logits  : [B, 13]  (illegal actions set to -1e9)
         """
-        pre_tokens, post_tokens, value = self.encode(pokemon_tokens, field_tokens)
+        pre_tokens, post_tokens, value, _ = self.encode(pokemon_tokens, field_tokens)
         action_logits, _, _ = self.act(action_embeds, post_tokens, action_mask)
         return post_tokens, value, action_logits

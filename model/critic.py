@@ -82,7 +82,13 @@ class IndependentCritic(nn.Module):
         self,
         pokemon_tokens: torch.Tensor,   # [B, K*12, TOKEN_DIM]
         field_tokens:   torch.Tensor,   # [B, K,    FIELD_DIM]
-    ) -> tuple[torch.Tensor, torch.Tensor | None]:   # ([B, 1], [B, 1] or None)
+        return_repr:    bool = False,
+    ) -> tuple[torch.Tensor, torch.Tensor | None] | tuple[torch.Tensor, torch.Tensor | None, torch.Tensor, torch.Tensor]:
+        """
+        Returns:
+            v, win_logit                         (default)
+            v, win_logit, cls_out, seq_52        (return_repr=True)
+        """
         B   = pokemon_tokens.shape[0]
         dev = pokemon_tokens.device
 
@@ -115,11 +121,15 @@ class IndependentCritic(nn.Module):
 
         seq = self.transformer(seq, src_key_padding_mask=padding_mask)
 
-        cls_out = seq[:, 0, :]   # [B, D_MODEL] — CLS token output
+        cls_out = seq[:, 0, :]    # [B, D_MODEL] — CLS token output
+        seq_52  = seq[:, 1:, :]   # [B, 52, D_MODEL] — battle tokens
 
         v = self.value_head(cls_out)             # [B, 1]
         if self.value_bound > 0:
             v = self.value_bound * torch.tanh(v / self.value_bound)
 
         win_logit = self.victory_head(cls_out) if self.use_victory_head else None
+
+        if return_repr:
+            return v, win_logit, cls_out, seq_52
         return v, win_logit

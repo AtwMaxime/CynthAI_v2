@@ -280,7 +280,7 @@ def main():
 
     # ── Forward ────────────────────────────────────────────────────────────────
     pokemon_tokens = agent.poke_emb(poke_batch)      # [B, 48, TOKEN_DIM]
-    pre_tokens, post_tokens, value = agent.backbone.encode(pokemon_tokens, field_tensor)
+    pre_tokens, post_tokens, value, _ = agent.backbone.encode(pokemon_tokens, field_tensor)
     # pre_tokens, post_tokens: [B, 13, D_MODEL]
 
     action_embeds = agent.action_enc(

@@ -174,14 +174,15 @@ backbone.eval()
 field_t = fb.field.reshape(B, K, FIELD_DIM)
 
 with torch.no_grad():
-    pre_tok, cur_tok, value = backbone.encode(tok, field_t)
+    pre_tok, cur_tok, value, win_logit = backbone.encode(tok, field_t)
 
 check("pre_tokens shape [B, 13, D_MODEL]",     tuple(pre_tok.shape) == (B, 13, D_MODEL))
 check("current_tokens shape [B, 13, D_MODEL]", tuple(cur_tok.shape) == (B, 13, D_MODEL),
       str(tuple(cur_tok.shape)))
 check("value shape [B, 1]",                    tuple(value.shape)   == (B, 1))
 check("no NaN in backbone output",             not cur_tok.isnan().any().item())
-check("value_pool_query exists",               hasattr(backbone, "value_pool_query"))
+check("cls_token exists",                      hasattr(backbone, "cls_token"))
+check("win_logit is None (no victory head)",   win_logit is None)
 
 action_mask = torch.zeros(B, 13, dtype=torch.bool)
 action_mask[:, 4:8] = True

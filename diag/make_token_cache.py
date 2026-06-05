@@ -74,13 +74,15 @@ def main():
     N = len(buffer)
     print(f"  collected {N} transitions")
 
-    # ── Cache tokens + DETR queries ───────────────────────────────────────────
-    print("\nCaching seq_all, detr_queries, actions ...")
-    seq_all, detr_queries, actions = cache_tokens_full(
+    # ── Cache tokens + DETR queries + backbone CLS ──────────────────────────
+    print("\nCaching seq_all, detr_queries, actions, backbone_cls, backbone_values ...")
+    seq_all, detr_queries, actions, backbone_cls, backbone_values = cache_tokens_full(
         agent, buffer, device, batch_size=args.batch_size
     )
-    print(f"  seq_all:      {tuple(seq_all.shape)}")       # [N, 52, 256]
-    print(f"  detr_queries: {tuple(detr_queries.shape)}")  # [N, 13, 256]
+    print(f"  seq_all:          {tuple(seq_all.shape)}")           # [N, 52, 256]
+    print(f"  detr_queries:     {tuple(detr_queries.shape)}")      # [N, 13, 256]
+    print(f"  backbone_cls:     {tuple(backbone_cls.shape)}")      # [N, 256]
+    print(f"  backbone_values:  {tuple(backbone_values.shape)}")   # [N, 1]
 
     # ── Extract current + next-HP labels ─────────────────────────────────────
     import numpy as np
@@ -126,13 +128,43 @@ def main():
     win_rate = float(y_win[y_win >= 0].mean()) if n_win_known > 0 else float("nan")
     print(f"  win labels known: {n_win_known}/{N} ({100*n_win_known/N:.1f}%)  win_rate={win_rate:.3f}")
 
+    # ── Cache critic representations ──────────────────────────────────────────
+    critic_cls = None
+    critic_seq = None
+    critic_values = None
+    if hasattr(agent, 'independent_critic'):
+        print("\nCaching critic representations ...")
+        all_critic_cls = []
+        all_critic_seq = []
+        all_critic_val = []
+        with torch.no_grad():
+            for start in range(0, N, args.batch_size):
+                end   = min(start + args.batch_size, N)
+                batch = buffer._gather(list(range(start, end)), device)
+                pt = agent.poke_emb(batch["poke_batch"])
+                ft = batch["field_tensor"]
+                v, _, cls_out, seq_52 = agent.independent_critic(
+                    pt, ft, return_repr=True,
+                )
+                all_critic_cls.append(cls_out.cpu())
+                all_critic_seq.append(seq_52.cpu())
+                all_critic_val.append(v.cpu())
+        critic_cls    = torch.cat(all_critic_cls, dim=0)   # [N, D_MODEL]
+        critic_seq    = torch.cat(all_critic_seq, dim=0)   # [N, 52, D_MODEL]
+        critic_values = torch.cat(all_critic_val, dim=0)   # [N, 1]
+        print(f"  critic_cls:    {tuple(critic_cls.shape)}")
+        print(f"  critic_seq:    {tuple(critic_seq.shape)}")
+        print(f"  critic_values: {tuple(critic_values.shape)}")
+
     # ── Save ──────────────────────────────────────────────────────────────────
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save({
-        "seq_all":       seq_all,
-        "detr_queries":  detr_queries,
-        "actions":       actions,
+    save_dict = {
+        "seq_all":          seq_all,
+        "detr_queries":     detr_queries,
+        "actions":          actions,
+        "backbone_cls":     backbone_cls,
+        "backbone_values":  backbone_values,
         "cur_hp_own":    cur_hp_own,
         "cur_hp_opp":    cur_hp_opp,
         "next_hp_own":   next_hp_own,
@@ -148,7 +180,12 @@ def main():
         "y_hp":                labels["y_hp"],
         "y_stats":             labels["y_stats"],
         "n_transitions":       N,
-    }, out_path)
+    }
+    if critic_cls is not None:
+        save_dict["critic_cls"]    = critic_cls
+        save_dict["critic_seq"]    = critic_seq
+        save_dict["critic_values"] = critic_values
+    torch.save(save_dict, out_path)
     print(f"Token cache saved: {out_path}")
 
 

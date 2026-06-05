@@ -260,9 +260,14 @@ class TrainingConfig:
     critic_value_bound:   float = 0.0  # Switch A: tanh squash ±bound on critic output (0 = off)
     value_target_clip:    float = 0.0  # Switch B: clip return targets to ±clip (0 = off)
 
-    # Victory head — auxiliary BCE loss on the CLS token of IndependentCritic
+    # Victory head — auxiliary BCE loss on the CLS token of IndependentCritic (or backbone)
     use_victory_head: bool  = False
     c_victory:        float = 0.1   # weight for victory BCE loss
+    # Gradient control for CLS token (shared backbone only, ignored when use_independent_critic=True)
+    # cls_backbone_grad=False uses 2 transformer passes to isolate cls_token from actor gradient.
+    cls_value_grad:    bool = True
+    cls_victory_grad:  bool = True
+    cls_backbone_grad: bool = True
 
     # Device
     device: str = "cpu"
@@ -508,6 +513,9 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
         critic_n_layers        = cfg.critic_n_layers,
         critic_value_bound     = cfg.critic_value_bound,
         use_victory_head       = cfg.use_victory_head,
+        cls_value_grad         = cfg.cls_value_grad,
+        cls_victory_grad       = cfg.cls_victory_grad,
+        cls_backbone_grad      = cfg.cls_backbone_grad,
     ).to(device)
 
     if cfg.use_independent_critic:
@@ -766,10 +774,12 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     critic_params = list(agent.independent_critic.parameters())
                     critic_ids    = {id(p) for p in critic_params}
                     actor_params  = [p for p in agent.parameters() if id(p) not in critic_ids]
-                    nn.utils.clip_grad_norm_(actor_params,  cfg.max_grad_norm)
-                    grad_norm = nn.utils.clip_grad_norm_(critic_params, cfg.critic_grad_norm)
+                    actor_grad_norm  = nn.utils.clip_grad_norm_(actor_params,  cfg.max_grad_norm)
+                    critic_grad_norm = nn.utils.clip_grad_norm_(critic_params, cfg.critic_grad_norm)
+                    grad_norm = actor_grad_norm  # backward compat: "grad_norm" = actor
                 else:
                     grad_norm = nn.utils.clip_grad_norm_(agent.parameters(), cfg.max_grad_norm)
+                    critic_grad_norm = None
                 optimizer.step()
 
                 for k, v in losses.items():
@@ -778,6 +788,8 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     else:
                         loss_acc[k] += v
                 loss_acc["grad_norm"] += grad_norm.item()
+                if critic_grad_norm is not None:
+                    loss_acc["critic_grad_norm"] = loss_acc.get("critic_grad_norm", 0) + critic_grad_norm.item()
                 for k, v in acc.items():
                     loss_acc[k] += v
                 n_steps += 1
@@ -854,6 +866,13 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     "rank_reg": loss_acc.get("rank_reg", 0) / ns,
                     "victory": loss_acc.get("victory", 0) / ns,
                     "victory_acc": loss_acc.get("victory_acc", 0) / ns,
+                    "critic_grad_norm": loss_acc.get("critic_grad_norm", 0) / ns,
+                    "vp_mean": loss_acc.get("vp_mean", 0) / ns,
+                    "vp_std": loss_acc.get("vp_std", 0) / ns,
+                    "vp_min": loss_acc.get("vp_min", 0) / ns,
+                    "vp_max": loss_acc.get("vp_max", 0) / ns,
+                    "abs_err_max": loss_acc.get("abs_err_max", 0) / ns,
+                    "corr_v_ret": loss_acc.get("corr_v_ret", 0) / ns,
                     "opp": opp_label,
                 }
                 w = csv.DictWriter(f, fieldnames=list(row.keys()))
@@ -889,6 +908,15 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     "schedule/dense_scale":    dense_scale,
                     "critic/victory_loss":     loss_acc.get("victory", 0) / ns,
                     "critic/victory_acc":      loss_acc.get("victory_acc", 0) / ns,
+                    "critic/grad_norm":        loss_acc.get("critic_grad_norm", 0) / ns,
+                    "critic/vp_mean":          loss_acc.get("vp_mean", 0) / ns,
+                    "critic/vp_std":           loss_acc.get("vp_std", 0) / ns,
+                    "critic/vp_min":           loss_acc.get("vp_min", 0) / ns,
+                    "critic/vp_max":           loss_acc.get("vp_max", 0) / ns,
+                    "critic/ret_mean":         loss_acc.get("ret_mean", 0) / ns,
+                    "critic/ret_std":          loss_acc.get("ret_std", 0) / ns,
+                    "critic/abs_err_max":      loss_acc.get("abs_err_max", 0) / ns,
+                    "critic/corr_v_ret":       loss_acc.get("corr_v_ret", 0) / ns,
                 }, step=update)
 
         # -- 5. Periodic evaluation ---------------------------------------------------

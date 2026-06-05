@@ -105,6 +105,14 @@ def compute_losses(
         ret_min  = rt.min().item();  ret_max = rt.max().item()
         abs_err_max = (vp - rt).abs().max().item()
 
+        # Pearson correlation between value predictions and return targets
+        if vp.numel() > 2 and vp.std() > 1e-8 and rt.std() > 1e-8:
+            vp_c = vp - vp.mean()
+            rt_c = rt - rt.mean()
+            corr_v_ret = float((vp_c * rt_c).mean() / (vp_c.std() * rt_c.std()))
+        else:
+            corr_v_ret = 0.0
+
     # ── Total ─────────────────────────────────────────────────────────────────
     total = (
         policy_loss
@@ -132,5 +140,6 @@ def compute_losses(
         "ret_min":    ret_min,
         "ret_max":    ret_max,
         "abs_err_max": abs_err_max,
+        "corr_v_ret": corr_v_ret,
         "total":      total,
     }

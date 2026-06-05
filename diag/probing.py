@@ -68,26 +68,36 @@ def cache_tokens(
     buffer,
     device:     torch.device,
     batch_size: int = 256,
-) -> torch.Tensor:
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Run poke_emb + backbone.encode(return_full_seq=True) over all transitions.
 
-    Returns (CPU tensor):
-        seq_all : [N, 52, D_MODEL]  — all K*13 tokens after Transformer
+    Returns (CPU tensors):
+        seq_all      : [N, 52, D_MODEL]  — all K*13 tokens after Transformer
+        backbone_cls : [N, D_MODEL]      — CLS token output
+        backbone_val : [N, 1]            — V(s) from backbone value head
     """
     agent.eval()
     n = len(buffer)
     all_seq = []
+    all_cls = []
+    all_val = []
 
     with torch.no_grad():
         for start in range(0, n, batch_size):
             batch = buffer._gather(list(range(start, min(start + batch_size, n))), device)
             pt = agent.poke_emb(batch["poke_batch"])              # [B, K*12, TOKEN_DIM]
             ft = batch["field_tensor"]                             # [B, K, FIELD_DIM]
-            _, _, _, seq = agent.backbone.encode(pt, ft, return_full_seq=True)
+            _, _, value, _, seq, cls_out = agent.backbone.encode(pt, ft, return_full_seq=True)
             all_seq.append(seq.cpu())
+            all_cls.append(cls_out.cpu())
+            all_val.append(value.cpu())
 
-    return torch.cat(all_seq, dim=0)   # [N, 52, D_MODEL]
+    return (
+        torch.cat(all_seq, dim=0),   # [N, 52, D_MODEL]
+        torch.cat(all_cls, dim=0),   # [N, D_MODEL]
+        torch.cat(all_val, dim=0),   # [N, 1]
+    )
 
 
 def cache_tokens_full(
@@ -95,7 +105,7 @@ def cache_tokens_full(
     buffer,
     device:     torch.device,
     batch_size: int = 256,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Run poke_emb + backbone.encode + backbone.act(return_queries=True) over all transitions.
 
@@ -103,11 +113,15 @@ def cache_tokens_full(
         seq_all      : [N, 52, D_MODEL]  — post-Transformer tokens (like cache_tokens)
         detr_queries : [N, 13, D_MODEL]  — attn_out from backbone.act()
         actions      : [N]               — chosen action int64
+        backbone_cls : [N, D_MODEL]      — CLS token output
+        backbone_val : [N, 1]            — V(s) from backbone value head
     """
     agent.eval()
     n = len(buffer)
     all_seq     = []
     all_queries = []
+    all_cls     = []
+    all_val     = []
     all_actions = torch.tensor(
         [buffer._transitions[i].action for i in range(n)], dtype=torch.long
     )
@@ -119,7 +133,7 @@ def cache_tokens_full(
 
             pt = agent.poke_emb(batch["poke_batch"])
             ft = batch["field_tensor"]
-            pre_tokens, post_tokens, _, seq = agent.backbone.encode(pt, ft, return_full_seq=True)
+            pre_tokens, post_tokens, value, _, seq, cls_out = agent.backbone.encode(pt, ft, return_full_seq=True)
 
             action_embeds = agent.action_enc(
                 active_token      = pre_tokens[:, 0, :],
@@ -137,11 +151,15 @@ def cache_tokens_full(
 
             all_seq.append(seq.cpu())
             all_queries.append(attn_out.cpu())
+            all_cls.append(cls_out.cpu())
+            all_val.append(value.cpu())
 
     return (
         torch.cat(all_seq,     dim=0),   # [N, 52, D_MODEL]
         torch.cat(all_queries, dim=0),   # [N, 13, D_MODEL]
         all_actions,                     # [N]
+        torch.cat(all_cls,     dim=0),   # [N, D_MODEL]
+        torch.cat(all_val,     dim=0),   # [N, 1]
     )
 
 
@@ -964,6 +982,256 @@ def save_figure(results: dict, out_path: Path) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# CLS probing — backbone CLS token analysis
+# ─────────────────────────────────────────────────────────────────────────────
+
+def effective_rank(X: np.ndarray) -> float:
+    """
+    Effective rank = exp(H(sigma_norm)) where sigma are singular values of
+    centered X and H is Shannon entropy of the normalised spectrum.
+    """
+    X_c = X - X.mean(axis=0, keepdims=True)
+    s = np.linalg.svd(X_c, compute_uv=False)
+    s = s[s > 1e-10]
+    p = s / s.sum()
+    H = -float(np.sum(p * np.log(p)))
+    return float(np.exp(H))
+
+
+def per_dim_correlation(X: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """Pearson r between each column of X and y. Returns [D]."""
+    D = X.shape[1]
+    corrs = np.zeros(D, dtype=np.float64)
+    if np.std(y) < 1e-10:
+        return corrs
+    for d in range(D):
+        if np.std(X[:, d]) > 1e-10:
+            corrs[d] = np.corrcoef(X[:, d], y)[0, 1]
+    return corrs
+
+
+def extract_aggregate_labels(labels: dict) -> dict:
+    """
+    Derive aggregate labels from per-pokemon labels.
+
+    Returns:
+        mean_hp_own  : [N]  mean HP ratio of own team (current turn, 6 slots)
+        mean_hp_opp  : [N]  mean HP ratio of opp team
+        alive_own    : [N]  count of own pokemon with HP > 0
+        alive_opp    : [N]  count of opp pokemon with HP > 0
+    """
+    y_hp = labels["y_hp"]   # [N, K*12]
+    cur_own = y_hp[:, (K_TURNS - 1) * 12:(K_TURNS - 1) * 12 + 6]   # [N, 6]
+    cur_opp = y_hp[:, (K_TURNS - 1) * 12 + 6:(K_TURNS - 1) * 12 + 12]  # [N, 6]
+    return {
+        "mean_hp_own": cur_own.mean(axis=1).astype(np.float32),
+        "mean_hp_opp": cur_opp.mean(axis=1).astype(np.float32),
+        "alive_own":   (cur_own > 0).sum(axis=1).astype(np.float32),
+        "alive_opp":   (cur_opp > 0).sum(axis=1).astype(np.float32),
+    }
+
+
+def run_cls_probes(
+    backbone_cls:  np.ndarray,   # [N, D_MODEL]
+    backbone_val:  np.ndarray,   # [N]
+    labels:        dict,
+    agg_labels:    dict,
+    train_idx:     list[int],
+    val_idx:       list[int],
+) -> dict:
+    """
+    Linear probes on the backbone CLS token.
+
+    Probes: return R2, win AUC, mean HP own/opp R2, alive own/opp R2,
+    effective rank, per-dim correlation with value and win.
+    """
+    y_return = labels["y_return"]
+    y_win    = labels["y_win"]
+
+    win_mask = y_win >= 0
+    win_tr   = [i for i in train_idx if win_mask[i]]
+    win_val  = [i for i in val_idx   if win_mask[i]]
+
+    X = backbone_cls
+
+    print("\nBackbone CLS probes:")
+
+    # ── Return R2 ───────────────────────────────────────────────────────────
+    ret_r2, ret_corr = _fit_regression(
+        X[train_idx], y_return[train_idx],
+        X[val_idx],   y_return[val_idx],
+    )
+    print(f"  return R2:   {ret_r2:+.4f}  corr: {ret_corr:.4f}")
+
+    # ── Win AUC ─────────────────────────────────────────────────────────────
+    win_acc, win_auc = 0.5, 0.5
+    if len(win_tr) > 20 and len(win_val) > 10:
+        win_acc, win_auc = _fit_classification(
+            X[win_tr], y_win[win_tr].astype(np.int64),
+            X[win_val], y_win[win_val].astype(np.int64),
+            max_iter=500, compute_auc=True,
+        )
+    print(f"  win AUC:     {win_auc:.4f}  acc: {win_acc:.4f}")
+
+    # ── Aggregate HP and alive probes ───────────────────────────────────────
+    agg_results = {}
+    for key in ("mean_hp_own", "mean_hp_opp", "alive_own", "alive_opp"):
+        y = agg_labels[key]
+        r2, corr = _fit_regression(
+            X[train_idx], y[train_idx],
+            X[val_idx],   y[val_idx],
+        )
+        agg_results[key + "_r2"] = round(r2, 4)
+        print(f"  {key:15s} R2: {r2:+.4f}")
+
+    # ── Effective rank ──────────────────────────────────────────────────────
+    erank = effective_rank(X)
+    print(f"  effective rank: {erank:.2f} / {D_MODEL}")
+
+    # ── Per-dim correlation with value and win ──────────────────────────────
+    corr_value = per_dim_correlation(X, backbone_val)
+    corr_win   = np.zeros(D_MODEL)
+    if win_mask.sum() > 50:
+        corr_win = per_dim_correlation(X[win_mask], y_win[win_mask])
+
+    profile_corr = 0.0
+    if np.std(corr_value) > 1e-10 and np.std(corr_win) > 1e-10:
+        profile_corr = float(np.corrcoef(corr_value, corr_win)[0, 1])
+
+    print(f"  max |corr(dim, V)|:   {np.abs(corr_value).max():.4f}")
+    print(f"  max |corr(dim, win)|: {np.abs(corr_win).max():.4f}")
+    print(f"  profile corr(V, win): {profile_corr:.4f}")
+
+    return {
+        "return_r2":   round(ret_r2, 4),
+        "return_corr": round(ret_corr, 4),
+        "win_acc":     round(win_acc, 4),
+        "win_auc":     round(win_auc, 4),
+        **agg_results,
+        "effective_rank": round(erank, 2),
+        "max_abs_corr_value":  round(float(np.abs(corr_value).max()), 4),
+        "max_abs_corr_win":    round(float(np.abs(corr_win).max()), 4),
+        "mean_abs_corr_value": round(float(np.abs(corr_value).mean()), 4),
+        "mean_abs_corr_win":   round(float(np.abs(corr_win).mean()), 4),
+        "profile_corr":        round(profile_corr, 4),
+        "corr_value":          corr_value.tolist(),
+        "corr_win":            corr_win.tolist(),
+    }
+
+
+def save_cls_figure(
+    backbone_cls: np.ndarray,
+    backbone_val: np.ndarray,
+    y_win:        np.ndarray,
+    cls_results:  dict,
+    out_path:     Path,
+) -> dict:
+    """
+    Backbone CLS analysis figure (2x3):
+      [0,0] PCA colored by V(s)
+      [0,1] PCA colored by win/loss
+      [0,2] Explained variance (top 30 PCs)
+      [1,0] Per-dim corr with V(s) (sorted)
+      [1,1] Per-dim corr with win (sorted)
+      [1,2] Scatter corr_value vs corr_win
+    """
+    # PCA
+    X_c = backbone_cls - backbone_cls.mean(axis=0, keepdims=True)
+    U, S, Vt = np.linalg.svd(X_c, full_matrices=False)
+    n_pc = min(50, len(S))
+    var = S ** 2 / (backbone_cls.shape[0] - 1)
+    evr = var / var.sum()
+    proj = U[:, :n_pc] * S[:n_pc]
+
+    win_mask = y_win >= 0
+
+    corr_value = np.array(cls_results["corr_value"])
+    corr_win   = np.array(cls_results["corr_win"])
+
+    fig, axes = plt.subplots(2, 3, figsize=(18, 11))
+    fig.suptitle("Backbone CLS token -- probing & PCA", fontsize=12)
+
+    # [0,0] PCA by value
+    ax = axes[0, 0]
+    sc = ax.scatter(proj[:, 0], proj[:, 1], c=backbone_val, cmap="coolwarm",
+                    s=4, alpha=0.5, edgecolors="none")
+    fig.colorbar(sc, ax=ax, label="V(s)")
+    ax.set_xlabel(f"PC1 ({evr[0]*100:.1f}%)")
+    ax.set_ylabel(f"PC2 ({evr[1]*100:.1f}%)")
+    ax.set_title("CLS PCA -- colored by V(s)")
+
+    # [0,1] PCA by win
+    ax = axes[0, 1]
+    if win_mask.any():
+        idx_w = np.where(win_mask)[0]
+        sc2 = ax.scatter(proj[idx_w, 0], proj[idx_w, 1],
+                         c=y_win[idx_w], cmap="RdYlGn", s=4, alpha=0.5,
+                         edgecolors="none", vmin=0, vmax=1)
+        fig.colorbar(sc2, ax=ax, label="Win (1) / Loss (0)")
+    ax.set_xlabel(f"PC1 ({evr[0]*100:.1f}%)")
+    ax.set_ylabel(f"PC2 ({evr[1]*100:.1f}%)")
+    ax.set_title("CLS PCA -- colored by win/loss")
+
+    # [0,2] Explained variance
+    ax = axes[0, 2]
+    n_show = min(30, len(evr))
+    ax.bar(range(n_show), evr[:n_show] * 100, color="#42A5F5")
+    ax.set_xlabel("Principal component")
+    ax.set_ylabel("Explained variance (%)")
+    ax.set_title(f"Explained variance (top {n_show} PCs)")
+    cumvar = np.cumsum(evr)
+    n90 = int(np.searchsorted(cumvar, 0.90)) + 1
+    n95 = int(np.searchsorted(cumvar, 0.95)) + 1
+    ax.set_xlim(-0.5, n_show - 0.5)
+
+    # [1,0] Per-dim corr with value
+    ax = axes[1, 0]
+    order_v = np.argsort(corr_value)[::-1]
+    ax.bar(range(D_MODEL), corr_value[order_v], color="#1976D2", width=1.0)
+    ax.set_xlabel("Dimension (sorted)")
+    ax.set_ylabel("Pearson r")
+    ax.set_title("CLS dim vs V(s)")
+    ax.axhline(0, color="black", lw=0.5)
+
+    # [1,1] Per-dim corr with win
+    ax = axes[1, 1]
+    order_w = np.argsort(corr_win)[::-1]
+    ax.bar(range(D_MODEL), corr_win[order_w], color="#388E3C", width=1.0)
+    ax.set_xlabel("Dimension (sorted)")
+    ax.set_ylabel("Pearson r")
+    ax.set_title("CLS dim vs win label")
+    ax.axhline(0, color="black", lw=0.5)
+
+    # [1,2] Scatter corr_value vs corr_win
+    ax = axes[1, 2]
+    ax.scatter(corr_value, corr_win, s=8, alpha=0.6, color="#7B1FA2")
+    ax.set_xlabel("corr(dim, V)")
+    ax.set_ylabel("corr(dim, win)")
+    profile = cls_results["profile_corr"]
+    ax.set_title(f"Value vs Win corr per dim (profile r={profile:.3f})")
+    ax.axhline(0, color="gray", lw=0.5, alpha=0.5)
+    ax.axvline(0, color="gray", lw=0.5, alpha=0.5)
+    lim = max(np.abs(corr_value).max(), np.abs(corr_win).max()) * 1.1
+    if lim > 0:
+        ax.plot([-lim, lim], [-lim, lim], "k--", lw=0.5, alpha=0.3)
+        ax.set_xlim(-lim, lim)
+        ax.set_ylim(-lim, lim)
+
+    fig.tight_layout()
+    fname = out_path.with_name(out_path.stem + "_cls")
+    plt.savefig(fname.with_suffix(".png"), dpi=130, bbox_inches="tight")
+    plt.savefig(fname.with_suffix(".pdf"), bbox_inches="tight")
+    print(f"CLS figure: {fname.with_suffix('.png')}")
+
+    return {
+        "evr_top10":    evr[:10].tolist(),
+        "n_pc_90pct":   int(n90),
+        "n_pc_95pct":   int(n95),
+        "erank":        cls_results["effective_rank"],
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -1027,6 +1295,16 @@ def main():
             "y_stats":   _np("y_stats",   np.float32),
         }
 
+        # Backbone CLS (may be absent in older caches)
+        if "backbone_cls" in saved:
+            backbone_cls = _np("backbone_cls", np.float32)
+            backbone_val = _np("backbone_values", np.float32).squeeze(-1)
+            print(f"  backbone_cls: {backbone_cls.shape}")
+        else:
+            backbone_cls = None
+            backbone_val = None
+            print("  (no backbone_cls in cache — skipping CLS probes)")
+
     # ── Checkpoint mode: run rollout + backbone forward ───────────────────────
     else:
         print(f"\nLoading checkpoint: {args.checkpoint}")
@@ -1055,9 +1333,14 @@ def main():
         N = len(buffer)
         print(f"  collected {N} transitions")
 
-        print("\nCaching seq_all ...")
-        seq_all = cache_tokens(agent, buffer, device, batch_size=args.batch_size)
-        print(f"  seq_all: {tuple(seq_all.shape)}")
+        print("\nCaching seq_all + backbone CLS ...")
+        seq_all, backbone_cls_t, backbone_val_t = cache_tokens(
+            agent, buffer, device, batch_size=args.batch_size
+        )
+        backbone_cls = backbone_cls_t.numpy()
+        backbone_val = backbone_val_t.squeeze(-1).numpy()
+        print(f"  seq_all:      {tuple(seq_all.shape)}")
+        print(f"  backbone_cls: {backbone_cls.shape}")
 
         print("\nExtracting labels ...")
         labels = extract_labels(buffer)
@@ -1081,6 +1364,23 @@ def main():
 
     # ── Console table ─────────────────────────────────────────────────────────
     print_table(results, N)
+
+    # ── Backbone CLS probes ────────────────────────────────────────────────────
+    cls_results = None
+    if backbone_cls is not None:
+        agg_labels = extract_aggregate_labels(labels)
+        cls_results = run_cls_probes(
+            backbone_cls, backbone_val, labels, agg_labels, train_idx, val_idx,
+        )
+        cls_pca = save_cls_figure(
+            backbone_cls, backbone_val, labels["y_win"], cls_results,
+            out_dir / "probing",
+        )
+        # Attach summary to results (strip large per-dim arrays)
+        cls_summary = {k: v for k, v in cls_results.items()
+                       if k not in ("corr_value", "corr_win")}
+        cls_summary["pca"] = cls_pca
+        results["backbone_cls"] = cls_summary
 
     # ── Cross-token matrix (12×12 current-turn) ───────────────────────────────
     print(f"\nRunning cross-token matrix (12×12 = 144 source×target pairs) ...")

@@ -61,10 +61,18 @@ class CynthAIAgent(nn.Module):
         critic_n_layers:        int   = 2,
         critic_value_bound:     float = 0.0,
         use_victory_head:       bool  = False,
+        cls_value_grad:         bool  = True,
+        cls_victory_grad:       bool  = True,
+        cls_backbone_grad:      bool  = True,
     ):
         super().__init__()
         self.poke_emb   = PokemonEmbeddings()
-        self.backbone   = BattleBackbone()
+        self.backbone   = BattleBackbone(
+            use_victory_head  = use_victory_head,
+            cls_value_grad    = cls_value_grad,
+            cls_victory_grad  = cls_victory_grad,
+            cls_backbone_grad = cls_backbone_grad,
+        )
         self.action_enc = ActionEncoder(
             move_embed = self.poke_emb.move_embed,
             type_embed = self.poke_emb.type_embed,
@@ -94,14 +102,14 @@ class CynthAIAgent(nn.Module):
         pokemon_tokens = self.poke_emb(poke_batch)          # [B, K*12, TOKEN_DIM]
 
         # ── 2. Single Transformer pass ────────────────────────────────────────
-        pre_tokens, post_tokens, backbone_value = self.backbone.encode(pokemon_tokens, field_tensor)
+        pre_tokens, post_tokens, backbone_value, backbone_win_logit = self.backbone.encode(pokemon_tokens, field_tensor)
 
         if self.use_independent_critic:
             # Detach to prevent value loss gradient from contaminating poke_emb
             value, win_logit = self.independent_critic(pokemon_tokens.detach(), field_tensor.detach())
         else:
             value     = backbone_value
-            win_logit = None
+            win_logit = backbone_win_logit
 
         # ── 3. Action embeddings (from PRE-transformer tokens — no self-match) ─
         action_embeds = self.action_enc(
