@@ -37,4 +37,11 @@ plots/
 Thumbs.db
 
 # Logs
-*.logwandb/
+*.log
+
+# Weights & Biases
+wandb/
+
+# Diagnostic / experiment caches (volumineux, reproductibles)
+experiments/results/**/states_cache.pt
+experiments/results/critic_blowup_smoke/
