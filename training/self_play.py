@@ -628,14 +628,14 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
         t0 = time.perf_counter()
 
         # -- 1a. Opponent selection (P10b-P10c: EMA + pool + fixed policies) -----------
-        # Mixing: 0% Random / 10% FullOffense / 60% EMA / 30% pool
+        # Mixing: 0% Random / 10% FullOffense / 40% EMA / 50% pool
         #         Pool fallback: EMA (plus stable que FullOffense une fois l'EMA chaude)
         roll = random.random()
         if roll < 0.10:
             opponent = FullOffensePolicy()
             opp_label = "fo"
-        elif roll < 0.70:
-            # 60% — EMA opponent (stable lagging self-play)
+        elif roll < 0.50:
+            # 40% — EMA opponent (stable lagging self-play)
             if update > cfg.ema_warmup:
                 opponent = ema_opponent.sample(agent)
                 opp_label = "ema"
@@ -643,7 +643,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 opponent = agent
                 opp_label = "self"
         else:
-            # 30% — pool (diversity) or EMA fallback if pool empty
+            # 50% — pool (diversity) or EMA fallback if pool empty
             if len(pool) > 0:
                 opponent = pool.sample(agent)
                 opp_label = f"pool({len(pool)})"
@@ -801,6 +801,17 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                         losses["victory"]     = victory_loss.detach()
                         losses["victory_acc"] = victory_acc
                         losses["total"]       = losses["total"] + cfg.c_victory * victory_loss
+
+                # Log scaled (weighted) loss components for diagnostics
+                with torch.no_grad():
+                    losses["scaled_loss/policy"]       = losses["policy"]
+                    losses["scaled_loss/value"]        = cfg.c_value * losses["value"]
+                    losses["scaled_loss/entropy"]      = cfg.c_entropy * losses["entropy"]
+                    losses["scaled_loss/pred"]         = cfg.c_pred * pred_loss.detach()
+                    losses["scaled_loss/attn_entropy"] = -cfg.c_attn_entropy * attn_entropy_val.detach()
+                    losses["scaled_loss/rank_reg"]     = rank_loss.detach()
+                    if "victory" in losses:
+                        losses["scaled_loss/victory"]  = cfg.c_victory * losses["victory"]
 
                 if torch.isnan(losses["total"]):
                     optimizer.zero_grad()

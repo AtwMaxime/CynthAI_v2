@@ -248,15 +248,11 @@ def main():
     print(f"  collected {N} transitions")
 
     # ── 3. Extract returns ────────────────────────────────────────────────────
-    raw_returns  = np.array(buffer._raw_returns, dtype=np.float32)
-    norm_returns = np.array(buffer._returns,     dtype=np.float32)
-    ret_mean     = buffer._ret_mean
-    ret_std      = buffer._ret_std
+    raw_returns  = np.array(buffer._returns, dtype=np.float32)
+    norm_returns = raw_returns   # returns are no longer Z-scored
 
-    print(f"\nRaw returns   : mean={raw_returns.mean():.3f}  std={raw_returns.std():.3f}"
+    print(f"\nReturns       : mean={raw_returns.mean():.3f}  std={raw_returns.std():.3f}"
           f"  min={raw_returns.min():.3f}  max={raw_returns.max():.3f}")
-    print(f"Norm returns  : mean={norm_returns.mean():.3f}  std={norm_returns.std():.3f}"
-          f"  (Z-scored, ret_mean={ret_mean:.3f}, ret_std={ret_std:.3f})")
 
     # ── 4. Cache embeddings ───────────────────────────────────────────────────
     print("\nCaching poke_tokens + field_tensors ...")
@@ -346,7 +342,7 @@ def main():
     print(f"{'='*80}")
     print(f"Raw returns   : mean={raw_returns.mean():.2f}  std={raw_returns.std():.2f}"
           f"  min={raw_returns.min():.2f}  max={raw_returns.max():.2f}")
-    print(f"Norm returns  : mean≈{norm_returns.mean():.2f}  std≈{norm_returns.std():.2f}  (Z-scored)")
+    print(f"Returns       : mean≈{norm_returns.mean():.2f}  std≈{norm_returns.std():.2f}  (raw scale)")
     print()
     print(f"{'':20s}  {'TRAIN':^38s}  {'VAL':^38s}")
     print(f"{'':20s}  {'EV':>7s}  {'corr':>7s}  {'r²':>7s}  {'MSE':>7s}    "
@@ -457,8 +453,8 @@ def main():
             "raw_std":  float(raw_returns.std()),
             "raw_min":  float(raw_returns.min()),
             "raw_max":  float(raw_returns.max()),
-            "ret_mean": ret_mean,
-            "ret_std":  ret_std,
+            "ret_mean": float(raw_returns.mean()),
+            "ret_std":  float(raw_returns.std()),
         },
         "init": {
             "train": {"ev": ev_init_tr, "corr": corr_init_tr, "r2": r2_init_tr, "mse": mse_init_tr},

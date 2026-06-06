@@ -74,8 +74,8 @@ def compute_losses(
     clip_frac = ((ratio < 1.0 - clip_eps) | (ratio > 1.0 + clip_eps)).float().mean()
 
     # ── Value loss (MSE) ──────────────────────────────────────────────────────
-    # Returns are pre-normalised globally in RolloutBuffer.compute_gae()
-    # so no per-batch normalisation is needed here.
+    # Returns are in raw scale (not normalised) — rewards bounded [-1, 1].
+    # critic_value_bound (tanh squashing) keeps predictions in range.
     values  = values.squeeze(-1)
     value_loss = F.mse_loss(values, returns)
 

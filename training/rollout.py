@@ -503,25 +503,10 @@ class RolloutBuffer:
 
         self._advantages = adv
 
-        # Z-score returns, then apply the SAME normalisation to value_old so
-        # that critic targets and critic predictions are in the same space.
-        # Without this, value_old drifts → ret drifts → positive feedback → divergence.
-        ret_t    = torch.tensor(ret, dtype=torch.float32)
-        if clip > 0:
-            ret_t = ret_t.clamp(-clip, clip)   # bound outliers before normalising
-        ret_mean = ret_t.mean()
-        ret_std  = ret_t.std() + 1e-8
-        ret_t    = (ret_t - ret_mean) / ret_std
-        self._returns = ret_t.tolist()
-
-        self._raw_returns = ret          # list[float] — returns bruts avant Z-score
-        self._ret_mean    = ret_mean.item()
-        self._ret_std     = ret_std.item()
-
-        # Normalise stored value_old with the same stats so EV and value loss
-        # are computed in the same space as the normalised targets.
-        for tr in self._transitions:
-            tr.value_old = (tr.value_old - ret_mean.item()) / ret_std.item()
+        # Returns stay in raw scale (rewards bounded in [-1, 1] per episode).
+        # Only advantages are Z-scored (in compute_losses).
+        # critic_value_bound (tanh squashing) acts as safety net.
+        self._returns = ret
 
         self.assign_win_labels()
 
