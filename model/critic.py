@@ -142,7 +142,14 @@ class IndependentCritic(nn.Module):
         # Cross-attention: CLS queries action embeddings
         self._last_cross_attn_weights = None
         if self.action_aware and action_embeds is not None:
-            kpm = action_mask if mask_actions else None  # key_padding_mask
+            if mask_actions and action_mask is not None:
+                # Ensure at least 1 valid key per sample to prevent softmax-over-empty → NaN
+                kpm = action_mask.clone()
+                all_masked = action_mask.all(dim=1)
+                if all_masked.any():
+                    kpm[all_masked, 0] = False
+            else:
+                kpm = None
             for cross_attn, cross_ln in self.cross_attn_layers:
                 cls_q = cls_out.unsqueeze(1)             # [B, 1, D_MODEL]
                 attn_out, attn_w = cross_attn(
@@ -153,8 +160,6 @@ class IndependentCritic(nn.Module):
                     need_weights=True,
                     average_attn_weights=True,
                 )
-                # Guard: all-masked key_padding_mask → softmax over 0 keys → NaN
-                attn_out = torch.nan_to_num(attn_out, nan=0.0)
                 cls_out = cross_ln(cls_q + attn_out).squeeze(1)  # [B, D_MODEL]
             # Store last layer's weights for diagnostics: [B, 1, 13]
             self._last_cross_attn_weights = attn_w.detach()
