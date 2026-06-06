@@ -45,6 +45,8 @@ class AgentOutput:
     attn_entropy:   torch.Tensor          # scalar — cross-attention entropy (P14)
     attn_rank:      torch.Tensor          # scalar — cross-attention rank (P18)
     win_logit:      torch.Tensor | None = None  # [B, 1] or None — victory head output
+    critic_action_attn_entropy: torch.Tensor | None = None  # scalar or None
+    critic_action_attn_max:    torch.Tensor | None = None   # scalar or None
 
 
 class CynthAIAgent(nn.Module):
@@ -123,6 +125,8 @@ class CynthAIAgent(nn.Module):
         )                                                    # [B, 13, D_MODEL]
 
         # ── 3b. Critic (after action_embeds so action-aware critic can use them) ─
+        critic_action_attn_entropy = None
+        critic_action_attn_max = None
         if self.use_independent_critic:
             # Detach to prevent value loss gradient from contaminating poke_emb/action_enc
             value, win_logit = self.independent_critic(
@@ -132,6 +136,16 @@ class CynthAIAgent(nn.Module):
                 action_mask=action_mask if self.critic_action_aware else None,
                 mask_actions=self.critic_mask_actions,
             )
+            # Extract cross-attention diagnostics if available
+            attn_w = self.independent_critic._last_cross_attn_weights
+            if attn_w is not None:
+                # attn_w: [B, 1, 13] -> squeeze to [B, 13]
+                w = attn_w.squeeze(1)
+                # Shannon entropy: -sum(p * log(p))
+                log_w = torch.log(w.clamp(min=1e-10))
+                entropy = -(w * log_w).sum(dim=-1).mean()
+                critic_action_attn_entropy = entropy
+                critic_action_attn_max = w.max(dim=-1).values.mean()
         else:
             value     = backbone_value
             win_logit = backbone_win_logit
@@ -152,4 +166,6 @@ class CynthAIAgent(nn.Module):
             attn_entropy   = attn_entropy,
             attn_rank      = attn_rank,
             win_logit      = win_logit,
+            critic_action_attn_entropy = critic_action_attn_entropy,
+            critic_action_attn_max     = critic_action_attn_max,
         )

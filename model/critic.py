@@ -140,17 +140,22 @@ class IndependentCritic(nn.Module):
         seq_52  = seq[:, 1:, :]   # [B, 52, D_MODEL] — battle tokens
 
         # Cross-attention: CLS queries action embeddings
+        self._last_cross_attn_weights = None
         if self.action_aware and action_embeds is not None:
             kpm = action_mask if mask_actions else None  # key_padding_mask
             for cross_attn, cross_ln in self.cross_attn_layers:
                 cls_q = cls_out.unsqueeze(1)             # [B, 1, D_MODEL]
-                attn_out, _ = cross_attn(
+                attn_out, attn_w = cross_attn(
                     query=cls_q,
                     key=action_embeds,
                     value=action_embeds,
                     key_padding_mask=kpm,
+                    need_weights=True,
+                    average_attn_weights=True,
                 )
                 cls_out = cross_ln(cls_q + attn_out).squeeze(1)  # [B, D_MODEL]
+            # Store last layer's weights for diagnostics: [B, 1, 13]
+            self._last_cross_attn_weights = attn_w.detach()
 
         v = self.value_head(cls_out)             # [B, 1]
         if self.value_bound > 0:

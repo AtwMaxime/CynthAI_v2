@@ -316,3 +316,7 @@ def run(cache: dict, train_idx: list[int], val_idx: list[int], out_dir: Path) ->
     print(f"  JSON: {json_path}")
 
     return output
+
+
+# Light version for inline probing during training (same as full)
+run_light = run

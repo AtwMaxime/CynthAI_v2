@@ -622,3 +622,91 @@ def run(cache: dict, train_idx: list[int], val_idx: list[int], out_dir: Path) ->
     print(f"  JSON: {json_path}")
 
     return results
+
+
+def run_light(cache: dict, train_idx: list[int], val_idx: list[int], out_dir: Path) -> dict:
+    """Light version: mean pool probes (current turn) + CLS probes only."""
+    if not can_run(cache):
+        missing = REQUIRED_KEYS - set(cache.keys())
+        print(f"  [SKIP] actor_probes (light): missing keys {missing}")
+        return {}
+
+    seq_all = cache["seq_all"]
+    labels = get_labels_from_cache(cache)
+    N = seq_all.shape[0]
+
+    print(f"\n{'='*60}")
+    print("ACTOR PROBES (light — mean pool + CLS)")
+    print(f"{'='*60}")
+
+    seq_np = seq_all.numpy()
+    y_return = labels["y_return"]
+    y_win    = labels["y_win"]
+    y_type1  = labels["y_type1"]
+    y_item   = labels["y_item"]
+    y_ability = labels["y_ability"]
+    y_hp     = labels["y_hp"]
+
+    win_mask = y_win >= 0
+    win_tr = [i for i in train_idx if win_mask[i]]
+    win_val = [i for i in val_idx if win_mask[i]]
+
+    # Mean pool current turn
+    X_mean_cur = seq_np[:, -N_SLOTS:, :].mean(axis=1)
+    ret_r2, ret_corr = fit_regression(
+        X_mean_cur[train_idx], y_return[train_idx],
+        X_mean_cur[val_idx], y_return[val_idx])
+    win_acc, win_auc = 0.5, 0.5
+    if len(win_tr) > 20 and len(win_val) > 10:
+        win_acc, win_auc = fit_classification(
+            X_mean_cur[win_tr], y_win[win_tr].astype(np.int64),
+            X_mean_cur[win_val], y_win[win_val].astype(np.int64),
+            max_iter=500, compute_auc=True)
+
+    # Mean pool current turn — Pokemon attribute probes
+    poke_start = (K_TURNS - 1) * 12
+    type1_accs, item_accs, hp_r2s = [], [], []
+    for s in range(12):
+        pidx = poke_start + s
+        acc_t, _ = fit_classification(
+            X_mean_cur[train_idx], y_type1[train_idx, pidx],
+            X_mean_cur[val_idx], y_type1[val_idx, pidx], max_iter=500)
+        acc_i, _ = fit_classification(
+            X_mean_cur[train_idx], y_item[train_idx, pidx],
+            X_mean_cur[val_idx], y_item[val_idx, pidx], max_iter=1000)
+        r2_hp, _ = fit_regression(
+            X_mean_cur[train_idx], y_hp[train_idx, pidx],
+            X_mean_cur[val_idx], y_hp[val_idx, pidx])
+        type1_accs.append(acc_t)
+        item_accs.append(acc_i)
+        hp_r2s.append(r2_hp)
+
+    pool_cur = {
+        "return_r2": round(ret_r2, 4), "return_corr": round(ret_corr, 4),
+        "win_acc": round(win_acc, 4), "win_auc": round(win_auc, 4),
+        "type1_acc": round(float(np.mean(type1_accs)), 4),
+        "item_acc": round(float(np.mean(item_accs)), 4),
+        "hp_r2": round(float(np.mean(hp_r2s)), 4),
+    }
+    print(f"  mean_pool_current: ret_r2={ret_r2:+.3f}  win_auc={win_auc:.3f}  "
+          f"type1={pool_cur['type1_acc']:.3f}  item={pool_cur['item_acc']:.3f}  "
+          f"hp={pool_cur['hp_r2']:.3f}")
+
+    results = {"mean_pool_current": pool_cur}
+
+    # CLS probes
+    backbone_cls = numpy_from_cache(cache, "backbone_cls", np.float32)
+    backbone_val = numpy_from_cache(cache, "backbone_values", np.float32)
+    if backbone_cls is not None and backbone_val is not None:
+        backbone_val = backbone_val.squeeze(-1)
+        cls_results = _run_cls_probes(backbone_cls, backbone_val, labels, train_idx, val_idx)
+        cls_summary = {k: v for k, v in cls_results.items() if k not in ("corr_value", "corr_win")}
+        results["backbone_cls"] = cls_summary
+
+    # JSON
+    json_path = out_dir / "actor_light.json"
+    with open(json_path, "w") as f:
+        json.dump({"n_transitions": N, **results}, f, indent=2)
+    print(f"  JSON: {json_path}")
+
+    return results

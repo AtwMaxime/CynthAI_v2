@@ -49,6 +49,7 @@ from training.rollout import collect_rollout, RandomPolicy
 from training.losses import compute_losses
 from training.evaluate import run_eval
 from training.monitor import save_eval_plots
+from training.probing_eval import run_probing_eval
 from env.bots import FullOffensePolicy
 import gc
 from tqdm import tqdm
@@ -247,6 +248,8 @@ class TrainingConfig:
     win_rate_window: int = 100
     eval_freq:       int = 20      # P3: run evaluation every N updates
     eval_n_games:    int = 500     # P3: games per opponent in evaluation
+    probe_freq:      int = 5      # run probes every N evals (0 = disabled)
+    probe_min_steps: int = 2048   # rollout transitions for probing
 
     # Independent critic (optional — separate Transformer, no shared weights with actor)
     use_independent_critic: bool  = False
@@ -819,6 +822,16 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     loss_acc["critic_grad_norm"] = loss_acc.get("critic_grad_norm", 0) + critic_grad_norm.item()
                 for k, v in acc.items():
                     loss_acc[k] += v
+                # Critic cross-attention diagnostics
+                if out.critic_action_attn_entropy is not None:
+                    loss_acc["critic_action_attn_entropy"] = (
+                        loss_acc.get("critic_action_attn_entropy", 0)
+                        + out.critic_action_attn_entropy.item()
+                    )
+                    loss_acc["critic_action_attn_max"] = (
+                        loss_acc.get("critic_action_attn_max", 0)
+                        + out.critic_action_attn_max.item()
+                    )
                 n_steps += 1
 
         # -- 2b. P10b: EMA weight update -----------------------------------------------
@@ -944,6 +957,8 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     "critic/ret_std":          loss_acc.get("ret_std", 0) / ns,
                     "critic/abs_err_max":      loss_acc.get("abs_err_max", 0) / ns,
                     "critic/corr_v_ret":       loss_acc.get("corr_v_ret", 0) / ns,
+                    "critic/action_attn_entropy": loss_acc.get("critic_action_attn_entropy", 0) / ns,
+                    "critic/action_attn_max":     loss_acc.get("critic_action_attn_max", 0) / ns,
                 }, step=update)
 
         # -- 5. Periodic evaluation ---------------------------------------------------
@@ -1049,6 +1064,27 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                         wandb.log(plot_images, step=update)
             except Exception as e:
                 print(f"  WARNING: eval plots failed: {e}")
+
+            # Probing analyses (every probe_freq evals)
+            if cfg.probe_freq > 0 and (update // cfg.eval_freq) % cfg.probe_freq == 0:
+                try:
+                    probe_metrics = run_probing_eval(
+                        agent, device, cfg, update,
+                        probe_min_steps=cfg.probe_min_steps,
+                    )
+                    if _WANDB_AVAILABLE:
+                        # Images
+                        probe_dir = Path(cfg.checkpoint_dir) / "probes" / f"update{update:06d}"
+                        probe_images = {}
+                        for png in sorted(probe_dir.glob("*.png")):
+                            probe_images[f"probes/{png.stem}"] = wandb.Image(str(png))
+                        if probe_images:
+                            wandb.log(probe_images, step=update)
+                        # Scalars
+                        if probe_metrics:
+                            wandb.log(probe_metrics, step=update)
+                except Exception as e:
+                    print(f"  WARNING: probing failed: {e}")
 
             # P10c: periodic pool snapshot (replaces WR-based snapping)
             if (update % cfg.pool_snapshot_freq == 0

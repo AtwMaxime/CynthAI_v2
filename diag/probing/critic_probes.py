@@ -404,3 +404,60 @@ def run(cache: dict, train_idx: list[int], val_idx: list[int], out_dir: Path) ->
     print(f"  JSON: {json_path}")
 
     return all_results
+
+
+def run_light(cache: dict, train_idx: list[int], val_idx: list[int], out_dir: Path) -> dict:
+    """Light version: CLS probes + effective rank only (no per-token, no figures)."""
+    if not can_run(cache):
+        missing = REQUIRED_KEYS - set(cache.keys())
+        print(f"  [SKIP] critic_probes (light): missing keys {missing}")
+        return {}
+
+    critic_cls = numpy_from_cache(cache, "critic_cls", np.float32)
+    critic_seq = numpy_from_cache(cache, "critic_seq", np.float32)
+    values = numpy_from_cache(cache, "critic_values", np.float32).squeeze(-1)
+    labels = get_labels_from_cache(cache)
+    N = critic_cls.shape[0]
+
+    print(f"\n{'='*60}")
+    print("CRITIC PROBES (light — CLS + effective rank)")
+    print(f"{'='*60}")
+
+    y_return = labels["y_return"]
+    y_win = labels["y_win"]
+    win_mask = y_win >= 0
+    win_tr = [i for i in train_idx if win_mask[i]]
+    win_val = [i for i in val_idx if win_mask[i]]
+
+    # CLS probes
+    X_cls = critic_cls
+    cls_ret_r2, cls_ret_corr = fit_regression(
+        X_cls[train_idx], y_return[train_idx], X_cls[val_idx], y_return[val_idx])
+    cls_win_acc, cls_win_auc = 0.5, 0.5
+    if len(win_tr) > 20 and len(win_val) > 10:
+        cls_win_acc, cls_win_auc = fit_classification(
+            X_cls[win_tr], y_win[win_tr].astype(np.int64),
+            X_cls[win_val], y_win[win_val].astype(np.int64),
+            max_iter=500, compute_auc=True)
+    print(f"  CLS | ret_r2={cls_ret_r2:+.3f}  win_auc={cls_win_auc:.3f}")
+
+    cls_results = {
+        "return_r2": round(cls_ret_r2, 4), "return_corr": round(cls_ret_corr, 4),
+        "win_acc": round(cls_win_acc, 4), "win_auc": round(cls_win_auc, 4),
+    }
+
+    # Effective rank
+    erank_results = _run_effective_rank(critic_cls, critic_seq)
+
+    output = {
+        "n_transitions": N,
+        "probes": {"cls": cls_results},
+        "effective_rank": erank_results,
+    }
+
+    json_path = out_dir / "critic_light.json"
+    with open(json_path, "w") as f:
+        json.dump(output, f, indent=2)
+    print(f"  JSON: {json_path}")
+
+    return output
