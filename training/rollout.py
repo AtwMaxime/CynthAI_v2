@@ -668,7 +668,7 @@ def _sample_action(log_probs: torch.Tensor, action_mask: torch.Tensor) -> torch.
     """Sample one action per row from masked log-probability distribution."""
     probs = torch.zeros_like(log_probs)
     legal = ~action_mask
-    probs[legal] = log_probs[legal].exp()
+    probs[legal] = torch.nan_to_num(log_probs[legal], nan=-30.0).exp()
     # Fallback if no legal actions (all PokÃ©mon fainted): pick action 0
     no_legal = ~legal.any(dim=1)
     if no_legal.any():

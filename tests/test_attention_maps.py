@@ -73,7 +73,7 @@ elif attn0.dim() == 3:
 else:
     raise ValueError(f'Unexpected attention shape: {attn0.shape}')
 
-for query_idx in [0, 12, 24, 36, 48, 51]:
+for query_idx in [0, 1, 13, 25, 37, 49, 52]:
     key_idx = avg_attn[query_idx].argmax().item()
     print(f'  token {result["token_labels"][query_idx]:>12} -> most attends to '
           f'{result["token_labels"][key_idx]} '

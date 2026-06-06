@@ -153,6 +153,8 @@ class IndependentCritic(nn.Module):
                     need_weights=True,
                     average_attn_weights=True,
                 )
+                # Guard: all-masked key_padding_mask → softmax over 0 keys → NaN
+                attn_out = torch.nan_to_num(attn_out, nan=0.0)
                 cls_out = cross_ln(cls_q + attn_out).squeeze(1)  # [B, D_MODEL]
             # Store last layer's weights for diagnostics: [B, 1, 13]
             self._last_cross_attn_weights = attn_w.detach()

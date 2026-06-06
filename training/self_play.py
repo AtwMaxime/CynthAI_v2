@@ -695,6 +695,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
         agent.train()
         loss_acc: defaultdict[str, float] = defaultdict(float)
         n_steps = 0
+        nan_steps = 0
 
         for _epoch in range(cfg.n_epochs):
             for batch in buffer.minibatches(cfg.batch_size, device):
@@ -798,6 +799,11 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                         losses["victory_acc"] = victory_acc
                         losses["total"]       = losses["total"] + cfg.c_victory * victory_loss
 
+                if torch.isnan(losses["total"]):
+                    optimizer.zero_grad()
+                    print(f"[WARN] NaN loss at update {update}, epoch {_epoch} -- skipping step", flush=True)
+                    nan_steps += 1
+                    continue
                 losses["total"].backward()
                 if cfg.use_independent_critic:
                     critic_params = list(agent.independent_critic.parameters())

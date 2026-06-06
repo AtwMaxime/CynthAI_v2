@@ -228,8 +228,8 @@ class BattleBackbone(nn.Module):
         current_tokens = seq[:, -N_SLOTS:, :]                      # [B, 13, D_MODEL]
         value          = self.value_head(cls_out)                   # [B, 1]
 
-        # Build token labels: T0_OWN0..T0_OWN5, T0_OPP0..T0_OPP5, T0_FIELD, ...
-        token_labels = []
+        # Build token labels: CLS + T0_OWN0..T0_OWN5, T0_OPP0..T0_OPP5, T0_FIELD, ...
+        token_labels = ["CLS"]
         for turn in range(K_TURNS):
             for slot in range(N_SLOTS):
                 if slot < 6:
