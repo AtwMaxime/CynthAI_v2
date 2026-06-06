@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from model.agent import CynthAIAgent
 from training.rollout import collect_rollout
-from diag.probing import cache_tokens_full, extract_next_hp_labels, extract_labels
+from diag.probing._common import cache_tokens_full, extract_next_hp_labels, extract_labels
 
 
 def main():
