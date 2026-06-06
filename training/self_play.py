@@ -49,7 +49,6 @@ from training.rollout import collect_rollout, RandomPolicy
 from training.losses import compute_losses
 from training.evaluate import run_eval
 from training.monitor import save_eval_plots
-from training.probing_eval import run_probing_eval
 from env.bots import FullOffensePolicy
 import gc
 from tqdm import tqdm
@@ -1068,6 +1067,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
             # Probing analyses (every probe_freq evals)
             if cfg.probe_freq > 0 and (update // cfg.eval_freq) % cfg.probe_freq == 0:
                 try:
+                    from training.probing_eval import run_probing_eval
                     probe_metrics = run_probing_eval(
                         agent, device, cfg, update,
                         probe_min_steps=cfg.probe_min_steps,
