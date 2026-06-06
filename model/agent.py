@@ -64,6 +64,9 @@ class CynthAIAgent(nn.Module):
         cls_value_grad:         bool  = True,
         cls_victory_grad:       bool  = True,
         cls_backbone_grad:      bool  = True,
+        critic_action_aware:    bool  = False,
+        critic_n_cross_layers:  int   = 1,
+        critic_mask_actions:    bool  = True,
     ):
         super().__init__()
         self.poke_emb   = PokemonEmbeddings()
@@ -80,11 +83,15 @@ class CynthAIAgent(nn.Module):
         self.predictor  = PredictionHeads()
 
         self.use_independent_critic = use_independent_critic
+        self.critic_action_aware   = critic_action_aware
+        self.critic_mask_actions   = critic_mask_actions
         if use_independent_critic:
             self.independent_critic = IndependentCritic(
                 n_layers         = critic_n_layers,
                 value_bound      = critic_value_bound,
                 use_victory_head = use_victory_head,
+                action_aware     = critic_action_aware,
+                n_cross_layers   = critic_n_cross_layers,
             )
 
     def forward(
@@ -104,13 +111,6 @@ class CynthAIAgent(nn.Module):
         # ── 2. Single Transformer pass ────────────────────────────────────────
         pre_tokens, post_tokens, backbone_value, backbone_win_logit = self.backbone.encode(pokemon_tokens, field_tensor)
 
-        if self.use_independent_critic:
-            # Detach to prevent value loss gradient from contaminating poke_emb
-            value, win_logit = self.independent_critic(pokemon_tokens.detach(), field_tensor.detach())
-        else:
-            value     = backbone_value
-            win_logit = backbone_win_logit
-
         # ── 3. Action embeddings (from PRE-transformer tokens — no self-match) ─
         action_embeds = self.action_enc(
             active_token      = pre_tokens[:, 0, :],
@@ -121,6 +121,20 @@ class CynthAIAgent(nn.Module):
             mechanic_id       = mechanic_id,
             mechanic_type_idx = mechanic_type_idx,
         )                                                    # [B, 13, D_MODEL]
+
+        # ── 3b. Critic (after action_embeds so action-aware critic can use them) ─
+        if self.use_independent_critic:
+            # Detach to prevent value loss gradient from contaminating poke_emb/action_enc
+            value, win_logit = self.independent_critic(
+                pokemon_tokens.detach(),
+                field_tensor.detach(),
+                action_embeds=action_embeds.detach() if self.critic_action_aware else None,
+                action_mask=action_mask if self.critic_action_aware else None,
+                mask_actions=self.critic_mask_actions,
+            )
+        else:
+            value     = backbone_value
+            win_logit = backbone_win_logit
 
         # ── 4. Actor head (keys = POST-transformer, enriched context) ──────────
         action_logits, attn_entropy, attn_rank = self.backbone.act(action_embeds, post_tokens, action_mask)

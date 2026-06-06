@@ -37,6 +37,8 @@ class IndependentCritic(nn.Module):
         n_layers:         int   = 2,
         value_bound:      float = 0.0,
         use_victory_head: bool  = False,
+        action_aware:     bool  = False,
+        n_cross_layers:   int   = 1,
     ):
         super().__init__()
 
@@ -44,6 +46,7 @@ class IndependentCritic(nn.Module):
         # tanh, so no single state can emit an exploded value that poisons GAE targets.
         self.value_bound      = value_bound
         self.use_victory_head = use_victory_head
+        self.action_aware     = action_aware
 
         # Learnable [CLS] token — prepended to the sequence, never masked.
         # After the Transformer it aggregates global game-state context.
@@ -73,6 +76,15 @@ class IndependentCritic(nn.Module):
             nn.Linear(D_MODEL, 1),
         )
 
+        # Cross-attention: CLS queries action embeddings (post-Transformer)
+        if action_aware:
+            self.cross_attn_layers = nn.ModuleList()
+            for _ in range(n_cross_layers):
+                self.cross_attn_layers.append(nn.ModuleList([
+                    nn.MultiheadAttention(D_MODEL, N_HEADS, dropout=DROPOUT, batch_first=True),
+                    nn.LayerNorm(D_MODEL),
+                ]))
+
         # Victory head: predicts P(win | state) as a logit from the CLS token.
         # Trained with BCE against episode outcome; forces CLS to encode win-relevant info.
         if use_victory_head:
@@ -80,8 +92,11 @@ class IndependentCritic(nn.Module):
 
     def forward(
         self,
-        pokemon_tokens: torch.Tensor,   # [B, K*12, TOKEN_DIM]
-        field_tokens:   torch.Tensor,   # [B, K,    FIELD_DIM]
+        pokemon_tokens: torch.Tensor,           # [B, K*12, TOKEN_DIM]
+        field_tokens:   torch.Tensor,           # [B, K,    FIELD_DIM]
+        action_embeds:  torch.Tensor | None = None,  # [B, 13, D_MODEL] — detached from actor
+        action_mask:    torch.Tensor | None = None,  # [B, 13] bool, True=illegal
+        mask_actions:   bool = True,
         return_repr:    bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor | None] | tuple[torch.Tensor, torch.Tensor | None, torch.Tensor, torch.Tensor]:
         """
@@ -123,6 +138,19 @@ class IndependentCritic(nn.Module):
 
         cls_out = seq[:, 0, :]    # [B, D_MODEL] — CLS token output
         seq_52  = seq[:, 1:, :]   # [B, 52, D_MODEL] — battle tokens
+
+        # Cross-attention: CLS queries action embeddings
+        if self.action_aware and action_embeds is not None:
+            kpm = action_mask if mask_actions else None  # key_padding_mask
+            for cross_attn, cross_ln in self.cross_attn_layers:
+                cls_q = cls_out.unsqueeze(1)             # [B, 1, D_MODEL]
+                attn_out, _ = cross_attn(
+                    query=cls_q,
+                    key=action_embeds,
+                    value=action_embeds,
+                    key_padding_mask=kpm,
+                )
+                cls_out = cross_ln(cls_q + attn_out).squeeze(1)  # [B, D_MODEL]
 
         v = self.value_head(cls_out)             # [B, 1]
         if self.value_bound > 0:

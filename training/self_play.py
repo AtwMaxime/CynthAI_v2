@@ -255,6 +255,11 @@ class TrainingConfig:
     critic_wd:              float = 1e-4   # independent weight decay
     critic_grad_norm:       float = 0.5    # independent gradient clip
 
+    # Action-aware critic (cross-attention on action embeddings)
+    critic_action_aware:   bool = False  # enable cross-attn on action embeds
+    critic_mask_actions:   bool = True   # mask illegal actions in cross-attn
+    critic_n_cross_layers: int  = 1      # number of cross-attn layers
+
     # Critic-stability diagnostics / switches
     value_dump_threshold: float = 0.0  # log warning when |vp_max| > threshold (0 = disabled)
     critic_value_bound:   float = 0.0  # Switch A: tanh squash ±bound on critic output (0 = off)
@@ -492,6 +497,33 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
             cfg.checkpoint_dir = str(Path("checkpoints") / cfg.run_name)
     Path(cfg.checkpoint_dir).mkdir(parents=True, exist_ok=True)
 
+    # ── Resume: load checkpoint config BEFORE constructing agent ─────────────
+    # Architecture fields must come from the saved config so the agent matches
+    # the checkpoint weights.  Training hyperparams (lr, schedules, etc.) come
+    # from the launcher config so they can be changed on resume.
+    _ARCH_FIELDS = {
+        "use_independent_critic", "critic_n_layers", "critic_value_bound",
+        "use_victory_head", "cls_value_grad", "cls_victory_grad", "cls_backbone_grad",
+        "critic_action_aware", "critic_n_cross_layers", "critic_mask_actions",
+    }
+
+    start_update = 1
+    ckpt = None
+    if cfg.resume:
+        ckpt = torch.load(cfg.resume, map_location=device, weights_only=True)
+        start_update = ckpt["update"] + 1
+        if "config" in ckpt:
+            saved = dict(ckpt["config"])
+            # Override architecture fields from checkpoint
+            current = asdict(cfg)
+            for key in _ARCH_FIELDS:
+                if key in saved:
+                    current[key] = saved[key]
+            current["resume"] = cfg.resume
+            cfg = TrainingConfig(**current)
+            print(f"Architecture config restored from checkpoint:")
+            print(f"  {', '.join(f'{k}={getattr(cfg, k)}' for k in sorted(_ARCH_FIELDS))}")
+
     # W&B init
     if _WANDB_AVAILABLE:
         wandb.init(
@@ -516,6 +548,9 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
         cls_value_grad         = cfg.cls_value_grad,
         cls_victory_grad       = cfg.cls_victory_grad,
         cls_backbone_grad      = cfg.cls_backbone_grad,
+        critic_action_aware    = cfg.critic_action_aware,
+        critic_n_cross_layers  = cfg.critic_n_cross_layers,
+        critic_mask_actions    = cfg.critic_mask_actions,
     ).to(device)
 
     if cfg.use_independent_critic:
@@ -534,9 +569,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
             eps          = 1e-5,
         )
 
-    start_update = 1
-    if cfg.resume:
-        ckpt = torch.load(cfg.resume, map_location=device, weights_only=True)
+    if ckpt is not None:
         missing, unexpected = agent.load_state_dict(ckpt["model"], strict=False)
         if missing:
             print(f"  New params (random init): {missing}")
@@ -546,12 +579,6 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
             optimizer.load_state_dict(ckpt["optimizer"])
         except ValueError:
             print("  Optimizer state incompatible (architecture change) — starting optimizer fresh.")
-        start_update = ckpt["update"] + 1
-        # Restore saved config (except resume path — keep the new one)
-        if "config" in ckpt:
-            saved = dict(ckpt["config"])
-            saved["resume"] = cfg.resume
-            cfg = TrainingConfig(**saved)
         print(f"Resumed from {cfg.resume}  (update {ckpt['update']})")
         print(f"  run_name={cfg.run_name}  total_updates={cfg.total_updates}")
 
