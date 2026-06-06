@@ -978,6 +978,13 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     "critic/corr_v_ret":       loss_acc.get("corr_v_ret", 0) / ns,
                     "critic/action_attn_entropy": loss_acc.get("critic_action_attn_entropy", 0) / ns,
                     "critic/action_attn_max":     loss_acc.get("critic_action_attn_max", 0) / ns,
+                    "scaled_loss/policy":         loss_acc.get("scaled_loss/policy", 0) / ns,
+                    "scaled_loss/value":          loss_acc.get("scaled_loss/value", 0) / ns,
+                    "scaled_loss/entropy":        loss_acc.get("scaled_loss/entropy", 0) / ns,
+                    "scaled_loss/pred":           loss_acc.get("scaled_loss/pred", 0) / ns,
+                    "scaled_loss/attn_entropy":   loss_acc.get("scaled_loss/attn_entropy", 0) / ns,
+                    "scaled_loss/rank_reg":       loss_acc.get("scaled_loss/rank_reg", 0) / ns,
+                    "scaled_loss/victory":        loss_acc.get("scaled_loss/victory", 0) / ns,
                 }, step=update)
 
         # -- 5. Periodic evaluation ---------------------------------------------------
