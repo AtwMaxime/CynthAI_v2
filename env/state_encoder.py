@@ -52,9 +52,9 @@ _type_emb_data     = _load("type_embeddings.json")
 TYPE_EMBEDDING_PRIOR = torch.tensor(_type_emb_data["embeddings"], dtype=torch.float32)
 D_TYPE: int          = _type_emb_data["d_type"]   # 8
 
-_move_emb_data       = _load("move_embeddings.json")
-MOVE_EMBEDDING_PRIOR = torch.tensor(_move_emb_data["embeddings"], dtype=torch.float32)
-D_MOVE_PRIOR: int    = _move_emb_data["d_move"]   # 32
+_move_feat_data  = _load("move_features.json")
+MOVE_FEATURES    = torch.tensor(_move_feat_data["features"], dtype=torch.float32)  # [686, 47]
+N_MOVE_FEATURES  = _move_feat_data["n_features"]  # 47
 
 # ── Unknown index ──────────────────────────────────────────────────────────────
 

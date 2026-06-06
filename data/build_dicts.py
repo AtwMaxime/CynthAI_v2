@@ -105,6 +105,9 @@ def _build_type_data() -> None:
 
 # ── poke-env data helpers ──────────────────────────────────────────────────────
 
+_SHOWDOWN_DATA = Path(__file__).parent.parent.parent / "pokemon-showdown-rs" / "data"
+
+
 def _load_pokeenv() -> tuple[dict, dict, dict, dict]:
     """Load Gen 9 data dicts from poke_env.  Returns (pokedex, moves, items, abilities)."""
     try:
@@ -114,6 +117,15 @@ def _load_pokeenv() -> tuple[dict, dict, dict, dict]:
     except Exception as e:
         print(f"  [warn] could not load poke-env data: {e}")
         return {}, {}, {}, {}
+
+
+def _load_showdown_moves() -> dict:
+    """Load moves directly from pokemon-showdown-rs/data/moves.json as fallback."""
+    p = _SHOWDOWN_DATA / "moves.json"
+    if p.exists():
+        with open(p, encoding="utf-8") as f:
+            return json.load(f)
+    return {}
 
 
 def _norm(name: str) -> str:
@@ -159,42 +171,107 @@ def _build_index(data_dict: dict, fname: str, label: str) -> None:
 
 
 D_MOVE = 32
+N_MOVE_FEATURES = 47
 
-def _build_move_embeddings(moves: dict, move_index: dict) -> None:
-    """Build [N_MOVES, D_MOVE] prior from move type + category features."""
+_SECONDARY_STATUSES = ("brn", "par", "psn", "tox", "slp", "frz")
+
+
+def _build_move_features(moves: dict, move_index: dict) -> None:
+    """Build [N_MOVES, 47] static feature matrix for all moves.
+
+    Features (47 dims):
+      0-18  : type one-hot (19)
+      19-21 : category one-hot (Physical/Special/Status)
+      22    : basePower (raw int)
+      23    : accuracy (raw int, true→101)
+      24    : pp (raw int)
+      25    : priority (raw int)
+      26-35 : flags (contact, sound, bullet, slicing, punch, bite, heal, recharge, bypasssub, defrost)
+      36    : selfSwitch (0/1)
+      37    : drain ratio (drain[0]/drain[1] or 0)
+      38    : recoil ratio (recoil[0]/recoil[1] or 0)
+      39    : hasCrashDamage (0/1)
+      40    : secondary chance (raw int)
+      41-46 : secondary status one-hot (brn/par/psn/tox/slp/frz)
+    """
     N = len(move_index)
     type_to_idx = {t: i for i, t in enumerate(_TYPES)}
+    flag_keys = ("contact", "sound", "bullet", "slicing", "punch", "bite",
+                 "heal", "recharge", "bypasssub", "defrost")
 
-    # Simple prior: one-hot type (19-dim) + one-hot category (3-dim) + random padding
-    rng = random.Random(42)
-    embs: list[list[float]] = []
+    feature_names = (
+        [f"type_{t}" for t in _TYPES]
+        + ["cat_physical", "cat_special", "cat_status"]
+        + ["basePower", "accuracy", "pp", "priority"]
+        + list(flag_keys)
+        + ["selfSwitch", "drain_ratio", "recoil_ratio", "hasCrashDamage"]
+        + ["secondary_chance"]
+        + [f"sec_{s}" for s in _SECONDARY_STATUSES]
+    )
+    assert len(feature_names) == N_MOVE_FEATURES, f"Expected {N_MOVE_FEATURES}, got {len(feature_names)}"
+
+    feats: list[list[float]] = []
     for name, idx in sorted(move_index.items(), key=lambda x: x[1]):
-        mv   = moves.get(name, {})
-        t    = _norm(mv.get("type", ""))
-        cat  = mv.get("category", "physical").lower()  # physical / special / status
+        mv = moves.get(name, {})
+        vec = [0.0] * N_MOVE_FEATURES
 
-        vec = [0.0] * D_MOVE
-        # bits 0-18: type one-hot
+        # 0-18: type one-hot
+        t = _norm(mv.get("type", ""))
         tidx = type_to_idx.get(t, 0)
-        if tidx < D_MOVE:
-            vec[tidx] = 1.0
-        # bits 19-21: category one-hot
-        cat_map = {"physical": 19, "special": 20, "status": 21}
-        ci = cat_map.get(cat, 19)
-        if ci < D_MOVE:
-            vec[ci] = 1.0
-        # bits 22-31: small random noise for diversity
-        for j in range(22, D_MOVE):
-            vec[j] = rng.gauss(0, 0.01)
-        embs.append(vec)
+        vec[tidx] = 1.0
 
-    # Ensure length matches N
-    while len(embs) < N:
-        embs.append([0.0] * D_MOVE)
+        # 19-21: category one-hot
+        cat = mv.get("category", "Physical")
+        cat_map = {"Physical": 19, "Special": 20, "Status": 21}
+        vec[cat_map.get(cat, 19)] = 1.0
 
-    with open(OUT / "move_embeddings.json", "w") as f:
-        json.dump({"embeddings": embs, "d_move": D_MOVE}, f)
-    print(f"  move_embeddings.json   ({N}×{D_MOVE})")
+        # 22-25: basePower, accuracy, pp, priority
+        vec[22] = float(mv.get("basePower", 0))
+        acc = mv.get("accuracy", True)
+        vec[23] = 101.0 if acc is True else float(acc)
+        vec[24] = float(mv.get("pp", 0))
+        vec[25] = float(mv.get("priority", 0))
+
+        # 26-35: flags
+        flags = mv.get("flags", {})
+        for i, fk in enumerate(flag_keys):
+            vec[26 + i] = float(flags.get(fk, 0))
+
+        # 36: selfSwitch
+        vec[36] = 1.0 if mv.get("selfSwitch") else 0.0
+
+        # 37: drain ratio
+        drain = mv.get("drain")
+        vec[37] = drain[0] / drain[1] if drain else 0.0
+
+        # 38: recoil ratio
+        recoil = mv.get("recoil")
+        vec[38] = recoil[0] / recoil[1] if recoil else 0.0
+
+        # 39: hasCrashDamage
+        vec[39] = 1.0 if mv.get("hasCrashDamage") else 0.0
+
+        # 40-46: secondary chance + status one-hot
+        sec = mv.get("secondary")
+        if sec and isinstance(sec, dict):
+            vec[40] = float(sec.get("chance", 0))
+            sec_status = sec.get("status", "")
+            if sec_status in _SECONDARY_STATUSES:
+                vec[41 + _SECONDARY_STATUSES.index(sec_status)] = 1.0
+
+        feats.append(vec)
+
+    while len(feats) < N:
+        feats.append([0.0] * N_MOVE_FEATURES)
+
+    data = {
+        "features": feats,
+        "n_features": N_MOVE_FEATURES,
+        "feature_names": feature_names,
+    }
+    with open(OUT / "move_features.json", "w") as f:
+        json.dump(data, f)
+    print(f"  move_features.json     ({N}×{N_MOVE_FEATURES})")
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
@@ -210,14 +287,21 @@ if __name__ == "__main__":
     else:
         print("  [skip] species_index.json  (no poke-env data)")
 
+    # Move index from poke-env; move features from showdown JSON (richer data)
     if moves:
         _build_index(moves, "move_index.json", "moves")
-        # reload to get the index for embedding generation
+    else:
+        print("  [skip] move_index.json  (no poke-env data)")
+
+    # Build move features — prefer showdown moves.json (has full mechanical data)
+    showdown_moves = _load_showdown_moves()
+    moves_for_features = showdown_moves if showdown_moves else moves
+    if moves_for_features and (OUT / "move_index.json").exists():
         with open(OUT / "move_index.json") as f:
             move_index = json.load(f)["index"]
-        _build_move_embeddings(moves, move_index)
-    else:
-        print("  [skip] move_index.json / move_embeddings.json")
+        _build_move_features(moves_for_features, move_index)
+    elif not moves_for_features:
+        print("  [skip] move_features.json  (no move data)")
 
     if items:
         _build_index(items, "item_index.json", "items")

@@ -116,14 +116,16 @@ def save_attention_maps(
     n_heads = attn_maps[0].shape[1]
     labels = result["token_labels"]
 
+    n_toks = len(labels)   # 53 (CLS + 52 battle tokens)
+
     def _plot_single(ax, mat, title_str, show_labels=True, colorbar=False):
         """Plot one attention heatmap with proper token labels and optional colorbar."""
         im = ax.imshow(mat, cmap="viridis", aspect="equal", vmin=0.0, vmax=mat.max())
         ax.set_title(title_str, fontsize=9)
         ax.set_xlabel("Key token", fontsize=6)
         ax.set_ylabel("Query token", fontsize=6)
-        ax.set_xticks(range(SEQ_LEN))
-        ax.set_yticks(range(SEQ_LEN))
+        ax.set_xticks(range(n_toks))
+        ax.set_yticks(range(n_toks))
         ax.set_xticklabels(labels if show_labels else [], fontsize=4, rotation=90)
         ax.set_yticklabels(labels if show_labels else [], fontsize=4)
         if colorbar:
@@ -155,7 +157,7 @@ def save_attention_maps(
             _plot_single(ax, mat, f"Layer {li}, Head {hi}", show_labels=True, colorbar=True)
 
             # Top-5 attended keys for current-turn query tokens (last 13)
-            cur_start = SEQ_LEN - 13
+            cur_start = n_toks - 13
             topk = 5
             txt_lines = ["Top-5 attended keys (current turn queries):"]
             for query_offset in range(13):

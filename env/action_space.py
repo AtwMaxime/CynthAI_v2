@@ -40,7 +40,7 @@ class ActionEncoder(nn.Module):
     They are passed in at construction time so the agent has a single copy of each.
     """
 
-    def __init__(self, move_embed: nn.Embedding, type_embed: nn.Embedding):
+    def __init__(self, move_embed: nn.Module, type_embed: nn.Module):
         super().__init__()
         self.move_embed = move_embed
         self.type_embed = type_embed

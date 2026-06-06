@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from env.state_encoder import (
     PokemonFeatures,
     N_SPECIES, N_MOVES, N_ITEMS, N_ABILITIES,
-    TYPE_EMBEDDING_PRIOR, MOVE_EMBEDDING_PRIOR,
+    TYPE_EMBEDDING_PRIOR, MOVE_FEATURES, N_MOVE_FEATURES,
     D_TYPE, N_VOLATILES, UNK,
     _species_data,
     FieldFeatures, SideFeatures,
@@ -31,7 +31,7 @@ from env.state_encoder import (
 # ── Embedding dimensions ───────────────────────────────────────────────────────
 
 D_SPECIES: int = 32
-D_MOVE:    int = 32   # must match MOVE_EMBEDDING_PRIOR.shape[1]
+D_MOVE:    int = 32
 D_ITEM:    int = 16
 D_ABILITY: int = 16
 
@@ -264,6 +264,22 @@ def apply_reveal_mask(
     )
 
 
+# ── MoveEmbedding ─────────────────────────────────────────────────────────────
+
+class MoveEmbedding(nn.Module):
+    """Additive move embedding: learnable ID embed + projected static features."""
+
+    def __init__(self):
+        super().__init__()
+        self.move_id_embed   = nn.Embedding(N_MOVES, D_MOVE)
+        self.move_prior_proj = nn.Linear(N_MOVE_FEATURES, D_MOVE)
+        self.register_buffer("move_features", MOVE_FEATURES)
+        nn.init.xavier_uniform_(self.move_id_embed.weight)
+
+    def forward(self, idx: torch.Tensor) -> torch.Tensor:
+        return self.move_id_embed(idx) + self.move_prior_proj(self.move_features[idx])
+
+
 # ── PokemonEmbeddings ─────────────────────────────────────────────────────────
 
 class PokemonEmbeddings(nn.Module):
@@ -276,7 +292,7 @@ class PokemonEmbeddings(nn.Module):
     def __init__(self):
         super().__init__()
         self.species_embed = nn.Embedding(N_SPECIES, D_SPECIES)
-        self.move_embed    = nn.Embedding.from_pretrained(MOVE_EMBEDDING_PRIOR, freeze=False)
+        self.move_embed    = MoveEmbedding()
         self.item_embed    = nn.Embedding(N_ITEMS, D_ITEM)
         self.ability_embed = nn.Embedding(N_ABILITIES, D_ABILITY)
         self.type_embed    = nn.Embedding.from_pretrained(TYPE_EMBEDDING_PRIOR, freeze=False)

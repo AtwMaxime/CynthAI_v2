@@ -704,6 +704,85 @@ with tempfile.TemporaryDirectory() as tmp:
                            mechanic_id, mech_type_idx, action_mask).value.shape == (B, 1))
 
 
+# ── 18. MoveEmbedding — additive structure + feature integrity ──────────────
+
+section("18. MoveEmbedding — additive prior features")
+
+from model.embeddings import MoveEmbedding, D_MOVE
+from env.state_encoder import MOVE_FEATURES, N_MOVE_FEATURES, MOVE_INDEX
+
+me = MoveEmbedding()
+
+# Shape checks
+idx3 = torch.tensor([0, 1, 2])
+out3 = me(idx3)
+check("MoveEmbedding([0,1,2]) shape [3, D_MOVE]",  tuple(out3.shape) == (3, D_MOVE))
+
+batch_idx = torch.randint(0, N_MOVES, (4, 4))
+out_batch = me(batch_idx)
+check("MoveEmbedding([4,4]) shape [4, 4, D_MOVE]", tuple(out_batch.shape) == (4, 4, D_MOVE))
+
+# Buffer is not a parameter (not trained directly)
+check("move_features is buffer, not parameter",
+      "move_features" not in dict(me.named_parameters()))
+check("move_features is registered buffer",
+      "move_features" in dict(me.named_buffers()))
+check("move_features shape [N_MOVES, N_MOVE_FEATURES]",
+      tuple(me.move_features.shape) == (N_MOVES, N_MOVE_FEATURES))
+
+# Additive structure: output = id_embed + prior_proj
+with torch.no_grad():
+    test_idx = torch.tensor([5, 10, 100])
+    id_part    = me.move_id_embed(test_idx)
+    prior_part = me.move_prior_proj(me.move_features[test_idx])
+    full_out   = me(test_idx)
+    check("additive structure: id + prior = output",
+          torch.allclose(id_part + prior_part, full_out, atol=1e-5))
+
+# Gradient flow to both components
+me.zero_grad()
+loss = me(torch.tensor([1, 2, 3])).sum()
+loss.backward()
+check("grad flows to move_id_embed",   me.move_id_embed.weight.grad is not None
+      and me.move_id_embed.weight.grad.any().item())
+check("grad flows to move_prior_proj", me.move_prior_proj.weight.grad is not None
+      and me.move_prior_proj.weight.grad.any().item())
+
+# Spot-check feature values for known moves
+def _check_move_feat(move_name, feat_name, expected, tol=1e-3):
+    idx = MOVE_INDEX.get(move_name)
+    if idx is None:
+        check(f"{move_name}.{feat_name} (move not in index)", False, "missing from MOVE_INDEX")
+        return
+    feat_names = [
+        *[f"type_{t}" for t in ["__unk__","normal","fire","water","electric","grass","ice",
+          "fighting","poison","ground","flying","psychic","bug","rock","ghost","dragon",
+          "dark","steel","fairy"]],
+        "cat_physical","cat_special","cat_status",
+        "basePower","accuracy","pp","priority",
+        "contact","sound","bullet","slicing","punch","bite","heal","recharge","bypasssub","defrost",
+        "selfSwitch","drain_ratio","recoil_ratio","hasCrashDamage",
+        "secondary_chance","sec_brn","sec_par","sec_psn","sec_tox","sec_slp","sec_frz",
+    ]
+    fi = feat_names.index(feat_name)
+    actual = MOVE_FEATURES[idx, fi].item()
+    check(f"{move_name}.{feat_name} = {expected}",
+          abs(actual - expected) < tol, f"got {actual}")
+
+_check_move_feat("thunderbolt", "basePower",  90.0)
+_check_move_feat("thunderbolt", "type_electric", 1.0)
+_check_move_feat("thunderbolt", "cat_special", 1.0)
+_check_move_feat("flareblitz",  "recoil_ratio", 0.33)
+_check_move_feat("flareblitz",  "sec_brn",      1.0)
+_check_move_feat("flareblitz",  "defrost",       1.0)
+_check_move_feat("uturn",       "selfSwitch",    1.0)
+_check_move_feat("uturn",       "contact",       1.0)
+_check_move_feat("absorb",      "drain_ratio",   0.5)
+_check_move_feat("spore",       "cat_status",    1.0)
+_check_move_feat("boomburst",   "sound",         1.0)
+_check_move_feat("drainpunch",  "punch",         1.0)
+
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 print(f"\n-- Done --- {n_passed} passed, {n_failed} failed {'=' * 30}")
