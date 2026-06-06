@@ -40,6 +40,7 @@ from datetime import datetime
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from model.agent import CynthAIAgent
 from model.embeddings import PokemonBatch, apply_reveal_mask
