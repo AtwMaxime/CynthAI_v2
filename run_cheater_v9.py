@@ -68,6 +68,10 @@ if __name__ == "__main__":
         critic_n_cross_layers = 1,
         critic_mask_actions   = True,
 
+        # Victory head
+        use_victory_head = True,
+        c_victory        = 0.1,
+
         # Critic-stability switches
         value_dump_threshold = 20.0,
         critic_value_bound   = 10.0,   # Switch A — ENABLED
