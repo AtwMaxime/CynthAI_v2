@@ -51,17 +51,12 @@ if __name__ == "__main__":
         max_grad_norm  = 0.5,
         weight_decay   = 1e-4,
 
-        # Independent critic
-        use_independent_critic = True,
-        critic_n_layers        = 2,
-        critic_lr              = 5e-4,
-        critic_wd              = 1e-4,
-        critic_grad_norm       = 1.0,
-
-        # Critic from backbone (new: uses enriched tokens instead of raw inputs)
-        critic_from_backbone  = True,
-        critic_action_aware   = False,
-        critic_mask_actions   = False,
+        # Critic / value head
+        critic_n_layers   = 2,
+        critic_detach     = True,
+        critic_lr         = 5e-4,
+        critic_wd         = 1e-4,
+        critic_grad_norm  = 1.0,
 
         # Victory head
         use_victory_head = True,

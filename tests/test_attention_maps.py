@@ -48,11 +48,11 @@ with torch.no_grad():
 
 print(f'\nAttention maps: {len(result["attention_maps"])} layers')
 for i, attn in enumerate(result['attention_maps']):
-    ok = attn.shape == (1, N_HEADS, SEQ_LEN, SEQ_LEN) or attn.shape == (1, SEQ_LEN, SEQ_LEN)
+    ok = attn.shape == (1, N_HEADS, SEQ_LEN + 1, SEQ_LEN + 1) or attn.shape == (1, SEQ_LEN + 1, SEQ_LEN + 1)
     status = 'OK' if ok else 'FAIL'
     print(f'  layer {i}: {tuple(attn.shape)}  [{status}]')
 
-print(f'value:          {tuple(result["value"].shape)}  [OK]')
+print(f'cls_out:        {tuple(result["cls_out"].shape)}  [OK]')
 print(f'current_tokens: {tuple(result["current_tokens"].shape)}  [OK]')
 print(f'token_labels:   {len(result["token_labels"])} labels')
 print(f'  first 5: {result["token_labels"][:5]}')

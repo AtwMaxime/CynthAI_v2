@@ -143,7 +143,7 @@ def main():
 
     device = torch.device(args.device)
     ckpt   = torch.load(args.checkpoint, map_location=device, weights_only=True)
-    agent  = CynthAIAgent(use_independent_critic=True, critic_n_layers=2).to(device)
+    agent  = CynthAIAgent(critic_n_layers=2, critic_detach=True).to(device)
     agent.load_state_dict(ckpt["model"], strict=False)
     agent.eval()
 

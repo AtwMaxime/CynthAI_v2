@@ -31,11 +31,8 @@ from tests.test_full_pipeline import (
 
 def make_agent():
     return CynthAIAgent(
-        use_independent_critic=True,
         critic_n_layers=2,
-        critic_action_aware=True,
-        critic_n_cross_layers=1,
-        critic_mask_actions=True,
+        critic_detach=True,
         critic_value_bound=10.0,
     )
 

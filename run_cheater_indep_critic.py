@@ -52,14 +52,11 @@ if __name__ == "__main__":
         weight_decay   = 1e-4,
 
         # Independent critic
-        use_independent_critic = True,
+        critic_detach          = True,
         critic_n_layers        = 2,
         critic_lr              = 5e-4,   # plus rapide que l'actor
         critic_wd              = 1e-4,
         critic_grad_norm       = 1.0,    # clip plus souple pour le critic
-        critic_action_aware    = False,   # cross-attn on action embeds
-        critic_mask_actions    = True,    # mask illegal actions in cross-attn
-        critic_n_cross_layers  = 1,       # number of cross-attn layers
 
         # Opponent pool
         pool_size               = 10,

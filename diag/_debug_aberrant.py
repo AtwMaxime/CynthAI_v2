@@ -11,7 +11,7 @@ import simulator
 
 device = torch.device("cpu")
 ckpt = torch.load("checkpoints/cheater_v5/agent_000400.pt", map_location=device, weights_only=True)
-agent = CynthAIAgent(use_independent_critic=True, critic_n_layers=2).to(device)
+agent = CynthAIAgent(critic_n_layers=2, critic_detach=True).to(device)
 agent.load_state_dict(ckpt["model"], strict=False)
 agent.eval()
 

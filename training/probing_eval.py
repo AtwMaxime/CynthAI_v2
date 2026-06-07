@@ -82,11 +82,11 @@ def run_probing_eval(
         next_hp_opp[:, 0] <= cur_hp_opp[:, 0] + 0.05
     )
 
-    # 6. Critic representations (if independent critic)
+    # 6. Critic representations (when value_head has its own Transformer)
     critic_cls = None
     critic_seq = None
     critic_values = None
-    if hasattr(agent, 'independent_critic'):
+    if agent.value_head.n_layers > 0:
         all_critic_cls, all_critic_seq, all_critic_val = [], [], []
         with torch.no_grad():
             for start in range(0, N, 256):
@@ -94,9 +94,21 @@ def run_probing_eval(
                 batch = buffer._gather(list(range(start, end)), device)
                 pt = agent.poke_emb(batch["poke_batch"])
                 ft = batch["field_tensor"]
-                v, _, cls_out, seq_52 = agent.independent_critic(
-                    pt, ft, return_repr=True,
-                )
+                _, _, full_seq_b, padding_mask_b, _ = agent.backbone.encode(pt, ft)
+                # Run value head transformer manually to get CLS + seq
+                vh = agent.value_head
+                B_b = full_seq_b.shape[0]
+                dev = full_seq_b.device
+                cls_tok = vh.cls_token.expand(B_b, 1, full_seq_b.shape[-1])
+                seq_in = torch.cat([cls_tok, full_seq_b.detach()], dim=1)
+                mask_in = torch.cat([
+                    torch.zeros(B_b, 1, dtype=torch.bool, device=dev),
+                    padding_mask_b,
+                ], dim=1)
+                seq_out = vh.transformer(seq_in, src_key_padding_mask=mask_in)
+                cls_out = seq_out[:, 0, :]
+                seq_52 = seq_out[:, 1:, :]
+                v = vh.value_head(cls_out)
                 all_critic_cls.append(cls_out.cpu())
                 all_critic_seq.append(seq_52.cpu())
                 all_critic_val.append(v.cpu())

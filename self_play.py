@@ -249,8 +249,8 @@ class TrainingConfig:
     eval_n_games:    int = 500     # P3: games per opponent in evaluation
 
     # Independent critic (optional — separate Transformer, no shared weights with actor)
-    use_independent_critic: bool  = False
-    critic_n_layers:        int   = 2      # Transformer depth (actor uses 3)
+    critic_detach:          bool  = True   # detach backbone features before value head
+    critic_n_layers:        int   = 0      # Transformer depth (0 = no independent critic)
     critic_lr:              float = 5e-4   # independent learning rate
     critic_wd:              float = 1e-4   # independent weight decay
     critic_grad_norm:       float = 0.5    # independent gradient clip
@@ -495,12 +495,12 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
     _first_eval    = not eval_path.exists()
 
     agent = CynthAIAgent(
-        use_independent_critic = cfg.use_independent_critic,
-        critic_n_layers        = cfg.critic_n_layers,
+        critic_detach   = cfg.critic_detach,
+        critic_n_layers = cfg.critic_n_layers,
     ).to(device)
 
-    if cfg.use_independent_critic:
-        critic_params = list(agent.independent_critic.parameters())
+    if cfg.critic_n_layers > 0:
+        critic_params = list(agent.value_head.parameters())
         critic_ids    = {id(p) for p in critic_params}
         actor_params  = [p for p in agent.parameters() if id(p) not in critic_ids]
         optimizer = torch.optim.AdamW([
@@ -724,8 +724,8 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 losses["total"] = losses["total"] + rank_loss
 
                 losses["total"].backward()
-                if cfg.use_independent_critic:
-                    critic_params = list(agent.independent_critic.parameters())
+                if cfg.critic_n_layers > 0:
+                    critic_params = list(agent.value_head.parameters())
                     critic_ids    = {id(p) for p in critic_params}
                     actor_params  = [p for p in agent.parameters() if id(p) not in critic_ids]
                     nn.utils.clip_grad_norm_(actor_params,  cfg.max_grad_norm)

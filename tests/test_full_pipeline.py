@@ -5,16 +5,17 @@ Tests:
   1. State encoder — encode_pokemon / encode_field on dummy dicts
   2. Collation — PokemonBatch + FieldBatch shapes
   3. PokemonEmbeddings forward
-  4. BattleBackbone encode + act (with attention pooling value head)
+  4. BattleBackbone encode + act (with CLS token)
   5. ActionEncoder forward
-  6. CynthAIAgent full forward — classic mode (shared backbone critic)
-  7. CynthAIAgent full forward — independent critic mode
-  8. IndependentCritic standalone forward
+  6. CynthAIAgent full forward — critic_n_layers=0 (MLP on CLS)
+  7. CynthAIAgent full forward — critic_n_layers=2 (Transformer value head)
+  8. ValueHead standalone forward
   9. PredictionHeads build_targets + compute_loss (with pos_weight BCE)
  10. move_recall metric correctness (sum not any)
  11. Training losses (compute_losses)
- 12. Checkpoint round-trip — classic mode
+ 12. Checkpoint round-trip — critic_n_layers=0
  13. Checkpoint round-trip — strict=False (architecture change simulation)
+ 14. Gradient flow — detached vs non-detached critic
 
 Run from the CynthAI_v2 directory:
     .venv\\Scripts\\python.exe tests/test_full_pipeline.py
@@ -164,7 +165,7 @@ check("no NaN in embeddings",               not tok.isnan().any().item())
 
 # ── 4. BattleBackbone ─────────────────────────────────────────────────────────
 
-section("4. BattleBackbone encode + act (attention pooling)")
+section("4. BattleBackbone encode + act")
 
 from model.backbone import BattleBackbone, D_MODEL
 
@@ -174,15 +175,16 @@ backbone.eval()
 field_t = fb.field.reshape(B, K, FIELD_DIM)
 
 with torch.no_grad():
-    pre_tok, cur_tok, value, win_logit = backbone.encode(tok, field_t)
+    pre_tok, cur_tok, full_seq, padding_mask, cls_out = backbone.encode(tok, field_t)
 
 check("pre_tokens shape [B, 13, D_MODEL]",     tuple(pre_tok.shape) == (B, 13, D_MODEL))
 check("current_tokens shape [B, 13, D_MODEL]", tuple(cur_tok.shape) == (B, 13, D_MODEL),
       str(tuple(cur_tok.shape)))
-check("value shape [B, 1]",                    tuple(value.shape)   == (B, 1))
+check("full_seq shape [B, 52, D_MODEL]",        tuple(full_seq.shape) == (B, 52, D_MODEL))
+check("padding_mask shape [B, 52]",             tuple(padding_mask.shape) == (B, 52))
+check("cls_out shape [B, D_MODEL]",             tuple(cls_out.shape) == (B, D_MODEL))
 check("no NaN in backbone output",             not cur_tok.isnan().any().item())
 check("cls_token exists",                      hasattr(backbone, "cls_token"))
-check("win_logit is None (no victory head)",   win_logit is None)
 
 action_mask = torch.zeros(B, 13, dtype=torch.bool)
 action_mask[:, 4:8] = True
@@ -225,21 +227,20 @@ check("action embeds shape [B, 13, D_MODEL]",  tuple(action_embeds.shape) == (B,
       str(tuple(action_embeds.shape)))
 
 
-# ── 6. CynthAIAgent — classic mode ────────────────────────────────────────────
+# ── 6. CynthAIAgent — critic_n_layers=0 (MLP on CLS) ────────────────────────
 
-section("6. CynthAIAgent full forward — classic mode")
+section("6. CynthAIAgent full forward — critic_n_layers=0")
 
 from model.agent import CynthAIAgent
 
-agent_classic = CynthAIAgent(use_independent_critic=False)
-agent_classic.eval()
+agent_mlp = CynthAIAgent(critic_n_layers=0, critic_detach=False)
+agent_mlp.eval()
 
-n_params = sum(p.numel() for p in agent_classic.parameters())
+n_params = sum(p.numel() for p in agent_mlp.parameters())
 check("parameter count > 1M",              n_params > 1_000_000, f"{n_params:,}")
-check("no independent_critic attr",        not hasattr(agent_classic, "independent_critic"))
 
 with torch.no_grad():
-    out = agent_classic(
+    out = agent_mlp(
         poke_batch        = pb,
         field_tensor      = field_t,
         move_idx          = move_idx,
@@ -258,21 +259,21 @@ check("log_probs sum to ~1 on legal actions",
       (out.log_probs[:, ~action_mask[0]].exp().sum(dim=-1) - 1.0).abs().max().item() < 1e-4)
 
 
-# ── 7. CynthAIAgent — independent critic mode ─────────────────────────────────
+# ── 7. CynthAIAgent — critic_n_layers=2 (Transformer value head) ─────────────
 
-section("7. CynthAIAgent full forward — independent critic mode")
+section("7. CynthAIAgent full forward — critic_n_layers=2")
 
-agent_indep = CynthAIAgent(use_independent_critic=True, critic_n_layers=2)
-agent_indep.eval()
+agent_transformer = CynthAIAgent(critic_n_layers=2, critic_detach=True)
+agent_transformer.eval()
 
-n_params_indep = sum(p.numel() for p in agent_indep.parameters())
-n_critic = sum(p.numel() for p in agent_indep.independent_critic.parameters())
-check("independent_critic attr exists",    hasattr(agent_indep, "independent_critic"))
-check("more params than classic",          n_params_indep > n_params, f"{n_params_indep:,}")
-check("critic has its own params",         n_critic > 0, f"{n_critic:,}")
+n_params_transformer = sum(p.numel() for p in agent_transformer.parameters())
+n_critic = sum(p.numel() for p in agent_transformer.value_head.parameters())
+check("value_head attr exists",          hasattr(agent_transformer, "value_head"))
+check("more params than MLP mode",      n_params_transformer > n_params, f"{n_params_transformer:,}")
+check("value_head has its own params",   n_critic > 0, f"{n_critic:,}")
 
 with torch.no_grad():
-    out_indep = agent_indep(
+    out_transformer = agent_transformer(
         poke_batch        = pb,
         field_tensor      = field_t,
         move_idx          = move_idx,
@@ -283,33 +284,51 @@ with torch.no_grad():
         action_mask       = action_mask,
     )
 
-check("value shape [B, 1]",           tuple(out_indep.value.shape) == (B, 1))
-check("logits shape [B, 13]",         tuple(out_indep.action_logits.shape) == (B, 13))
-check("no NaN in value",              not out_indep.value.isnan().any().item())
-check("no NaN in logits",             not out_indep.action_logits.isnan().any().item())
+check("value shape [B, 1]",           tuple(out_transformer.value.shape) == (B, 1))
+check("logits shape [B, 13]",         tuple(out_transformer.action_logits.shape) == (B, 13))
+check("no NaN in value",              not out_transformer.value.isnan().any().item())
+check("no NaN in logits",             not out_transformer.action_logits.isnan().any().item())
 
 
-# ── 8. IndependentCritic standalone ───────────────────────────────────────────
+# ── 8. ValueHead standalone ─────────────────────────────────────────────────
 
-section("8. IndependentCritic standalone forward")
+section("8. ValueHead standalone forward")
 
-from model.critic import IndependentCritic
+from model.critic import ValueHead
 
+# n_layers=0: MLP on CLS
+vh0 = ValueHead(n_layers=0)
+vh0.eval()
+with torch.no_grad():
+    v0, wl0 = vh0(full_seq, padding_mask, cls_out)
+check("n_layers=0 -> value shape [B, 1]",      tuple(v0.shape) == (B, 1))
+check("n_layers=0 -> no NaN",                   not v0.isnan().any().item())
+check("n_layers=0 -> win_logit is None",         wl0 is None)
+
+# n_layers=1,2,3
 for n_layers in [1, 2, 3]:
-    critic = IndependentCritic(n_layers=n_layers)
-    critic.eval()
+    vh = ValueHead(n_layers=n_layers)
+    vh.eval()
     with torch.no_grad():
-        v, wl = critic(tok, field_t)
+        v, wl = vh(full_seq, padding_mask, cls_out)
     check(f"n_layers={n_layers} -> value shape [B, 1]", tuple(v.shape) == (B, 1))
     check(f"n_layers={n_layers} -> no NaN",             not v.isnan().any().item())
-    check(f"n_layers={n_layers} -> win_logit is None (no victory head)", wl is None)
+    check(f"n_layers={n_layers} -> win_logit is None",   wl is None)
 
-critic_vh = IndependentCritic(n_layers=2, use_victory_head=True)
-critic_vh.eval()
+# Victory head
+vh_victory = ValueHead(n_layers=2, use_victory_head=True)
+vh_victory.eval()
 with torch.no_grad():
-    v_vh, wl_vh = critic_vh(tok, field_t)
+    v_vh, wl_vh = vh_victory(full_seq, padding_mask, cls_out)
 check("victory head -> value shape [B, 1]",     tuple(v_vh.shape) == (B, 1))
 check("victory head -> win_logit shape [B, 1]", tuple(wl_vh.shape) == (B, 1))
+
+# Value bound
+vh_bound = ValueHead(n_layers=0, value_bound=5.0)
+vh_bound.eval()
+with torch.no_grad():
+    v_bound, _ = vh_bound(full_seq, padding_mask, cls_out)
+check("value_bound=5 -> |v| <= 5",  (v_bound.abs() <= 5.0 + 1e-6).all().item())
 
 
 # ── 9. PredictionHeads ────────────────────────────────────────────────────────
@@ -432,193 +451,51 @@ for key in ("policy", "value", "entropy", "pred", "total"):
     check(f"losses['{key}'] is finite",  losses[key].isfinite().item())
 
 
-# ── 12. Checkpoint round-trip — classic ───────────────────────────────────────
+# ── 12. Checkpoint round-trip — critic_n_layers=0 ────────────────────────────
 
-section("12. Checkpoint round-trip — classic mode")
+section("12. Checkpoint round-trip — critic_n_layers=0")
 
 with tempfile.TemporaryDirectory() as tmp:
-    path = os.path.join(tmp, "test_ckpt_classic.pt")
-    torch.save({"update": 42, "model": agent_classic.state_dict()}, path)
+    path = os.path.join(tmp, "test_ckpt_mlp.pt")
+    torch.save({"update": 42, "model": agent_mlp.state_dict()}, path)
 
     ckpt   = torch.load(path, map_location="cpu", weights_only=True)
-    agent_reload = CynthAIAgent(use_independent_critic=False)
+    agent_reload = CynthAIAgent(critic_n_layers=0, critic_detach=False)
     missing, unexpected = agent_reload.load_state_dict(ckpt["model"], strict=False)
     check("checkpoint update=42",         ckpt["update"] == 42)
     check("no missing keys",              len(missing) == 0, str(missing))
     check("no unexpected keys",           len(unexpected) == 0, str(unexpected))
-    p1 = next(agent_classic.parameters())
+    p1 = next(agent_mlp.parameters())
     p2 = next(agent_reload.parameters())
     check("weights match after reload",   torch.allclose(p1, p2))
 
 
 # ── 13. Checkpoint round-trip — strict=False (arch change) ────────────────────
 
-section("13. Checkpoint strict=False — load classic into independent critic")
+section("13. Checkpoint strict=False — load n_layers=0 into n_layers=2")
 
 with tempfile.TemporaryDirectory() as tmp:
     path = os.path.join(tmp, "test_ckpt_migration.pt")
-    torch.save({"update": 100, "model": agent_classic.state_dict()}, path)
+    torch.save({"update": 100, "model": agent_mlp.state_dict()}, path)
 
     ckpt = torch.load(path, map_location="cpu", weights_only=True)
-    agent_new = CynthAIAgent(use_independent_critic=True, critic_n_layers=2)
+    agent_new = CynthAIAgent(critic_n_layers=2, critic_detach=True)
     missing, unexpected = agent_new.load_state_dict(ckpt["model"], strict=False)
-    # independent_critic.* should be missing (new params, random init)
-    has_critic_missing = any("independent_critic" in k for k in missing)
-    check("independent_critic params are missing (random init)", has_critic_missing,
-          f"missing={missing[:2]}")
+    # value_head.cls_token, value_head.transformer.* should be missing (new params)
+    has_vh_missing = any("value_head" in k for k in missing)
+    check("value_head transformer params are missing (random init)", has_vh_missing,
+          f"missing={missing[:3]}")
     check("no unexpected keys",  len(unexpected) == 0, str(unexpected))
     check("forward still works after partial load",
           agent_new(pb, field_t, move_idx, pp_ratio, move_disabled,
                     mechanic_id, mech_type_idx, action_mask).value.shape == (B, 1))
 
 
-# ── 14. IndependentCritic — action-aware (cross-attention) ───────────────────
+# ── 14. Gradient flow — detached vs non-detached critic ──────────────────────
 
-section("14. IndependentCritic — action-aware cross-attention")
+section("14. Gradient flow — detached critic")
 
-# 14a. action_aware=False should ignore action_embeds
-critic_no_aa = IndependentCritic(n_layers=2, action_aware=False)
-critic_no_aa.eval()
-check("action_aware=False -> no cross_attn_layers attr",
-      not hasattr(critic_no_aa, "cross_attn_layers"))
-
-dummy_act_embeds = torch.randn(B, 13, D_MODEL)
-dummy_act_mask   = torch.zeros(B, 13, dtype=torch.bool)
-dummy_act_mask[:, 4:8] = True
-
-with torch.no_grad():
-    v_no_aa, wl_no_aa = critic_no_aa(tok, field_t, action_embeds=dummy_act_embeds, action_mask=dummy_act_mask)
-check("action_aware=False ignores action_embeds (no crash)", tuple(v_no_aa.shape) == (B, 1))
-
-# 14b. action_aware=True with 1 cross-attn layer
-critic_aa1 = IndependentCritic(n_layers=2, action_aware=True, n_cross_layers=1)
-critic_aa1.eval()
-check("action_aware=True -> has cross_attn_layers",    hasattr(critic_aa1, "cross_attn_layers"))
-check("n_cross_layers=1 -> 1 layer in list",           len(critic_aa1.cross_attn_layers) == 1)
-
-n_critic_aa1 = sum(p.numel() for p in critic_aa1.parameters())
-n_critic_plain = sum(p.numel() for p in critic_no_aa.parameters())
-check("action-aware critic has more params",           n_critic_aa1 > n_critic_plain,
-      f"{n_critic_aa1:,} vs {n_critic_plain:,}")
-
-with torch.no_grad():
-    v_aa1, wl_aa1 = critic_aa1(tok, field_t, action_embeds=dummy_act_embeds, action_mask=dummy_act_mask)
-check("cross-attn value shape [B, 1]",                tuple(v_aa1.shape) == (B, 1))
-check("cross-attn no NaN",                            not v_aa1.isnan().any().item())
-check("cross-attn win_logit is None",                 wl_aa1 is None)
-
-# 14c. action_aware=True with 2 cross-attn layers
-critic_aa2 = IndependentCritic(n_layers=2, action_aware=True, n_cross_layers=2)
-critic_aa2.eval()
-check("n_cross_layers=2 -> 2 layers in list",          len(critic_aa2.cross_attn_layers) == 2)
-
-with torch.no_grad():
-    v_aa2, _ = critic_aa2(tok, field_t, action_embeds=dummy_act_embeds, action_mask=dummy_act_mask)
-check("2 cross-attn layers -> value shape [B, 1]",    tuple(v_aa2.shape) == (B, 1))
-check("2 cross-attn layers -> no NaN",                not v_aa2.isnan().any().item())
-
-# 14d. mask_actions=False should still work
-with torch.no_grad():
-    v_nomask, _ = critic_aa1(tok, field_t, action_embeds=dummy_act_embeds,
-                             action_mask=dummy_act_mask, mask_actions=False)
-check("mask_actions=False -> value shape [B, 1]",     tuple(v_nomask.shape) == (B, 1))
-check("mask_actions=False -> no NaN",                  not v_nomask.isnan().any().item())
-
-# 14e. action_aware=True but action_embeds=None -> skip cross-attn (fallback)
-with torch.no_grad():
-    v_fallback, _ = critic_aa1(tok, field_t, action_embeds=None)
-check("action_embeds=None fallback -> value shape [B, 1]", tuple(v_fallback.shape) == (B, 1))
-
-# 14f. return_repr=True still works with cross-attn
-with torch.no_grad():
-    v_repr, wl_repr, cls_repr, seq52_repr = critic_aa1(
-        tok, field_t, action_embeds=dummy_act_embeds, action_mask=dummy_act_mask, return_repr=True)
-check("return_repr value shape",      tuple(v_repr.shape) == (B, 1))
-check("return_repr cls_out shape",    tuple(cls_repr.shape) == (B, D_MODEL))
-check("return_repr seq_52 shape",     tuple(seq52_repr.shape) == (B, 52, D_MODEL))
-
-# 14g. action_aware + victory_head
-critic_aa_vh = IndependentCritic(n_layers=2, action_aware=True, use_victory_head=True)
-critic_aa_vh.eval()
-with torch.no_grad():
-    v_aavh, wl_aavh = critic_aa_vh(tok, field_t, action_embeds=dummy_act_embeds, action_mask=dummy_act_mask)
-check("action_aware + victory_head -> value [B, 1]",   tuple(v_aavh.shape) == (B, 1))
-check("action_aware + victory_head -> win_logit [B, 1]", tuple(wl_aavh.shape) == (B, 1))
-
-
-# ── 15. CynthAIAgent — action-aware critic integration ──────────────────────
-
-section("15. CynthAIAgent — action-aware independent critic")
-
-# 15a. critic_action_aware=True
-agent_aa = CynthAIAgent(
-    use_independent_critic=True, critic_n_layers=2,
-    critic_action_aware=True, critic_n_cross_layers=1, critic_mask_actions=True,
-)
-agent_aa.eval()
-
-check("agent has critic_action_aware=True",            agent_aa.critic_action_aware is True)
-check("agent critic has cross_attn_layers",            hasattr(agent_aa.independent_critic, "cross_attn_layers"))
-
-n_params_aa = sum(p.numel() for p in agent_aa.parameters())
-check("action-aware agent has more params than plain indep",
-      n_params_aa > n_params_indep, f"{n_params_aa:,} vs {n_params_indep:,}")
-
-with torch.no_grad():
-    out_aa = agent_aa(
-        poke_batch=pb, field_tensor=field_t,
-        move_idx=move_idx, pp_ratio=pp_ratio, move_disabled=move_disabled,
-        mechanic_id=mechanic_id, mechanic_type_idx=mech_type_idx,
-        action_mask=action_mask,
-    )
-check("action-aware agent value shape [B, 1]",   tuple(out_aa.value.shape) == (B, 1))
-check("action-aware agent logits shape [B, 13]",  tuple(out_aa.action_logits.shape) == (B, 13))
-check("action-aware agent no NaN in value",        not out_aa.value.isnan().any().item())
-check("action-aware agent no NaN in logits",       not out_aa.action_logits.isnan().any().item())
-
-# 15b. critic_action_aware=False (default) should behave identically to section 7
-agent_no_aa = CynthAIAgent(
-    use_independent_critic=True, critic_n_layers=2,
-    critic_action_aware=False,
-)
-agent_no_aa.eval()
-check("critic_action_aware=False -> no cross_attn_layers",
-      not hasattr(agent_no_aa.independent_critic, "cross_attn_layers"))
-
-with torch.no_grad():
-    out_no_aa = agent_no_aa(
-        poke_batch=pb, field_tensor=field_t,
-        move_idx=move_idx, pp_ratio=pp_ratio, move_disabled=move_disabled,
-        mechanic_id=mechanic_id, mechanic_type_idx=mech_type_idx,
-        action_mask=action_mask,
-    )
-check("default agent value shape [B, 1]",  tuple(out_no_aa.value.shape) == (B, 1))
-
-# 15c. critic_mask_actions=False
-agent_aa_nomask = CynthAIAgent(
-    use_independent_critic=True, critic_n_layers=2,
-    critic_action_aware=True, critic_mask_actions=False,
-)
-agent_aa_nomask.eval()
-with torch.no_grad():
-    out_aa_nomask = agent_aa_nomask(
-        poke_batch=pb, field_tensor=field_t,
-        move_idx=move_idx, pp_ratio=pp_ratio, move_disabled=move_disabled,
-        mechanic_id=mechanic_id, mechanic_type_idx=mech_type_idx,
-        action_mask=action_mask,
-    )
-check("mask_actions=False agent value shape [B, 1]", tuple(out_aa_nomask.value.shape) == (B, 1))
-check("mask_actions=False agent no NaN",              not out_aa_nomask.value.isnan().any().item())
-
-
-# ── 16. Gradient flow — action-aware critic ──────────────────────────────────
-
-section("16. Gradient flow — action-aware critic")
-
-agent_grad = CynthAIAgent(
-    use_independent_critic=True, critic_n_layers=2,
-    critic_action_aware=True, critic_n_cross_layers=1,
-)
+agent_grad = CynthAIAgent(critic_n_layers=2, critic_detach=True)
 agent_grad.train()
 
 out_grad = agent_grad(
@@ -628,85 +505,83 @@ out_grad = agent_grad(
     action_mask=action_mask,
 )
 
-# 16a. Critic value loss backward should reach cross-attn params
+# 14a. Value loss backward should reach value_head params
 out_grad.value.sum().backward(retain_graph=True)
 
-cross_attn_mha = agent_grad.independent_critic.cross_attn_layers[0][0]
-cross_attn_ln  = agent_grad.independent_critic.cross_attn_layers[0][1]
+vh_param = next(agent_grad.value_head.parameters())
+check("value_head has grad after value.backward()",
+      vh_param.grad is not None and vh_param.grad.abs().sum() > 0)
 
-check("cross_attn MHA has grad after value.backward()",
-      cross_attn_mha.in_proj_weight.grad is not None and cross_attn_mha.in_proj_weight.grad.abs().sum() > 0)
-check("cross_attn LayerNorm has grad",
-      cross_attn_ln.weight.grad is not None and cross_attn_ln.weight.grad.abs().sum() > 0)
-
-# 16b. Actor (action_enc) should NOT get gradient from critic (detached)
-ae_param = next(agent_grad.action_enc.parameters())
-check("action_enc has NO grad from critic (detached)",
-      ae_param.grad is None or ae_param.grad.abs().sum().item() == 0)
-
-# 16c. poke_emb should NOT get gradient from critic (detached)
+# 14b. poke_emb should NOT get gradient from critic (detached)
 poke_emb_param = next(agent_grad.poke_emb.parameters())
 check("poke_emb has NO grad from critic (detached)",
       poke_emb_param.grad is None or poke_emb_param.grad.abs().sum().item() == 0)
 
-# 16d. Critic transformer params should still get grad
-critic_transformer_param = next(agent_grad.independent_critic.transformer.parameters())
-check("critic transformer has grad",
-      critic_transformer_param.grad is not None and critic_transformer_param.grad.abs().sum() > 0)
+# 14c. backbone should NOT get gradient from critic (detached)
+backbone_param = next(agent_grad.backbone.parameters())
+check("backbone has NO grad from critic (detached)",
+      backbone_param.grad is None or backbone_param.grad.abs().sum().item() == 0)
+
+# 14d. Value head transformer params should get grad
+if agent_grad.value_head.n_layers > 0:
+    critic_transformer_param = next(agent_grad.value_head.transformer.parameters())
+    check("value_head transformer has grad",
+          critic_transformer_param.grad is not None and critic_transformer_param.grad.abs().sum() > 0)
 
 
-# ── 17. Checkpoint round-trip — action-aware critic ──────────────────────────
+# ── 15. Gradient flow — non-detached critic ──────────────────────────────────
 
-section("17. Checkpoint round-trip — action-aware critic")
+section("15. Gradient flow — non-detached critic")
+
+agent_nodetach = CynthAIAgent(critic_n_layers=0, critic_detach=False)
+agent_nodetach.train()
+
+out_nodetach = agent_nodetach(
+    poke_batch=pb, field_tensor=field_t,
+    move_idx=move_idx, pp_ratio=pp_ratio, move_disabled=move_disabled,
+    mechanic_id=mechanic_id, mechanic_type_idx=mech_type_idx,
+    action_mask=action_mask,
+)
+
+out_nodetach.value.sum().backward(retain_graph=True)
+
+backbone_param_nd = next(agent_nodetach.backbone.parameters())
+check("non-detached: backbone gets grad from value loss",
+      backbone_param_nd.grad is not None and backbone_param_nd.grad.abs().sum().item() > 0)
+
+
+# ── 16. Checkpoint round-trip — critic_n_layers=2 ──────────────────────────
+
+section("16. Checkpoint round-trip — critic_n_layers=2")
 
 with tempfile.TemporaryDirectory() as tmp:
-    path = os.path.join(tmp, "test_ckpt_aa.pt")
-    torch.save({"update": 200, "model": agent_aa.state_dict()}, path)
+    path = os.path.join(tmp, "test_ckpt_transformer.pt")
+    torch.save({"update": 200, "model": agent_transformer.state_dict()}, path)
 
     ckpt = torch.load(path, map_location="cpu", weights_only=True)
-    agent_aa_reload = CynthAIAgent(
-        use_independent_critic=True, critic_n_layers=2,
-        critic_action_aware=True, critic_n_cross_layers=1,
-    )
-    missing, unexpected = agent_aa_reload.load_state_dict(ckpt["model"], strict=True)
+    agent_reload2 = CynthAIAgent(critic_n_layers=2, critic_detach=True)
+    missing, unexpected = agent_reload2.load_state_dict(ckpt["model"], strict=True)
     check("strict load: no missing keys",     len(missing) == 0, str(missing))
     check("strict load: no unexpected keys",   len(unexpected) == 0, str(unexpected))
 
     # Verify outputs match
-    agent_aa_reload.eval()
+    agent_reload2.eval()
     with torch.no_grad():
-        out_reload = agent_aa_reload(
+        out_reload = agent_reload2(
             poke_batch=pb, field_tensor=field_t,
             move_idx=move_idx, pp_ratio=pp_ratio, move_disabled=move_disabled,
             mechanic_id=mechanic_id, mechanic_type_idx=mech_type_idx,
             action_mask=action_mask,
         )
     check("reloaded value matches original",
-          torch.allclose(out_aa.value, out_reload.value, atol=1e-5))
-
-# Load plain indep critic checkpoint into action-aware (migration)
-with tempfile.TemporaryDirectory() as tmp:
-    path = os.path.join(tmp, "test_ckpt_migrate_aa.pt")
-    torch.save({"update": 100, "model": agent_indep.state_dict()}, path)
-
-    ckpt = torch.load(path, map_location="cpu", weights_only=True)
-    agent_aa_migrate = CynthAIAgent(
-        use_independent_critic=True, critic_n_layers=2,
-        critic_action_aware=True,
-    )
-    missing, unexpected = agent_aa_migrate.load_state_dict(ckpt["model"], strict=False)
-    has_cross_attn_missing = any("cross_attn" in k for k in missing)
-    check("migration: cross_attn params are missing (random init)", has_cross_attn_missing,
-          f"missing cross_attn keys: {[k for k in missing if 'cross_attn' in k]}")
-    check("migration: no unexpected keys", len(unexpected) == 0, str(unexpected))
-    check("migration: forward works",
-          agent_aa_migrate(pb, field_t, move_idx, pp_ratio, move_disabled,
-                           mechanic_id, mech_type_idx, action_mask).value.shape == (B, 1))
+          torch.allclose(agent_transformer(pb, field_t, move_idx, pp_ratio, move_disabled,
+                         mechanic_id, mech_type_idx, action_mask).value,
+                         out_reload.value, atol=1e-5))
 
 
-# ── 18. MoveEmbedding — additive structure + feature integrity ──────────────
+# ── 17. MoveEmbedding — additive structure + feature integrity ──────────────
 
-section("18. MoveEmbedding — additive prior features")
+section("17. MoveEmbedding — additive prior features")
 
 from model.embeddings import MoveEmbedding, D_MOVE
 from env.state_encoder import MOVE_FEATURES, N_MOVE_FEATURES, MOVE_INDEX

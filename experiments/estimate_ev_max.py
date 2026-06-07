@@ -414,7 +414,7 @@ _g_agent = None  # created in each worker via _worker_init
 def _worker_init() -> None:
     """Pool initializer: build agent on CPU once per worker process."""
     global _g_agent
-    _g_agent = CynthAIAgent(use_independent_critic=True, critic_n_layers=2)
+    _g_agent = CynthAIAgent(critic_n_layers=2, critic_detach=True)
     _g_agent.load_state_dict(_g_agent_sd)
     _g_agent.eval()
     _g_agent.to(torch.device("cpu"))
@@ -929,7 +929,7 @@ def main():
 
     # Load agent
     ckpt = torch.load(args.checkpoint, map_location=device, weights_only=True)
-    agent = CynthAIAgent(use_independent_critic=True, critic_n_layers=2)
+    agent = CynthAIAgent(critic_n_layers=2, critic_detach=True)
     agent.load_state_dict(ckpt["model"], strict=False)
     agent.eval()
     agent.to(device)

@@ -1,4 +1,7 @@
 """
+DEAD CODE — references removed IndependentCritic with action-aware cross-attention.
+This script will NOT work after the critic unification refactoring (v12+).
+
 Diagnose NaN in critic cross-attention (cheater_v9 crash at update 15).
 
 Root cause hypothesis:

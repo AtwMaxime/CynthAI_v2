@@ -77,24 +77,26 @@ def _mse(pred: np.ndarray, target: np.ndarray) -> float:
 
 
 def eval_critic(
-    critic: nn.Module,
-    poke_tokens: torch.Tensor,
-    field_tensors: torch.Tensor,
+    value_head: nn.Module,
+    full_seqs: torch.Tensor,
+    padding_masks: torch.Tensor,
+    cls_outs: torch.Tensor,
     norm_returns: np.ndarray,
     indices: list[int],
     batch_size: int = 512,
     device: torch.device = torch.device("cpu"),
 ) -> tuple[np.ndarray, float, float, float, float]:
-    """Run critic on a subset of cached data, return (preds, EV, corr, r2, MSE)."""
-    critic.eval()
+    """Run value_head on a subset of cached backbone outputs, return (preds, EV, corr, r2, MSE)."""
+    value_head.eval()
     preds = []
     with torch.no_grad():
         for start in range(0, len(indices), batch_size):
             idx = indices[start : start + batch_size]
-            pt = poke_tokens[idx].to(device)
-            ft = field_tensors[idx].to(device)
-            v  = critic(pt, ft).squeeze(-1).cpu().numpy()
-            preds.append(v)
+            fs = full_seqs[idx].to(device)
+            pm = padding_masks[idx].to(device)
+            co = cls_outs[idx].to(device)
+            v, _ = value_head(fs, pm, co)
+            preds.append(v.squeeze(-1).cpu().numpy())
     preds = np.concatenate(preds)
     tgt   = norm_returns[indices]
     return preds, _ev(preds, tgt), _corr(preds, tgt), _r2(preds, tgt), _mse(preds, tgt)
@@ -104,34 +106,34 @@ def eval_critic(
 # Cache poke_tokens + field_tensor from buffer transitions
 # ─────────────────────────────────────────────────────────────────────────────
 
-def cache_embeddings(
+def cache_backbone_outputs(
     agent: CynthAIAgent,
     buffer,
     device: torch.device,
     batch_size: int = 256,
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
-    Run poke_emb in no_grad batches over all transitions.
+    Run poke_emb + backbone.encode in no_grad batches over all transitions.
     Returns:
-        poke_tokens  : [N, K*12, TOKEN_DIM]  (CPU)
-        field_tensors: [N, K, FIELD_DIM]      (CPU)
+        full_seqs     : [N, 52, D_MODEL]  (CPU)
+        padding_masks : [N, 52]           (CPU)
+        cls_outs      : [N, D_MODEL]      (CPU)
     """
-    from model.backbone import K_TURNS
-    from model.embeddings import FIELD_DIM, collate_features, collate_field_features
-
     agent.eval()
     n = len(buffer)
-    all_poke, all_field = [], []
+    all_seq, all_mask, all_cls = [], [], []
 
     with torch.no_grad():
         for start in range(0, n, batch_size):
             batch = buffer._gather(list(range(start, min(start + batch_size, n))), device)
-            pt = agent.poke_emb(batch["poke_batch"])        # [B, K*12, TOKEN_DIM]
-            ft = batch["field_tensor"]                       # [B, K, FIELD_DIM]
-            all_poke.append(pt.cpu())
-            all_field.append(ft.cpu())
+            pt = agent.poke_emb(batch["poke_batch"])
+            ft = batch["field_tensor"]
+            _, _, full_seq, padding_mask, cls_out = agent.backbone.encode(pt, ft)
+            all_seq.append(full_seq.cpu())
+            all_mask.append(padding_mask.cpu())
+            all_cls.append(cls_out.cpu())
 
-    return torch.cat(all_poke, dim=0), torch.cat(all_field, dim=0)
+    return torch.cat(all_seq, dim=0), torch.cat(all_mask, dim=0), torch.cat(all_cls, dim=0)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -139,9 +141,10 @@ def cache_embeddings(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def train_critic(
-    critic: nn.Module,
-    poke_tokens: torch.Tensor,
-    field_tensors: torch.Tensor,
+    value_head: nn.Module,
+    full_seqs: torch.Tensor,
+    padding_masks: torch.Tensor,
+    cls_outs: torch.Tensor,
     norm_returns: np.ndarray,
     train_idx: list[int],
     val_idx: list[int],
@@ -150,8 +153,8 @@ def train_critic(
     batch_size: int,
     device: torch.device,
 ) -> dict[str, list[float]]:
-    """Train critic offline; return per-epoch metrics on train AND val sets."""
-    opt = torch.optim.AdamW(critic.parameters(), lr=lr)
+    """Train value_head offline; return per-epoch metrics on train AND val sets."""
+    opt = torch.optim.AdamW(value_head.parameters(), lr=lr)
     norm_ret_t = torch.tensor(norm_returns, dtype=torch.float32)
 
     logs: dict[str, list[float]] = {
@@ -160,30 +163,31 @@ def train_critic(
     }
 
     for epoch in range(n_epochs):
-        critic.train()
+        value_head.train()
         idxs = train_idx.copy()
         random.shuffle(idxs)
 
         for start in range(0, len(idxs) - batch_size + 1, batch_size):
             b_idx = idxs[start : start + batch_size]
-            pt  = poke_tokens[b_idx].to(device)
-            ft  = field_tensors[b_idx].to(device)
+            fs  = full_seqs[b_idx].to(device)
+            pm  = padding_masks[b_idx].to(device)
+            co  = cls_outs[b_idx].to(device)
             ret = norm_ret_t[b_idx].to(device)
 
-            v   = critic(pt, ft).squeeze(-1)
-            loss = nn.functional.mse_loss(v, ret)
+            v, _ = value_head(fs, pm, co)
+            loss = nn.functional.mse_loss(v.squeeze(-1), ret)
             opt.zero_grad()
             loss.backward()
-            nn.utils.clip_grad_norm_(critic.parameters(), 1.0)
+            nn.utils.clip_grad_norm_(value_head.parameters(), 1.0)
             opt.step()
 
         # Log on train + val after each epoch
         _, ev, corr, r2, mse = eval_critic(
-            critic, poke_tokens, field_tensors, norm_returns, train_idx,
+            value_head, full_seqs, padding_masks, cls_outs, norm_returns, train_idx,
             batch_size=512, device=device,
         )
         _, ev_v, corr_v, r2_v, mse_v = eval_critic(
-            critic, poke_tokens, field_tensors, norm_returns, val_idx,
+            value_head, full_seqs, padding_masks, cls_outs, norm_returns, val_idx,
             batch_size=512, device=device,
         )
         logs["ev"].append(ev);         logs["corr"].append(corr)
@@ -225,8 +229,8 @@ def main():
     print(f"\nLoading checkpoint: {args.checkpoint}")
     ckpt  = torch.load(args.checkpoint, map_location=device, weights_only=True)
     agent = CynthAIAgent(
-        use_independent_critic=True,
         critic_n_layers=args.critic_n_layers,
+        critic_detach=True,
     ).to(device)
     missing, unexpected = agent.load_state_dict(ckpt["model"], strict=False)
     agent.eval()
@@ -254,11 +258,12 @@ def main():
     print(f"\nReturns       : mean={raw_returns.mean():.3f}  std={raw_returns.std():.3f}"
           f"  min={raw_returns.min():.3f}  max={raw_returns.max():.3f}")
 
-    # ── 4. Cache embeddings ───────────────────────────────────────────────────
-    print("\nCaching poke_tokens + field_tensors ...")
-    poke_tokens, field_tensors = cache_embeddings(agent, buffer, device, batch_size=256)
-    print(f"  poke_tokens:   {tuple(poke_tokens.shape)}")
-    print(f"  field_tensors: {tuple(field_tensors.shape)}")
+    # ── 4. Cache backbone outputs ──────────────────────────────────────────────
+    print("\nCaching backbone outputs (full_seq, padding_mask, cls_out) ...")
+    full_seqs, padding_masks, cls_outs = cache_backbone_outputs(agent, buffer, device, batch_size=256)
+    print(f"  full_seqs:      {tuple(full_seqs.shape)}")
+    print(f"  padding_masks:  {tuple(padding_masks.shape)}")
+    print(f"  cls_outs:       {tuple(cls_outs.shape)}")
 
     # ── 5. Train / val split ──────────────────────────────────────────────────
     rng = np.random.default_rng(args.seed)
@@ -270,15 +275,15 @@ def main():
     print(f"\nSplit: train={len(train_idx)}  val={len(val_idx)}")
 
     # ── 6. Initial stats ──────────────────────────────────────────────────────
-    critic_init = agent.independent_critic
-    init_weights = copy.deepcopy(critic_init.state_dict())
+    vh = agent.value_head
+    init_weights = copy.deepcopy(vh.state_dict())
 
     _, ev_init_tr, corr_init_tr, r2_init_tr, mse_init_tr = eval_critic(
-        critic_init, poke_tokens, field_tensors, norm_returns, train_idx,
+        vh, full_seqs, padding_masks, cls_outs, norm_returns, train_idx,
         batch_size=512, device=device,
     )
     _, ev_init_val, corr_init_val, r2_init_val, mse_init_val = eval_critic(
-        critic_init, poke_tokens, field_tensors, norm_returns, val_idx,
+        vh, full_seqs, padding_masks, cls_outs, norm_returns, val_idx,
         batch_size=512, device=device,
     )
     mse_baseline = float(np.var(norm_returns))  # ≈ 1.0 by Z-score definition
@@ -291,10 +296,10 @@ def main():
     print(f"{'Init':20s}  {ev_init_tr:>7.3f}  {corr_init_tr:>7.3f}  {r2_init_tr:>7.3f}  {mse_init_tr:>7.4f}    "
           f"{ev_init_val:>7.3f}  {corr_init_val:>7.3f}  {r2_init_val:>7.3f}  {mse_init_val:>7.4f}")
 
-    # ── 7. Freeze all except independent_critic ───────────────────────────────
+    # ── 7. Freeze all except value_head ────────────────────────────────────────
     for p in agent.parameters():
         p.requires_grad = False
-    for p in critic_init.parameters():
+    for p in vh.parameters():
         p.requires_grad = True
 
     # ── 8. Train for each LR ──────────────────────────────────────────────────
@@ -307,11 +312,11 @@ def main():
         print(f"\n{'─'*60}")
         print(f"Training  {label}  ({args.n_epochs} epochs, batch={args.batch_size})")
 
-        # Reset critic to initial weights
-        critic_init.load_state_dict(copy.deepcopy(init_weights))
+        # Reset value_head to initial weights
+        vh.load_state_dict(copy.deepcopy(init_weights))
 
         logs = train_critic(
-            critic_init, poke_tokens, field_tensors, norm_returns,
+            vh, full_seqs, padding_masks, cls_outs, norm_returns,
             train_idx, val_idx,
             lr=lr, n_epochs=args.n_epochs, batch_size=args.batch_size, device=device,
         )
@@ -319,11 +324,11 @@ def main():
 
         # Final stats (train + val)
         _, ev_tr, corr_tr, r2_tr, mse_tr = eval_critic(
-            critic_init, poke_tokens, field_tensors, norm_returns, train_idx,
+            vh, full_seqs, padding_masks, cls_outs, norm_returns, train_idx,
             batch_size=512, device=device,
         )
         _, ev_val, corr_val, r2_val, mse_val = eval_critic(
-            critic_init, poke_tokens, field_tensors, norm_returns, val_idx,
+            vh, full_seqs, padding_masks, cls_outs, norm_returns, val_idx,
             batch_size=512, device=device,
         )
         final_rows[label] = dict(

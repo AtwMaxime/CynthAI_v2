@@ -57,16 +57,11 @@ if __name__ == "__main__":
         weight_decay   = 1e-4,
 
         # Independent critic
-        use_independent_critic = True,
+        critic_detach          = True,
         critic_n_layers        = 2,
         critic_lr              = 5e-4,
         critic_wd              = 1e-4,
         critic_grad_norm       = 1.0,
-
-        # Action-aware critic — NEW in v9
-        critic_action_aware   = True,
-        critic_n_cross_layers = 1,
-        critic_mask_actions   = True,
 
         # Victory head
         use_victory_head = True,

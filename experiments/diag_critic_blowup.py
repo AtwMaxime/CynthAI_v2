@@ -69,7 +69,7 @@ from env.team_pool import sample_teams
 def load_agent(checkpoint: str, device: torch.device, value_bound: float = 0.0) -> CynthAIAgent:
     """Charge un agent. value_bound=0 => la tête critic renvoie le raw (pré-tanh)."""
     ckpt = torch.load(checkpoint, map_location=device, weights_only=True)
-    agent = CynthAIAgent(use_independent_critic=True, critic_n_layers=2,
+    agent = CynthAIAgent(critic_n_layers=2, critic_detach=True,
                          critic_value_bound=value_bound)
     agent.load_state_dict(ckpt["model"], strict=False)
     agent.eval()
@@ -229,16 +229,13 @@ def layer_activation_report(agent: CynthAIAgent, state: dict, window, device: to
     Hooks forward sur les sous-modules du critic. Pour chaque couche :
     max_abs / mean_abs / std de la sortie -> propagation de la magnitude.
     """
-    critic = agent.independent_critic
-    targets = {
-        "pokemon_proj":  critic.pokemon_proj,
-        "field_proj":    critic.field_proj,
-        "transformer":   critic.transformer,
-        "pool_query":    critic.pool_query,
-        "value_head.0":  critic.value_head[0],   # Linear D->D
-        "value_head.1":  critic.value_head[1],   # ReLU
-        "value_head.2":  critic.value_head[2],   # Linear D->1 (= raw value, pré-tanh)
-    }
+    vh = agent.value_head
+    targets = {}
+    if vh.n_layers > 0:
+        targets["transformer"] = vh.transformer
+    targets["value_head.0"] = vh.value_head[0]   # Linear D->D
+    targets["value_head.1"] = vh.value_head[1]   # ReLU
+    targets["value_head.2"] = vh.value_head[2]   # Linear D->1 (= raw value, pré-tanh)
 
     captured: dict[str, dict] = {}
     handles = []

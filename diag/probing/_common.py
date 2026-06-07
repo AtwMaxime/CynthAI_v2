@@ -296,7 +296,7 @@ def extract_aggregate_labels(labels: dict) -> dict:
 
 def cache_tokens(agent, buffer, device, batch_size=256):
     """
-    Run poke_emb + backbone.encode(return_full_seq=True) over all transitions.
+    Run poke_emb + backbone.encode over all transitions.
 
     Returns (CPU tensors):
         seq_all      : [N, 52, D_MODEL]
@@ -314,7 +314,8 @@ def cache_tokens(agent, buffer, device, batch_size=256):
             batch = buffer._gather(list(range(start, min(start + batch_size, n))), device)
             pt = agent.poke_emb(batch["poke_batch"])
             ft = batch["field_tensor"]
-            _, _, value, _, seq, cls_out = agent.backbone.encode(pt, ft, return_full_seq=True)
+            _, _, seq, padding_mask, cls_out = agent.backbone.encode(pt, ft)
+            value, _ = agent.value_head(seq, padding_mask, cls_out)
             all_seq.append(seq.cpu())
             all_cls.append(cls_out.cpu())
             all_val.append(value.cpu())
@@ -354,7 +355,8 @@ def cache_tokens_full(agent, buffer, device, batch_size=256):
 
             pt = agent.poke_emb(batch["poke_batch"])
             ft = batch["field_tensor"]
-            pre_tokens, post_tokens, value, _, seq, cls_out = agent.backbone.encode(pt, ft, return_full_seq=True)
+            pre_tokens, post_tokens, seq, padding_mask, cls_out = agent.backbone.encode(pt, ft)
+            value, _ = agent.value_head(seq, padding_mask, cls_out)
 
             action_embeds = agent.action_enc(
                 active_token      = pre_tokens[:, 0, :],

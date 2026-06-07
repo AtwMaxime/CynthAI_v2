@@ -49,8 +49,8 @@ def main():
     print(f"\nLoading checkpoint: {args.checkpoint}")
     ckpt  = torch.load(args.checkpoint, map_location=device, weights_only=True)
     agent = CynthAIAgent(
-        use_independent_critic=True,
         critic_n_layers=args.critic_n_layers,
+        critic_detach=True,
     ).to(device)
     missing, unexpected = agent.load_state_dict(ckpt["model"], strict=False)
     agent.eval()
@@ -132,7 +132,7 @@ def main():
     critic_cls = None
     critic_seq = None
     critic_values = None
-    if hasattr(agent, 'independent_critic'):
+    if agent.value_head.n_layers > 0:
         print("\nCaching critic representations ...")
         all_critic_cls = []
         all_critic_seq = []
@@ -143,9 +143,20 @@ def main():
                 batch = buffer._gather(list(range(start, end)), device)
                 pt = agent.poke_emb(batch["poke_batch"])
                 ft = batch["field_tensor"]
-                v, _, cls_out, seq_52 = agent.independent_critic(
-                    pt, ft, return_repr=True,
-                )
+                _, _, full_seq_b, padding_mask_b, _ = agent.backbone.encode(pt, ft)
+                vh = agent.value_head
+                B_b = full_seq_b.shape[0]
+                dev = full_seq_b.device
+                cls_tok = vh.cls_token.expand(B_b, 1, full_seq_b.shape[-1])
+                seq_in = torch.cat([cls_tok, full_seq_b.detach()], dim=1)
+                mask_in = torch.cat([
+                    torch.zeros(B_b, 1, dtype=torch.bool, device=dev),
+                    padding_mask_b,
+                ], dim=1)
+                seq_out = vh.transformer(seq_in, src_key_padding_mask=mask_in)
+                cls_out = seq_out[:, 0, :]
+                seq_52 = seq_out[:, 1:, :]
+                v = vh.value_head(cls_out)
                 all_critic_cls.append(cls_out.cpu())
                 all_critic_seq.append(seq_52.cpu())
                 all_critic_val.append(v.cpu())

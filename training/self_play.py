@@ -253,34 +253,21 @@ class TrainingConfig:
     probe_freq:      int = 5      # run probes every N evals (0 = disabled)
     probe_min_steps: int = 2048   # rollout transitions for probing
 
-    # Independent critic (optional — separate Transformer, no shared weights with actor)
-    use_independent_critic: bool  = False
-    critic_n_layers:        int   = 2      # Transformer depth (actor uses 3)
-    critic_lr:              float = 5e-4   # independent learning rate
-    critic_wd:              float = 1e-4   # independent weight decay
-    critic_grad_norm:       float = 0.5    # independent gradient clip
-
-    # Action-aware critic (cross-attention on action embeddings)
-    critic_action_aware:   bool = False  # enable cross-attn on action embeds
-    critic_mask_actions:   bool = True   # mask illegal actions in cross-attn
-    critic_n_cross_layers: int  = 1      # number of cross-attn layers
-
-    # Critic from backbone: feed backbone's enriched tokens to critic instead of raw inputs
-    critic_from_backbone:  bool = False
+    # Critic / value head
+    critic_n_layers:        int   = 0      # 0=MLP on CLS, >=1=extra Transformer layers
+    critic_detach:          bool  = True   # detach backbone features before value head
+    critic_lr:              float = 5e-4   # separate learning rate (when critic_n_layers > 0)
+    critic_wd:              float = 1e-4   # separate weight decay
+    critic_grad_norm:       float = 0.5    # separate gradient clip
 
     # Critic-stability diagnostics / switches
     value_dump_threshold: float = 0.0  # log warning when |vp_max| > threshold (0 = disabled)
     critic_value_bound:   float = 0.0  # Switch A: tanh squash ±bound on critic output (0 = off)
     value_target_clip:    float = 0.0  # Switch B: clip return targets to ±clip (0 = off)
 
-    # Victory head — auxiliary BCE loss on the CLS token of IndependentCritic (or backbone)
+    # Victory head — auxiliary BCE loss on the value head CLS token
     use_victory_head: bool  = False
     c_victory:        float = 0.1   # weight for victory BCE loss
-    # Gradient control for CLS token (shared backbone only, ignored when use_independent_critic=True)
-    # cls_backbone_grad=False uses 2 transformer passes to isolate cls_token from actor gradient.
-    cls_value_grad:    bool = True
-    cls_victory_grad:  bool = True
-    cls_backbone_grad: bool = True
 
     # Device
     device: str = "cpu"
@@ -510,9 +497,8 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
     # the checkpoint weights.  Training hyperparams (lr, schedules, etc.) come
     # from the launcher config so they can be changed on resume.
     _ARCH_FIELDS = {
-        "use_independent_critic", "critic_n_layers", "critic_value_bound",
-        "use_victory_head", "cls_value_grad", "cls_victory_grad", "cls_backbone_grad",
-        "critic_action_aware", "critic_n_cross_layers", "critic_mask_actions",
+        "critic_n_layers", "critic_detach", "critic_value_bound",
+        "use_victory_head",
     }
 
     start_update = 1
@@ -549,21 +535,14 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
     _first_eval    = not eval_path.exists()
 
     agent = CynthAIAgent(
-        use_independent_critic = cfg.use_independent_critic,
-        critic_n_layers        = cfg.critic_n_layers,
-        critic_value_bound     = cfg.critic_value_bound,
-        use_victory_head       = cfg.use_victory_head,
-        cls_value_grad         = cfg.cls_value_grad,
-        cls_victory_grad       = cfg.cls_victory_grad,
-        cls_backbone_grad      = cfg.cls_backbone_grad,
-        critic_action_aware    = cfg.critic_action_aware,
-        critic_n_cross_layers  = cfg.critic_n_cross_layers,
-        critic_mask_actions    = cfg.critic_mask_actions,
-        critic_from_backbone   = cfg.critic_from_backbone,
+        critic_n_layers    = cfg.critic_n_layers,
+        critic_detach      = cfg.critic_detach,
+        critic_value_bound = cfg.critic_value_bound,
+        use_victory_head   = cfg.use_victory_head,
     ).to(device)
 
-    if cfg.use_independent_critic:
-        critic_params = list(agent.independent_critic.parameters())
+    if cfg.critic_n_layers > 0:
+        critic_params = list(agent.value_head.parameters())
         critic_ids    = {id(p) for p in critic_params}
         actor_params  = [p for p in agent.parameters() if id(p) not in critic_ids]
         optimizer = torch.optim.AdamW([
@@ -823,13 +802,13 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     nan_steps += 1
                     continue
                 losses["total"].backward()
-                if cfg.use_independent_critic:
-                    critic_params = list(agent.independent_critic.parameters())
+                if cfg.critic_n_layers > 0:
+                    critic_params = list(agent.value_head.parameters())
                     critic_ids    = {id(p) for p in critic_params}
                     actor_params  = [p for p in agent.parameters() if id(p) not in critic_ids]
                     actor_grad_norm  = nn.utils.clip_grad_norm_(actor_params,  cfg.max_grad_norm)
                     critic_grad_norm = nn.utils.clip_grad_norm_(critic_params, cfg.critic_grad_norm)
-                    grad_norm = actor_grad_norm  # backward compat: "grad_norm" = actor
+                    grad_norm = actor_grad_norm  # "grad_norm" = actor
                 else:
                     grad_norm = nn.utils.clip_grad_norm_(agent.parameters(), cfg.max_grad_norm)
                     critic_grad_norm = None
@@ -845,16 +824,6 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     loss_acc["critic_grad_norm"] = loss_acc.get("critic_grad_norm", 0) + critic_grad_norm.item()
                 for k, v in acc.items():
                     loss_acc[k] += v
-                # Critic cross-attention diagnostics
-                if out.critic_action_attn_entropy is not None:
-                    loss_acc["critic_action_attn_entropy"] = (
-                        loss_acc.get("critic_action_attn_entropy", 0)
-                        + out.critic_action_attn_entropy.item()
-                    )
-                    loss_acc["critic_action_attn_max"] = (
-                        loss_acc.get("critic_action_attn_max", 0)
-                        + out.critic_action_attn_max.item()
-                    )
                 n_steps += 1
 
         # -- 2b. P10b: EMA weight update -----------------------------------------------
@@ -871,7 +840,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
             actor_lr = max(cfg.lr_min, cfg.lr * cosine)
             critic_lr_now = max(cfg.lr_min, cfg.critic_lr * cosine)
 
-        if cfg.use_independent_critic:
+        if cfg.critic_n_layers > 0:
             optimizer.param_groups[0]["lr"] = actor_lr   # actor
             optimizer.param_groups[1]["lr"] = critic_lr_now  # critic
             lr = actor_lr  # for logging
@@ -921,7 +890,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     "policy": loss_acc["policy"]/ns, "value": loss_acc["value"]/ns,
                     "entropy": loss_acc["entropy"]/ns, "pred": loss_acc["pred"]/ns,
                     "total": loss_acc["total"]/ns, "lr": lr,
-                    "critic_lr": critic_lr_now if cfg.use_independent_critic else lr,
+                    "critic_lr": critic_lr_now if cfg.critic_n_layers > 0 else lr,
                     "grad_norm": loss_acc["grad_norm"]/ns,
                     "clip_frac": loss_acc["clip_frac"]/ns,
                     "explained_variance": loss_acc["explained_variance"]/ns,
@@ -966,7 +935,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     "loss/pred":               loss_acc["pred"] / ns,
                     "loss/total":              loss_acc["total"] / ns,
                     "optim/lr":                lr,
-                    "optim/critic_lr":         critic_lr_now if cfg.use_independent_critic else lr,
+                    "optim/critic_lr":         critic_lr_now if cfg.critic_n_layers > 0 else lr,
                     "optim/grad_norm":         loss_acc["grad_norm"] / ns,
                     "optim/clip_frac":         loss_acc["clip_frac"] / ns,
                     "optim/explained_variance": loss_acc["explained_variance"] / ns,
@@ -991,8 +960,6 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     "critic/ret_std":          loss_acc.get("ret_std", 0) / ns,
                     "critic/abs_err_max":      loss_acc.get("abs_err_max", 0) / ns,
                     "critic/corr_v_ret":       loss_acc.get("corr_v_ret", 0) / ns,
-                    "critic/action_attn_entropy": loss_acc.get("critic_action_attn_entropy", 0) / ns,
-                    "critic/action_attn_max":     loss_acc.get("critic_action_attn_max", 0) / ns,
                     "scaled_loss/policy":         loss_acc.get("scaled_loss/policy", 0) / ns,
                     "scaled_loss/value":          loss_acc.get("scaled_loss/value", 0) / ns,
                     "scaled_loss/entropy":        loss_acc.get("scaled_loss/entropy", 0) / ns,

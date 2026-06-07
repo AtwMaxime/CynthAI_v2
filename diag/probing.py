@@ -88,7 +88,8 @@ def cache_tokens(
             batch = buffer._gather(list(range(start, min(start + batch_size, n))), device)
             pt = agent.poke_emb(batch["poke_batch"])              # [B, K*12, TOKEN_DIM]
             ft = batch["field_tensor"]                             # [B, K, FIELD_DIM]
-            _, _, value, _, seq, cls_out = agent.backbone.encode(pt, ft, return_full_seq=True)
+            _, _, seq, padding_mask, cls_out = agent.backbone.encode(pt, ft)
+            value, _ = agent.value_head(seq, padding_mask, cls_out)
             all_seq.append(seq.cpu())
             all_cls.append(cls_out.cpu())
             all_val.append(value.cpu())
@@ -133,7 +134,8 @@ def cache_tokens_full(
 
             pt = agent.poke_emb(batch["poke_batch"])
             ft = batch["field_tensor"]
-            pre_tokens, post_tokens, value, _, seq, cls_out = agent.backbone.encode(pt, ft, return_full_seq=True)
+            pre_tokens, post_tokens, seq, padding_mask, cls_out = agent.backbone.encode(pt, ft)
+            value, _ = agent.value_head(seq, padding_mask, cls_out)
 
             action_embeds = agent.action_enc(
                 active_token      = pre_tokens[:, 0, :],
@@ -1310,8 +1312,8 @@ def main():
         print(f"\nLoading checkpoint: {args.checkpoint}")
         ckpt  = torch.load(args.checkpoint, map_location=device, weights_only=True)
         agent = CynthAIAgent(
-            use_independent_critic=True,
             critic_n_layers=args.critic_n_layers,
+            critic_detach=True,
         ).to(device)
         missing, unexpected = agent.load_state_dict(ckpt["model"], strict=False)
         agent.eval()

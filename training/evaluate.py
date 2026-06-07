@@ -121,7 +121,7 @@ def compute_cos_sim_metrics(
 
     # ── Forward ────────────────────────────────────────────────────────────
     pokemon_tokens = agent.poke_emb(poke_batch)
-    pre_tokens, post_tokens, _, _ = agent.backbone.encode(pokemon_tokens, field_tensor)
+    pre_tokens, post_tokens, _, _, _ = agent.backbone.encode(pokemon_tokens, field_tensor)
 
     action_embeds = agent.action_enc(
         active_token      = pre_tokens[:, 0, :],
