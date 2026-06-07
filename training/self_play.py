@@ -265,6 +265,9 @@ class TrainingConfig:
     critic_mask_actions:   bool = True   # mask illegal actions in cross-attn
     critic_n_cross_layers: int  = 1      # number of cross-attn layers
 
+    # Critic from backbone: feed backbone's enriched tokens to critic instead of raw inputs
+    critic_from_backbone:  bool = False
+
     # Critic-stability diagnostics / switches
     value_dump_threshold: float = 0.0  # log warning when |vp_max| > threshold (0 = disabled)
     critic_value_bound:   float = 0.0  # Switch A: tanh squash ±bound on critic output (0 = off)
@@ -556,6 +559,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
         critic_action_aware    = cfg.critic_action_aware,
         critic_n_cross_layers  = cfg.critic_n_cross_layers,
         critic_mask_actions    = cfg.critic_mask_actions,
+        critic_from_backbone   = cfg.critic_from_backbone,
     ).to(device)
 
     if cfg.use_independent_critic:
@@ -628,14 +632,14 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
         t0 = time.perf_counter()
 
         # -- 1a. Opponent selection (P10b-P10c: EMA + pool + fixed policies) -----------
-        # Mixing: 0% Random / 10% FullOffense / 40% EMA / 50% pool
+        # Mixing: 0% Random / 25% FullOffense / 30% EMA / 45% pool
         #         Pool fallback: EMA (plus stable que FullOffense une fois l'EMA chaude)
         roll = random.random()
-        if roll < 0.10:
+        if roll < 0.25:
             opponent = FullOffensePolicy()
             opp_label = "fo"
-        elif roll < 0.50:
-            # 40% — EMA opponent (stable lagging self-play)
+        elif roll < 0.55:
+            # 30% — EMA opponent (stable lagging self-play)
             if update > cfg.ema_warmup:
                 opponent = ema_opponent.sample(agent)
                 opp_label = "ema"
@@ -643,7 +647,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                 opponent = agent
                 opp_label = "self"
         else:
-            # 50% — pool (diversity) or EMA fallback if pool empty
+            # 45% — pool (diversity) or EMA fallback if pool empty
             if len(pool) > 0:
                 opponent = pool.sample(agent)
                 opp_label = f"pool({len(pool)})"
@@ -859,13 +863,22 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
         # -- 3. LR schedule (warmup + cosine) -----------------------------------------
         # P6: manual LR scheduling for clean warmup -> cosine decay
         if update <= cfg.warmup_steps:
-            lr = cfg.lr * update / cfg.warmup_steps
+            actor_lr = cfg.lr * update / cfg.warmup_steps
+            critic_lr_now = cfg.critic_lr * update / cfg.warmup_steps
         else:
             progress = (update - cfg.warmup_steps) / (cfg.total_updates - cfg.warmup_steps)
             cosine   = 0.5 * (1.0 + math.cos(math.pi * progress))
-            lr       = max(cfg.lr_min, cfg.lr * cosine)
-        for param_group in optimizer.param_groups:
-            param_group["lr"] = lr
+            actor_lr = max(cfg.lr_min, cfg.lr * cosine)
+            critic_lr_now = max(cfg.lr_min, cfg.critic_lr * cosine)
+
+        if cfg.use_independent_critic:
+            optimizer.param_groups[0]["lr"] = actor_lr   # actor
+            optimizer.param_groups[1]["lr"] = critic_lr_now  # critic
+            lr = actor_lr  # for logging
+        else:
+            for param_group in optimizer.param_groups:
+                param_group["lr"] = actor_lr
+            lr = actor_lr
 
         # -- 4. Logging ---------------------------------------------------------------
         if update % cfg.log_every == 0:
@@ -908,6 +921,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     "policy": loss_acc["policy"]/ns, "value": loss_acc["value"]/ns,
                     "entropy": loss_acc["entropy"]/ns, "pred": loss_acc["pred"]/ns,
                     "total": loss_acc["total"]/ns, "lr": lr,
+                    "critic_lr": critic_lr_now if cfg.use_independent_critic else lr,
                     "grad_norm": loss_acc["grad_norm"]/ns,
                     "clip_frac": loss_acc["clip_frac"]/ns,
                     "explained_variance": loss_acc["explained_variance"]/ns,
@@ -952,6 +966,7 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
                     "loss/pred":               loss_acc["pred"] / ns,
                     "loss/total":              loss_acc["total"] / ns,
                     "optim/lr":                lr,
+                    "optim/critic_lr":         critic_lr_now if cfg.use_independent_critic else lr,
                     "optim/grad_norm":         loss_acc["grad_norm"] / ns,
                     "optim/clip_frac":         loss_acc["clip_frac"] / ns,
                     "optim/explained_variance": loss_acc["explained_variance"] / ns,

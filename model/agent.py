@@ -69,6 +69,7 @@ class CynthAIAgent(nn.Module):
         critic_action_aware:    bool  = False,
         critic_n_cross_layers:  int   = 1,
         critic_mask_actions:    bool  = True,
+        critic_from_backbone:   bool  = False,
     ):
         super().__init__()
         self.poke_emb   = PokemonEmbeddings()
@@ -87,6 +88,7 @@ class CynthAIAgent(nn.Module):
         self.use_independent_critic = use_independent_critic
         self.critic_action_aware   = critic_action_aware
         self.critic_mask_actions   = critic_mask_actions
+        self.critic_from_backbone  = critic_from_backbone
         if use_independent_critic:
             self.independent_critic = IndependentCritic(
                 n_layers         = critic_n_layers,
@@ -94,6 +96,7 @@ class CynthAIAgent(nn.Module):
                 use_victory_head = use_victory_head,
                 action_aware     = critic_action_aware,
                 n_cross_layers   = critic_n_cross_layers,
+                from_backbone    = critic_from_backbone,
             )
 
     def forward(
@@ -111,7 +114,13 @@ class CynthAIAgent(nn.Module):
         pokemon_tokens = self.poke_emb(poke_batch)          # [B, K*12, TOKEN_DIM]
 
         # ── 2. Single Transformer pass ────────────────────────────────────────
-        pre_tokens, post_tokens, backbone_value, backbone_win_logit = self.backbone.encode(pokemon_tokens, field_tensor)
+        if self.critic_from_backbone and self.use_independent_critic:
+            pre_tokens, post_tokens, backbone_value, backbone_win_logit, full_seq, _cls = (
+                self.backbone.encode(pokemon_tokens, field_tensor, return_full_seq=True)
+            )
+        else:
+            pre_tokens, post_tokens, backbone_value, backbone_win_logit = self.backbone.encode(pokemon_tokens, field_tensor)
+            full_seq = None
 
         # ── 3. Action embeddings (from PRE-transformer tokens — no self-match) ─
         action_embeds = self.action_enc(
@@ -135,6 +144,7 @@ class CynthAIAgent(nn.Module):
                 action_embeds=action_embeds.detach() if self.critic_action_aware else None,
                 action_mask=action_mask if self.critic_action_aware else None,
                 mask_actions=self.critic_mask_actions,
+                backbone_seq=full_seq.detach() if full_seq is not None else None,
             )
             # Extract cross-attention diagnostics if available
             attn_w = self.independent_critic._last_cross_attn_weights

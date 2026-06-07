@@ -39,6 +39,7 @@ class IndependentCritic(nn.Module):
         use_victory_head: bool  = False,
         action_aware:     bool  = False,
         n_cross_layers:   int   = 1,
+        from_backbone:    bool  = False,
     ):
         super().__init__()
 
@@ -47,15 +48,17 @@ class IndependentCritic(nn.Module):
         self.value_bound      = value_bound
         self.use_victory_head = use_victory_head
         self.action_aware     = action_aware
+        self.from_backbone    = from_backbone
 
         # Learnable [CLS] token — prepended to the sequence, never masked.
         # After the Transformer it aggregates global game-state context.
         self.cls_token = nn.Parameter(torch.zeros(1, 1, D_MODEL))
 
-        self.pokemon_proj = nn.Linear(TOKEN_DIM, D_MODEL)
-        self.field_proj   = nn.Linear(FIELD_DIM, D_MODEL)
-        self.temporal_emb = nn.Embedding(K_TURNS, D_MODEL)
-        self.slot_emb     = nn.Embedding(N_SLOTS, D_MODEL)
+        if not from_backbone:
+            self.pokemon_proj = nn.Linear(TOKEN_DIM, D_MODEL)
+            self.field_proj   = nn.Linear(FIELD_DIM, D_MODEL)
+            self.temporal_emb = nn.Embedding(K_TURNS, D_MODEL)
+            self.slot_emb     = nn.Embedding(N_SLOTS, D_MODEL)
 
         encoder_layer = nn.TransformerEncoderLayer(
             d_model         = D_MODEL,
@@ -98,6 +101,7 @@ class IndependentCritic(nn.Module):
         action_mask:    torch.Tensor | None = None,  # [B, 13] bool, True=illegal
         mask_actions:   bool = True,
         return_repr:    bool = False,
+        backbone_seq:   torch.Tensor | None = None,  # [B, 52, D_MODEL] from backbone
     ) -> tuple[torch.Tensor, torch.Tensor | None] | tuple[torch.Tensor, torch.Tensor | None, torch.Tensor, torch.Tensor]:
         """
         Returns:
@@ -107,24 +111,27 @@ class IndependentCritic(nn.Module):
         B   = pokemon_tokens.shape[0]
         dev = pokemon_tokens.device
 
-        p = self.pokemon_proj(pokemon_tokens)   # [B, K*12, D_MODEL]
-        f = self.field_proj(field_tokens)        # [B, K,    D_MODEL]
-
-        p = p.reshape(B, K_TURNS, 12, D_MODEL)
-        f = f.unsqueeze(2)                       # [B, K, 1, D_MODEL]
-        seq = torch.cat([p, f], dim=2)           # [B, K, 13, D_MODEL]
-
-        t_ids = torch.arange(K_TURNS, device=dev)
-        seq   = seq + self.temporal_emb(t_ids).unsqueeze(0).unsqueeze(2)
-
-        s_ids = torch.arange(N_SLOTS, device=dev)
-        seq   = seq + self.slot_emb(s_ids).unsqueeze(0).unsqueeze(0)
-
-        seq = seq.reshape(B, SEQ_LEN, D_MODEL)   # [B, 52, D_MODEL]
-
-        # Padding mask for the 52 game tokens
+        # Padding mask (needed in both paths)
         turn_norm    = field_tokens.abs().sum(dim=-1)               # [B, K]
         padding_52   = (turn_norm < 1e-6).repeat_interleave(13, dim=1)  # [B, 52]
+
+        if self.from_backbone and backbone_seq is not None:
+            seq = backbone_seq  # [B, 52, D_MODEL] — already projected + enriched
+        else:
+            p = self.pokemon_proj(pokemon_tokens)   # [B, K*12, D_MODEL]
+            f = self.field_proj(field_tokens)        # [B, K,    D_MODEL]
+
+            p = p.reshape(B, K_TURNS, 12, D_MODEL)
+            f = f.unsqueeze(2)                       # [B, K, 1, D_MODEL]
+            seq = torch.cat([p, f], dim=2)           # [B, K, 13, D_MODEL]
+
+            t_ids = torch.arange(K_TURNS, device=dev)
+            seq   = seq + self.temporal_emb(t_ids).unsqueeze(0).unsqueeze(2)
+
+            s_ids = torch.arange(N_SLOTS, device=dev)
+            seq   = seq + self.slot_emb(s_ids).unsqueeze(0).unsqueeze(0)
+
+            seq = seq.reshape(B, SEQ_LEN, D_MODEL)   # [B, 52, D_MODEL]
 
         # Prepend [CLS] — position 0, never masked
         cls = self.cls_token.expand(B, 1, D_MODEL)                 # [B, 1, D_MODEL]
