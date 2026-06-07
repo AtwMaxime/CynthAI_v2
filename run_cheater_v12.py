@@ -29,7 +29,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     cfg = TrainingConfig(
-        run_name      = "cheater_v12",
+        run_name      = "cheater_v12b",
         resume        = args.resume,
         total_updates = 3000,
 
