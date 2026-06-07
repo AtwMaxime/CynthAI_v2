@@ -269,6 +269,11 @@ class TrainingConfig:
     use_victory_head: bool  = False
     c_victory:        float = 0.1   # weight for victory BCE loss
 
+    # Opponent mixing fractions (must sum to 1.0)
+    opp_fo_frac:   float = 0.25   # FullOffense fraction
+    opp_ema_frac:  float = 0.30   # EMA fraction
+    # remainder = pool fraction (1 - fo - ema)
+
     # Device
     device: str = "cpu"
 
@@ -611,13 +616,11 @@ def train(cfg: TrainingConfig = TrainingConfig()) -> None:
         t0 = time.perf_counter()
 
         # -- 1a. Opponent selection (P10b-P10c: EMA + pool + fixed policies) -----------
-        # Mixing: 0% Random / 25% FullOffense / 30% EMA / 45% pool
-        #         Pool fallback: EMA (plus stable que FullOffense une fois l'EMA chaude)
         roll = random.random()
-        if roll < 0.25:
+        if roll < cfg.opp_fo_frac:
             opponent = FullOffensePolicy()
             opp_label = "fo"
-        elif roll < 0.55:
+        elif roll < cfg.opp_fo_frac + cfg.opp_ema_frac:
             # 30% — EMA opponent (stable lagging self-play)
             if update > cfg.ema_warmup:
                 opponent = ema_opponent.sample(agent)
